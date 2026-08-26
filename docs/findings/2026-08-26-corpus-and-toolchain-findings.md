@@ -1,6 +1,6 @@
 # ReqTrace — corpus, toolchain & security findings
 
-Measured 2026-08-26 during WP1. Everything here comes from probing the real
+Measured 2026-08-26 during WP1, extended 2026-08-27 during WP4 (A7, C13, D5, D6). Everything here comes from probing the real
 AUTOSAR documents, the real `openAUTOSAR/classic-platform` repository and the
 real toolchain — not from reasoning about the plan. Figures are reproducible.
 
@@ -143,6 +143,41 @@ documents deliberately; this is the lever if the matrix should look fuller.
 redistribute, so this is a labelling correction, not a licensing problem.
 
 **To do.** Correct it in the README. Do not repeat the plan's wording.
+
+### A7. The sighted judge scores 100% on the negative set because it can read the answer
+**Measured in WP4**, over all 73 `!req` negatives that resolve into the corpus.
+
+Run as it ships, the judge agrees with **73 of 73** `!req` annotations — a
+false-positive rate of 0.0% and precision 1.00 on `implemented`. That number
+is not an accuracy. A code unit's span starts at its *attached comment block*
+(`ingestion/code_indexer.py` uses `_attached_comment_start`), so the
+`@req`/`!req` marker being scored against sits inside the source text the
+judge reads, on top of the explicit claim label the candidate list carries.
+
+**Blind** — claim label withheld, candidate relabelled `reference`, marker
+redacted from the source via `ReqAnnotation.raw` — the same 73 negatives give
+**6 false positives (8.2%)** and precision drops to **0.83**. Positives are
+barely affected (82% → 81% correct), which is the tell: the annotation was
+carrying the negative class, not the positive one.
+
+| mode | negatives correct | false positives | precision (`implemented`) | `unverifiable` on negatives |
+|---|---:|---:|---:|---:|
+| sighted | 100% | 0 | 1.00 | 0% |
+| blind | 67% | 6 | 0.83 | 19% |
+
+**Why it matters.** Publishing the sighted figure alone would put a
+fabricated 100% in the README. It measures something real — whether the judge
+respects and passes through what the developers documented, which is the
+property the shipped product needs — but it is not evidence that the judge
+can analyse code, and a table makes the two trivially easy to confuse.
+
+**Also worth keeping:** the blind run pushes 19% of negatives to
+`unverifiable` rather than guessing. That is the verdict spec §5 insisted on
+allowing, doing exactly the job it was allowed for.
+
+**To do.** Quote the blind row as the error rate; keep both, labelled. The
+`blind` flag lives in `engines/evidence.py` and is never used by the product —
+withholding real evidence would make every shipped verdict worse.
 
 ## B. Extraction findings (all already encoded — recorded so they are not re-derived)
 
@@ -336,6 +371,28 @@ stream. It therefore inherited streaming from the surrounding run, and the
 (`STREAMING_PURPOSES`). Every other purpose returns one JSON object, so
 streaming buys nothing and now cannot be switched on by a caller's context.
 
+### C13. chromadb caches every PersistentClient for the life of the process
+**Measured in WP4.** Three new test files each opened a Chroma store per test.
+Closing the SQLite pool is not enough:
+`chromadb.api.shared_system_client.SharedSystemClient` keeps a process-wide
+registry of every client by path, so each fixture left one live store behind.
+At around ninety of them the process ran out of file descriptors.
+
+**The symptom was a hang, not an error.** Runs stalled for minutes with no
+output; the one run that completed reported `InternalError: error
+communicating with database: Resource temporarily unavailable (os error 35)`
+from inside a fixture that was not itself at fault. `pytest -o
+faulthandler_timeout=45` is what turned the hang into that message.
+
+**Fixed** with `tests/support_engine.close_index`, which closes the pool *and*
+calls `SharedSystemClient.clear_system_cache()`. The pre-existing fixtures had
+the same leak and were merely under the threshold; they all go through the
+helper now.
+
+**Worth generalising:** a file-descriptor leak in a test suite presents as
+flakiness and hanging rather than as a resource error, and the failure it
+eventually produces names the wrong test.
+
 ## D. Cost and metering findings
 
 ### D1. OpenRouter returns actual cost — do not build a price table
@@ -411,6 +468,39 @@ Extrapolating that rate, embedding the whole 1054-requirement corpus costs
 well under one cent. `MAX_REPORT_COST_USD` therefore governs **judge calls
 during report generation**, not ingestion. Size the pre-launch cost estimate
 accordingly — estimating ingestion cost would be noise.
+
+### D5. "About four characters per token" under-quotes C source by ~45%
+**Measured in WP4** across three independent runs, against OpenRouter's own
+reported cost:
+
+| run | estimated | actual | ratio |
+|---|---:|---:|---:|
+| CanIf report, 324 to judge | $0.0950 | $0.1371 | 1.44x |
+| judge eval, sighted, 146 | $0.0443 | $0.0666 | 1.50x |
+| judge eval, blind, 146 | $0.0443 | $0.0626 | 1.41x |
+
+Three runs agreeing that closely is a constant, not noise. C is
+punctuation-dense and tokenises well below prose, and the estimate's prompt
+side is dominated by source text (497k of 569k tokens on the CanIf run).
+
+**Fixed** by setting `engines.report.CHARS_PER_TOKEN` to **2.8** — 4.0 divided
+by the mean of those ratios. It also absorbs two smaller unmodelled costs
+deliberately, rather than growing a second fudge factor: a structured reply
+that needed a retry is paid for twice, and tier 2 embeds a query per
+requirement.
+
+Only the *estimate* depends on it. Actual cost is always OpenRouter's own
+figure (D1), so an error here is a wrong quote, never a wrong bill.
+
+### D6. Judging the whole CanIf module costs about 14 cents
+**Measured.** 398 requirements, 9.6 minutes, **$0.1371** on
+`openai/gpt-4o-mini`, against the $2.00 ceiling and the manifest's $0.50
+target. Re-running the same scope costs **$0.00** and makes no model calls at
+all — 398 cache hits keyed `(req_id, git_sha, judge_model_id)`.
+
+The ceiling is therefore not the binding constraint at this corpus size. It
+exists for the whole-corpus scope (1054 requirements, extrapolating to ~$0.36)
+and for a re-pin that invalidates every verdict at once.
 
 ## E. Deferred minors (from reviews — triage before merge)
 
