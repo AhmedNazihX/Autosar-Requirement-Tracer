@@ -8,7 +8,11 @@ documents:
     url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANDriver.pdf
     filename: AUTOSAR_CP_SWS_CANDriver.pdf
     module: Can
-    req_id_pattern: 'SWS_Can(?:_CONSTR)?_\d+'
+    # The CAN Driver document is internally inconsistent about casing: 228 of
+    # its requirements are spelled SWS_Can_*, but 7 are spelled SWS_CAN_*
+    # (SWS_CAN_00491, 00496, 91025-91029). Both spellings must match or those
+    # 7 are silently dropped. The other three documents are self-consistent.
+    req_id_pattern: 'SWS_(?:Can|CAN)(?:_CONSTR)?_\d+'
     expected_requirements: 240
   - key: can_interface
     title: Specification of CAN Interface
