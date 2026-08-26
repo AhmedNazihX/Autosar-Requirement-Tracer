@@ -20,9 +20,11 @@ reader can reverse one without reconstructing the reasoning first.
 - **R28** — an accepted bounded loss of up to 200 characters of context
   prose per occurrence (zero occurrences in the current corpus), because the
   alternative rendered the rule inert.
-- **R27** — the checkpoint rail deviates from the approved design canvas.
-  The literal design left most dots unreachable, which defeated the
-  behaviour the spec requires of it.
+- ~~**R27** — the checkpoint rail deviates from the approved design
+  canvas.~~ **Resolved:** the owner reviewed the canvas on 2026-08-26 after
+  being told about the deviation and its reasoning, and accepted it. The
+  literal design left most dots unreachable, which defeated the behaviour
+  spec §11 requires of the rail. Not an open question — do not re-raise.
 
 Related: `docs/findings/2026-08-26-corpus-and-toolchain-findings.md` records
 what measurement revealed about the corpus and toolchain; this file records
