@@ -33,13 +33,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Annotated
+from typing import Annotated, Any
 
 from langchain_core.tools import BaseTool, InjectedToolCallId, StructuredTool
 
 from api.chat_events import CodeCitation, RagStage, RequirementCitation, UpstreamCitation
 from core import db
+from core.llm import Llm
 from core.models import Requirement
+from engines import evidence
+from engines.report import ReportScope, ScopeError
 from retrieval import pipeline
 from retrieval.lookup import InvalidRequirementId, lookup
 from retrieval.pipeline import Engine, PipelineUsage
@@ -107,6 +110,16 @@ class SideChannel:
         return [c for outcome in self._outcomes.values() for c in outcome.citations]
 
 
+#: What ``generate_traceability_report`` needs from the API layer: launch this
+#: scope, return something with ``job_id``, ``to_judge`` and ``est_cost_usd``.
+#:
+#: A callable rather than an import, because the launcher lives in
+#: :mod:`api.reports` and this module must not depend on FastAPI — the tools
+#: are the agent's, not the web layer's, and every test that builds a
+#: ``ToolContext`` would otherwise have to stand up an app.
+ReportLauncher = Callable[[Any], Any]
+
+
 @dataclass(frozen=True)
 class ToolContext:
     """What the tools need: the retrieval engine, document facts, a side channel."""
@@ -115,9 +128,22 @@ class ToolContext:
     doc_titles: dict[str, str]
     page_counts: dict[str, int]
     side: SideChannel
+    #: The tool-less judge for ``check_implementation`` (spec §8). ``None``
+    #: when no model could be built — the tool then says so instead of the
+    #: turn dying, which is the same rule every other tool follows.
+    judge_llm: Llm | None = None
+    #: Starts a background report for ``generate_traceability_report``.
+    launch_report: ReportLauncher | None = None
 
     @classmethod
-    def build(cls, engine: Engine, *, side: SideChannel | None = None) -> ToolContext:
+    def build(
+        cls,
+        engine: Engine,
+        *,
+        side: SideChannel | None = None,
+        judge_llm: Llm | None = None,
+        launch_report: ReportLauncher | None = None,
+    ) -> ToolContext:
         """Read the per-document facts a citation needs, once per turn.
 
         Titles come from the manifest and page counts from SQLite (story
@@ -131,6 +157,8 @@ class ToolContext:
             },
             page_counts=db.page_counts(engine.conn, engine.project_id),
             side=side if side is not None else SideChannel(),
+            judge_llm=judge_llm,
+            launch_report=launch_report,
         )
 
     def citation_of(self, requirement: Requirement) -> RequirementCitation:
@@ -386,6 +414,176 @@ def _search_code_tool(context: ToolContext) -> BaseTool:
 
 
 # --------------------------------------------------------------------------
+# check_implementation (story S4.3.2)
+# --------------------------------------------------------------------------
+
+_CHECK_DESCRIPTION = """\
+Check whether one requirement is implemented in the pinned C snapshot, and say \
+what the evidence is. Pass the requirement's exact id. Returns a verdict — \
+implemented, partial, missing or unverifiable — with the file and line span of \
+each piece of supporting code and a short reason. Use this when the user asks \
+whether something is implemented, where it is implemented, or for evidence \
+about one requirement. The snapshot implements an older AUTOSAR release than \
+the specifications, so `missing` is a common and expected answer rather than a \
+fault.\
+"""
+
+
+def _check_implementation_tool(context: ToolContext) -> BaseTool:
+    def check_implementation(
+        req_id: str,
+        tool_call_id: Annotated[str, InjectedToolCallId],
+    ) -> str:
+        if context.judge_llm is None:
+            return _fail(
+                context,
+                tool_call_id,
+                "no judge model is configured, so implementation cannot be checked",
+            )
+        try:
+            check = evidence.check_implementation(
+                context.engine, context.judge_llm, req_id
+            )
+        except Exception as exc:  # noqa: BLE001 - a tool must not kill the turn
+            return _fail(context, tool_call_id, _readable(exc))
+
+        verdict = check.verdict
+        citations: list[Citation] = []
+        if check.requirement is not None:
+            citations.append(context.citation_of(check.requirement))
+        citations.extend(
+            CodeCitation(
+                repo_path=item.file,
+                symbol=item.symbol,
+                line_span=item.lines,
+                git_sha=item.git_sha,
+            )
+            for item in verdict.evidence
+        )
+        context.side.record(
+            tool_call_id,
+            ToolOutcome(
+                summary=f"{check.req_id}: {verdict.status}",
+                citations=tuple(citations),
+                usage=check.usage,
+            ),
+        )
+
+        lines = [
+            f"verdict for {check.req_id}: {verdict.status} "
+            f"(confidence {verdict.confidence:.2f})",
+            verdict.rationale,
+        ]
+        if verdict.evidence:
+            lines.append("evidence:")
+            lines.extend(
+                f"- {item.file}:{item.lines[0]}-{item.lines[1]} ({item.symbol}) — "
+                f"{item.rationale}"
+                for item in verdict.evidence
+            )
+        else:
+            lines.append(
+                "No supporting code was identified in the pinned snapshot. Report "
+                "that as a finding about release drift, not as a defect."
+            )
+        return "\n".join(lines)
+
+    return StructuredTool.from_function(
+        check_implementation,
+        name="check_implementation",
+        description=_CHECK_DESCRIPTION,
+    )
+
+
+# --------------------------------------------------------------------------
+# generate_traceability_report (story S4.3.2)
+# --------------------------------------------------------------------------
+
+_REPORT_DESCRIPTION = """\
+Start a traceability report over a scope of requirements: every requirement in \
+scope is checked against the code and the result is a matrix of SRS → SWS → \
+verdict → evidence with coverage statistics. Scope it with `module` (Can, \
+CanIf, CanTp, CanSM), `document`, or an explicit list of `req_ids`; with none \
+of those it covers the whole corpus, which is slow and expensive. Set `rejudge` \
+to re-judge requirements that already have a cached verdict. Set `limit` for a \
+quick partial run. This starts a background job and returns immediately with \
+its id and a cost estimate — it does NOT return the finished matrix, so tell \
+the user the report is running and that they can follow it in the report \
+drawer. Never call this to answer a question about a single requirement; use \
+check_implementation for that.\
+"""
+
+
+def _report_tool(context: ToolContext) -> BaseTool:
+    def generate_traceability_report(
+        tool_call_id: Annotated[str, InjectedToolCallId],
+        module: str | None = None,
+        document: str | None = None,
+        req_ids: list[str] | None = None,
+        rejudge: bool = False,
+        limit: int | None = None,
+    ) -> str:
+        if context.launch_report is None:
+            return _fail(
+                context,
+                tool_call_id,
+                "reports cannot be started from this context",
+            )
+        try:
+            scope = ReportScope(
+                module=module,
+                document=document,
+                req_ids=req_ids,
+                rejudge=rejudge,
+                limit=limit,
+            )
+        except ValueError as exc:
+            return _fail(context, tool_call_id, f"that scope is not valid: {exc}")
+
+        try:
+            launched = context.launch_report(scope)
+        except ScopeError as exc:
+            return _fail(context, tool_call_id, str(exc))
+        except Exception as exc:  # noqa: BLE001 - a tool must not kill the turn
+            return _fail(context, tool_call_id, _readable(exc))
+
+        cost = (
+            f"about ${launched.est_cost_usd:.4f}"
+            if launched.est_cost_usd is not None
+            else f"an unknown amount ({launched.est_basis})"
+        )
+        context.side.record(
+            tool_call_id,
+            ToolOutcome(
+                summary=f"{launched.to_judge} to judge · {cost}",
+            ),
+        )
+
+        lines = [
+            f"Started a traceability report over {launched.scope_label}.",
+            f"job id: {launched.job_id}",
+            f"{launched.requirements} requirement(s) in scope; {launched.to_judge} "
+            f"still to judge and {launched.cached} already cached.",
+            f"estimated cost: {cost}, against a ${launched.ceiling_usd:.2f} ceiling.",
+            "The job runs in the background — it is not finished yet, so do not "
+            "describe its results. Tell the user it is running and that progress "
+            "and the matrix appear in the report drawer.",
+        ]
+        if launched.unknown_ids:
+            lines.append(
+                "Not in this corpus, and therefore not included: "
+                + ", ".join(launched.unknown_ids)
+            )
+        return "\n".join(lines)
+
+    return StructuredTool.from_function(
+        generate_traceability_report,
+        name="generate_traceability_report",
+        description=_REPORT_DESCRIPTION,
+    )
+
+
+# --------------------------------------------------------------------------
 # shared helpers
 # --------------------------------------------------------------------------
 
@@ -465,13 +663,17 @@ def _candidate_count(stages: Sequence[pipeline.StageLog]) -> int:
 # the registry
 # --------------------------------------------------------------------------
 
-#: name -> builder. WP4's story S4.3.2 adds ``check_implementation`` and
-#: ``generate_traceability_report`` here; that is the entire extension
-#: mechanism, and CLAUDE.md caps the abstraction at this dict on purpose.
+#: name -> builder. Story S4.3.2 added the last two, by adding two lines here;
+#: that is the entire extension mechanism, and CLAUDE.md caps the abstraction
+#: at this dict on purpose. The set must stay equal to ``TOOL_NAMES`` in
+#: ``api/chat_events.py`` and in ``frontend/lib/events.ts``, whose type guard
+#: silently drops a tool it does not know.
 TOOL_BUILDERS: dict[str, Callable[[ToolContext], BaseTool]] = {
     "lookup_requirement": _lookup_tool,
     "search_requirements": _search_requirements_tool,
     "search_code": _search_code_tool,
+    "check_implementation": _check_implementation_tool,
+    "generate_traceability_report": _report_tool,
 }
 
 

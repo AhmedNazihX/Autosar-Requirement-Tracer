@@ -125,6 +125,11 @@ class TurnDeps:
     chat: llm.Llm
     cost_sink: CostSink
     titler: llm.Llm | None = None
+    #: The tool-less judge behind ``check_implementation`` (spec §8). Built
+    #: here for the same reason ``titler`` is: it is the turn's one seam a
+    #: test can substitute, and building it at the call site would put a
+    #: network call inside the tool body.
+    judge: llm.Llm | None = None
 
 
 def build_engine(state: AppState) -> Engine:
@@ -166,4 +171,5 @@ def build_turn(state: AppState) -> TurnDeps:
         chat=chat,
         cost_sink=sink,
         titler=llm.chat_model(state.manifest, "title"),
+        judge=llm.chat_model(state.manifest, "judge"),
     )

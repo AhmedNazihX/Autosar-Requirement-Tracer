@@ -29,8 +29,10 @@ from agent.tools import (
     build_tools,
 )
 from api.chat_events import TOOL_NAMES, CodeCitation, RequirementCitation, UpstreamCitation
-from tests.support_engine import PAGE_COUNTS, build_engine, build_index
-from tests.support_llm import json_body
+from core.llm import chat_model
+from engines.report import ScopeError
+from tests.support_engine import MANIFEST, PAGE_COUNTS, build_engine, build_index
+from tests.support_llm import FakeOpenRouter, json_body
 
 NO_FILTER = {"module": None, "doc_type": None, "section": None}
 
@@ -43,12 +45,27 @@ def context(tmp_path: Path):
     parts["conn"].close_all()
 
 
-def make(parts, *, translate_replies=(), rerank_replies=()) -> tuple[ToolContext, dict]:
+def make(
+    parts,
+    *,
+    translate_replies=(),
+    rerank_replies=(),
+    judge_replies=(),
+    launch_report=None,
+) -> tuple[ToolContext, dict]:
     engine, translate_fake, rerank_fake = build_engine(
         parts, translate_replies=translate_replies, rerank_replies=rerank_replies
     )
-    ctx = ToolContext.build(engine, side=SideChannel())
-    return ctx, {"translate": translate_fake, "rerank": rerank_fake}
+    judge_fake = FakeOpenRouter(*judge_replies)
+    ctx = ToolContext.build(
+        engine,
+        side=SideChannel(),
+        judge_llm=chat_model(
+            MANIFEST, "judge", api_key="sk-test", http_client=judge_fake.http_client()
+        ),
+        launch_report=launch_report,
+    )
+    return ctx, {"translate": translate_fake, "rerank": rerank_fake, "judge": judge_fake}
 
 
 def tool_named(ctx: ToolContext, name: str):
@@ -65,9 +82,12 @@ def call(ctx: ToolContext, name: str, call_id: str = "call_1", **args) -> str:
 # --------------------------------------------------------------------------
 
 
-def test_the_three_retrieval_tools_are_registered(context):
+def test_all_five_tools_are_registered(context):
+    """Three retrieval tools from S3.2.1, two evidence tools from S4.3.2."""
     ctx, _ = make(context)
     assert sorted(tool.name for tool in build_tools(ctx)) == [
+        "check_implementation",
+        "generate_traceability_report",
         "lookup_requirement",
         "search_code",
         "search_requirements",
@@ -79,11 +99,14 @@ def test_every_registered_tool_is_a_name_the_frontend_knows():
     assert set(TOOL_BUILDERS) <= set(TOOL_NAMES)
 
 
-def test_the_registry_is_where_wp4_adds_its_two_tools(context):
-    """S4.3.2 registers check_implementation and generate_traceability_report."""
-    ctx, _ = make(context)
-    missing = set(TOOL_NAMES) - set(TOOL_BUILDERS)
-    assert missing == {"check_implementation", "generate_traceability_report"}
+def test_the_registry_covers_every_name_the_frontend_knows():
+    """The two lists must be equal, not merely compatible.
+
+    ``events.ts``'s type guard drops a tool it does not know, so a name here
+    and not there vanishes silently from the UI; a name there and not here is
+    a chip the frontend is prepared to draw and will never see.
+    """
+    assert set(TOOL_BUILDERS) == set(TOOL_NAMES)
 
 
 def test_a_subset_of_tools_can_be_built(context):
@@ -389,3 +412,203 @@ def test_only_requirements_become_citation_chips(context):
     assert not any(req_id.startswith("CTX_") for req_id in cited)
     # The prose is still shown to the model, which is the point of keeping it.
     assert "CTX_can_driver" in payload or len(cited) == 5
+
+
+# --------------------------------------------------------------------------
+# check_implementation (story S4.3.2)
+# --------------------------------------------------------------------------
+
+
+def verdict_reply(status="implemented", *, evidence_items=(), confidence=0.82):
+    return json_body(
+        {
+            "status": status,
+            "evidence": [{"candidate": n, "rationale": why} for n, why in evidence_items],
+            "confidence": confidence,
+            "rationale": f"scripted {status}.",
+        }
+    )
+
+
+class _Launched:
+    """What ``api.reports.launch_in_thread`` returns, minus FastAPI."""
+
+    def __init__(self, **fields):
+        self.__dict__.update(
+            {
+                "job_id": "job_1",
+                "scope_label": "module CanIf",
+                "requirements": 2,
+                "to_judge": 2,
+                "cached": 0,
+                "est_cost_usd": 0.0412,
+                "est_basis": "openrouter catalogue prices",
+                "ceiling_usd": 2.0,
+                "unknown_ids": [],
+                **fields,
+            }
+        )
+
+
+def test_check_implementation_reports_the_verdict_and_its_evidence(context):
+    ctx, _ = make(
+        context,
+        judge_replies=[verdict_reply("implemented", evidence_items=[(1, "it schedules it.")])],
+    )
+
+    payload = call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    assert "implemented" in payload
+    assert "communication/CanIf/src/CanIf.c:120-168" in payload
+    assert "it schedules it." in payload
+
+
+def test_check_implementation_cites_the_requirement_and_the_code(context):
+    """Spec §6: the source pane opens from structured events, never from prose."""
+    ctx, _ = make(
+        context,
+        judge_replies=[verdict_reply("partial", evidence_items=[(1, "half of it.")])],
+    )
+
+    call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    citations = ctx.side.outcome("call_1").citations
+    assert isinstance(citations[0], RequirementCitation)
+    assert citations[0].req_id == "SWS_CANIF_00023"
+    code = [c for c in citations if isinstance(c, CodeCitation)]
+    assert [(c.repo_path, c.line_span) for c in code] == [
+        ("communication/CanIf/src/CanIf.c", (120, 168))
+    ]
+
+
+def test_check_implementation_summarises_the_verdict_on_the_chip(context):
+    ctx, _ = make(context, judge_replies=[verdict_reply("missing")])
+
+    call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    assert ctx.side.outcome("call_1").summary == "SWS_CANIF_00023: missing"
+
+
+def test_check_implementation_frames_a_missing_verdict_as_release_drift(context):
+    """Finding A1: most of the CAN Driver has no implementation here, and a
+    tool that implied a defect would teach the model to say so 239 times."""
+    ctx, _ = make(context, judge_replies=[verdict_reply("missing")])
+
+    payload = call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    assert "release drift" in payload
+    assert "not as a defect" in payload
+
+
+def test_check_implementation_survives_an_unknown_id(context):
+    ctx, _ = make(context, judge_replies=[])
+
+    payload = call(ctx, "check_implementation", req_id="SWS_Can_99999")
+
+    assert "unverifiable" in payload
+    assert ctx.side.outcome("call_1").ok
+
+
+def test_check_implementation_says_so_when_no_judge_is_configured(context):
+    engine, _, _ = build_engine(context)
+    ctx = ToolContext.build(engine, side=SideChannel())
+
+    payload = call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    assert "could not complete" in payload
+    assert not ctx.side.outcome("call_1").ok
+
+
+# --------------------------------------------------------------------------
+# generate_traceability_report (story S4.3.2)
+# --------------------------------------------------------------------------
+
+
+def test_the_report_tool_launches_a_job_and_reports_the_estimate(context):
+    seen = []
+    ctx, _ = make(
+        context,
+        launch_report=lambda scope: (seen.append(scope), _Launched())[1],
+    )
+
+    payload = call(ctx, "generate_traceability_report", module="CanIf")
+
+    assert seen[0].module == "CanIf"
+    assert "job_1" in payload
+    assert "$0.0412" in payload
+    assert "$2.00 ceiling" in payload
+
+
+def test_the_report_tool_tells_the_model_the_job_is_not_finished(context):
+    """The tool returns in milliseconds and the run takes minutes. Without
+    this the model narrates a matrix that does not exist yet."""
+    ctx, _ = make(context, launch_report=lambda scope: _Launched())
+
+    payload = call(ctx, "generate_traceability_report", module="CanIf")
+
+    assert "not finished yet" in payload
+    assert "do not describe its results" in payload
+
+
+def test_the_report_tool_passes_every_scope_option_through(context):
+    seen = []
+    ctx, _ = make(
+        context, launch_report=lambda scope: (seen.append(scope), _Launched())[1]
+    )
+
+    call(
+        ctx,
+        "generate_traceability_report",
+        req_ids=["SWS_Can_00011"],
+        rejudge=True,
+        limit=5,
+    )
+
+    scope = seen[0]
+    assert (scope.req_ids, scope.rejudge, scope.limit) == (["SWS_Can_00011"], True, 5)
+
+
+def test_the_report_tool_reports_an_unknown_scope_as_a_failure(context):
+    def boom(scope):
+        raise ScopeError("no module 'Ethernet' in this corpus (known: Can, CanIf)")
+
+    ctx, _ = make(context, launch_report=boom)
+
+    payload = call(ctx, "generate_traceability_report", module="Ethernet")
+
+    assert "Ethernet" in payload
+    assert not ctx.side.outcome("call_1").ok
+
+
+def test_the_report_tool_reports_an_unavailable_estimate_honestly(context):
+    ctx, _ = make(
+        context,
+        launch_report=lambda scope: _Launched(
+            est_cost_usd=None, est_basis="estimate unavailable — ConnectError"
+        ),
+    )
+
+    payload = call(ctx, "generate_traceability_report", module="CanIf")
+
+    assert "unknown amount" in payload
+    assert "ConnectError" in payload
+
+
+def test_the_report_tool_mentions_ids_that_are_not_in_the_corpus(context):
+    ctx, _ = make(
+        context,
+        launch_report=lambda scope: _Launched(unknown_ids=["SWS_Can_99999"]),
+    )
+
+    payload = call(ctx, "generate_traceability_report", req_ids=["SWS_Can_99999"])
+
+    assert "SWS_Can_99999" in payload
+
+
+def test_the_report_tool_says_so_when_it_cannot_launch(context):
+    ctx, _ = make(context)  # no launcher wired
+
+    payload = call(ctx, "generate_traceability_report", module="CanIf")
+
+    assert "could not complete" in payload
+    assert not ctx.side.outcome("call_1").ok

@@ -230,33 +230,22 @@ REGISTRY = _Registry()
 # --------------------------------------------------------------------------
 
 
-@router.post("/reports", response_model=LaunchResponse)
-def launch(
-    body: LaunchRequest,
-    background: BackgroundTasks,
-    state: deps.AppState = Depends(deps.state_of),
-) -> LaunchResponse:
-    """Estimate the run, register it, and start it in the background."""
-    if not state.ready:
-        raise HTTPException(status_code=409, detail=NOT_READY_MESSAGE)
+def prepare(state: deps.AppState, scope: ReportScope) -> tuple[_Run, LaunchResponse]:
+    """Estimate ``scope`` and register a run for it, without starting it.
 
-    scope = body.scope
-    try:
-        engine = deps.build_engine(state)
-        judge = llm.chat_model(state.manifest, "judge")
-    except Exception as exc:  # noqa: BLE001 - a missing key must read as a 409
-        raise HTTPException(
-            status_code=409, detail=f"A report cannot be started: {exc}"
-        ) from exc
+    Separate from starting because there are two callers with different ways
+    of running the job: the endpoint hands it to a ``BackgroundTask``, while
+    the agent's ``generate_traceability_report`` tool is already deep inside a
+    streaming response and has to spawn a thread. Both must produce the same
+    registry entry, the same stored row, and the same estimate — so that part
+    lives here rather than twice.
 
-    try:
-        requirements, unknown = report.resolve_scope(engine, scope)
-    except ScopeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    estimate = report.estimate_cost(
-        engine, judge.model_id, requirements, rejudge=scope.rejudge
-    )
+    Raises :class:`ScopeError` for a scope this corpus cannot satisfy.
+    """
+    engine = deps.build_engine(state)
+    judge = llm.chat_model(state.manifest, "judge")
+    requirements, unknown = report.resolve_scope(engine, scope)
+    estimate = report.estimate_cost(engine, judge.model_id, requirements, rejudge=scope.rejudge)
     ceiling = report.ceiling_usd(state.manifest, get_settings())
 
     run = _Run(
@@ -275,9 +264,7 @@ def launch(
         est_cost_usd=estimate.usd,
         run_id=run.id,
     )
-    background.add_task(_execute, state, run)
-
-    return LaunchResponse(
+    return run, LaunchResponse(
         job_id=run.id,
         status="running",
         scope_label=scope.label(),
@@ -289,6 +276,44 @@ def launch(
         ceiling_usd=ceiling,
         unknown_ids=unknown,
     )
+
+
+def launch_in_thread(state: deps.AppState, scope: ReportScope) -> LaunchResponse:
+    """:func:`prepare`, then run it on a daemon thread.
+
+    For the agent tool. A ``BackgroundTask`` is not available there — it runs
+    after a response is returned, and a chat turn's response is a stream that
+    is still open. The thread is a daemon so it cannot hold the process open
+    past shutdown; the lifespan cancels it first anyway.
+    """
+    run, response = prepare(state, scope)
+    threading.Thread(
+        target=_execute, args=(state, run), name=f"report-{run.id}", daemon=True
+    ).start()
+    return response
+
+
+@router.post("/reports", response_model=LaunchResponse)
+def launch(
+    body: LaunchRequest,
+    background: BackgroundTasks,
+    state: deps.AppState = Depends(deps.state_of),
+) -> LaunchResponse:
+    """Estimate the run, register it, and start it in the background."""
+    if not state.ready:
+        raise HTTPException(status_code=409, detail=NOT_READY_MESSAGE)
+
+    try:
+        run, response = prepare(state, body.scope)
+    except ScopeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - a missing key must read as a 409
+        raise HTTPException(
+            status_code=409, detail=f"A report cannot be started: {exc}"
+        ) from exc
+
+    background.add_task(_execute, state, run)
+    return response
 
 
 def _execute(state: deps.AppState, run: _Run) -> None:

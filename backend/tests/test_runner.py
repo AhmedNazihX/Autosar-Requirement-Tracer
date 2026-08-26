@@ -126,7 +126,15 @@ def parts(tmp_path: Path):
     built["conn"].close_all()
 
 
-def turn(parts, message: str, *chat_replies, translate_replies=(), rerank_replies=()):
+def turn(
+    parts,
+    message: str,
+    *chat_replies,
+    translate_replies=(),
+    rerank_replies=(),
+    judge_replies=(),
+    launch_report=None,
+):
     """Run one turn against a scripted chat model; return the events it emitted."""
     engine, _, _ = build_engine(
         parts, translate_replies=translate_replies, rerank_replies=rerank_replies
@@ -141,7 +149,17 @@ def turn(parts, message: str, *chat_replies, translate_replies=(), rerank_replie
         api_key="sk-test",
         http_client=sniffing_client(sink, transport=chat_fake.transport()),
     )
-    context = ToolContext.build(engine, side=SideChannel())
+    context = ToolContext.build(
+        engine,
+        side=SideChannel(),
+        judge_llm=chat_model(
+            MANIFEST,
+            "judge",
+            api_key="sk-test",
+            http_client=FakeOpenRouter(*judge_replies).http_client(),
+        ),
+        launch_report=launch_report,
+    )
     events = list(run_turn(context, chat, message, cost_sink=sink))
     return events, chat_fake
 
@@ -319,6 +337,8 @@ def test_the_tools_reach_the_model_on_the_wire(parts):
         "lookup_requirement",
         "search_requirements",
         "search_code",
+        "check_implementation",
+        "generate_traceability_report",
     }
 
 
@@ -432,3 +452,109 @@ def test_a_blank_message_is_refused_before_any_model_call(parts):
     with pytest.raises(ValueError, match="empty"):
         list(run_turn(context, chat, "   "))
     assert chat_fake.calls == 0
+
+
+# --------------------------------------------------------------------------
+# the evidence tools in a conversation (story S4.3.2's acceptance)
+# --------------------------------------------------------------------------
+
+
+class _Launched:
+    """A stand-in for ``api.reports.launch_in_thread``'s response."""
+
+    job_id = "job_1"
+    scope_label = "module CanIf"
+    requirements = 398
+    to_judge = 217
+    cached = 181
+    est_cost_usd = 0.0412
+    est_basis = "openrouter catalogue prices"
+    ceiling_usd = 2.0
+    unknown_ids: list[str] = []
+
+
+def test_a_conversation_triggers_an_evidence_check(parts):
+    """S4.3.2, half one: the agent calls check_implementation and the turn
+    produces the chip, the verdict summary and the code citation."""
+    events, _ = turn(
+        parts,
+        "Is SWS_CANIF_00023 implemented?",
+        calls("check_implementation", {"req_id": "SWS_CANIF_00023"}),
+        says("Yes — CanIf_Transmit implements it."),
+        judge_replies=[
+            json_body(
+                {
+                    "status": "implemented",
+                    "evidence": [{"candidate": 1, "rationale": "it schedules the buffer."}],
+                    "confidence": 0.86,
+                    "rationale": "The definition performs the mandated scheduling.",
+                }
+            )
+        ],
+    )
+
+    started = only(events, "tool_start")[0]
+    assert started.tool == "check_implementation"
+    assert started.args == {"req_id": "SWS_CANIF_00023"}
+
+    result = only(events, "tool_result")[0]
+    assert result.status == "ok"
+    assert result.summary == "SWS_CANIF_00023: implemented"
+
+    code = [c for c in only(events, "citation") if c.kind == "code"]
+    assert code[0].repo_path == "communication/CanIf/src/CanIf.c"
+    assert types_of(events)[-2:] == ["usage", "done"]
+
+
+def test_a_conversation_launches_a_traceability_report(parts):
+    """S4.3.2, half two: the agent calls generate_traceability_report and the
+    job is started with the scope it asked for."""
+    launched = []
+    events, _ = turn(
+        parts,
+        "Run a traceability report over CanIf.",
+        calls("generate_traceability_report", {"module": "CanIf"}),
+        says("The report is running."),
+        launch_report=lambda scope: (launched.append(scope), _Launched())[1],
+    )
+
+    assert [scope.module for scope in launched] == ["CanIf"]
+    started = only(events, "tool_start")[0]
+    assert started.tool == "generate_traceability_report"
+    result = only(events, "tool_result")[0]
+    assert result.status == "ok"
+    assert "217 to judge" in result.summary
+    assert types_of(events)[-2:] == ["usage", "done"]
+
+
+def test_a_report_launch_emits_no_citations(parts):
+    """A launched job has no verdicts yet, so there is nothing to point at."""
+    events, _ = turn(
+        parts,
+        "Report on CanIf.",
+        calls("generate_traceability_report", {"module": "CanIf"}),
+        says("Running."),
+        launch_report=lambda scope: _Launched(),
+    )
+
+    assert only(events, "citation") == []
+
+
+def test_the_system_prompt_separates_the_two_evidence_tools(parts):
+    """One requirement is a check; a module is a report. Conflating them
+    either spends a report's money on one row or answers one row with a job
+    that has produced nothing yet."""
+    _, chat_fake = turn(parts, "hello", says("hi"))
+
+    system = chat_fake.requests[0]["messages"][0]["content"]
+    assert "check_implementation" in system
+    assert "generate_traceability_report" in system
+    assert "does not return the matrix" in system
+    assert "Do not use it for a single requirement" in system
+
+
+def test_the_system_prompt_forbids_editorialising_a_verdict(parts):
+    _, chat_fake = turn(parts, "hello", says("hi"))
+
+    system = chat_fake.requests[0]["messages"][0]["content"]
+    assert "do not upgrade `partial`" in system
