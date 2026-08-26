@@ -366,3 +366,26 @@ def test_two_calls_in_one_turn_are_recorded_separately(context):
 def test_an_unrecorded_call_id_has_no_outcome(context):
     ctx, _ = make(context)
     assert ctx.side.outcome("never-called") is None
+
+
+def test_only_requirements_become_citation_chips(context):
+    """Context prose informs the answer but is not a citable requirement.
+
+    Its id is synthetic (``CTX_can_driver_6_14``) and the frontend renders a
+    chip as ``[{req_id}]``, so citing prose shows the user a meaningless
+    label. Found on the real corpus: two of five chips for a bus-off question
+    were CTX ids.
+    """
+    ctx, _ = make(
+        context,
+        translate_replies=[json_body({"queries": ["bus off"]}), json_body(NO_FILTER)],
+        rerank_replies=[json_body({"order": [1, 2, 3, 4, 5]})],
+    )
+
+    payload = call(ctx, "search_requirements", query="how is bus-off reported?", top_n=5)
+
+    cited = {c.req_id for c in ctx.side.outcome("call_1").citations}
+    assert cited, "requirements must still be cited"
+    assert not any(req_id.startswith("CTX_") for req_id in cited)
+    # The prose is still shown to the model, which is the point of keeping it.
+    assert "CTX_can_driver" in payload or len(cited) == 5

@@ -269,7 +269,17 @@ def _search_requirements_tool(context: ToolContext) -> BaseTool:
             return _fail(context, tool_call_id, _readable(exc))
 
         stages = _rag_stages(result.stages)
-        citations = [context.citation_of(item.requirement) for item in result.results]
+        # Only requirements become citation chips. Context prose is retrieved
+        # and shown to the model — it genuinely helps answer "how does this
+        # work?" — but its id is synthetic (`CTX_can_driver_6_14`), and the
+        # frontend renders a chip as `[{req_id}]`, so citing it puts a
+        # meaningless label in front of the user. Verified on the real corpus:
+        # 2 of 5 chips for a bus-off question were CTX ids.
+        citations = [
+            context.citation_of(item.requirement)
+            for item in result.results
+            if item.requirement.doc_type == "requirement"
+        ]
         candidates = _candidate_count(result.stages)
         context.side.record(
             tool_call_id,

@@ -302,10 +302,39 @@ fails on the first request served by another worker. The Engine's other three
 dependencies are safe to share (immutable BM25 index, thread-safe Chroma
 client, connection-less embedding client).
 
-**To do (WP3):** build the Engine per request from a per-request connection,
-keeping index/collection/models in application state. `check_same_thread=False`
-silences the error without making interleaved use of one connection safe.
-Recorded in the `Engine` docstring too.
+**To do (WP3):** ~~build the Engine per request~~ — **that was not enough.**
+See C11.
+
+### C11. LangGraph runs tool nodes on a thread pool, and `check_same_thread=False` is a trap
+**Measured in WP3.** C10 concluded "build the Engine per request". Wrong: the
+agent is multi-threaded *within* one request — `create_agent`'s tool node runs
+on a thread pool — so every tool call failed on SQLite's same-thread check even
+with a per-request connection.
+
+**The trap.** `sqlite3.threadsafety` is **3** ("serialized") on this build,
+which reads like permission to share a connection with
+`check_same_thread=False`. Measured: 8 threads × 40 reads on one shared
+connection produced **6 errors in 101 reads** (`InterfaceError: bad parameter or
+other API misuse`) **and one read returned the wrong row**.
+`Connection.execute` allocates an implicit cursor, and concurrent
+implicit-cursor use races. The wrong-row case is the dangerous one — an
+occasional production mystery rather than a crash.
+
+**Fixed** with `core.db.pooled`: one connection per thread onto the same file.
+WAL already allows concurrent readers and SQLite serialises writes.
+`tests/test_db_threads.py` pins the trap down so the pool cannot be
+"simplified" away.
+
+### C12. Nested model calls inherit streaming inside a LangGraph run
+**Measured.** The self-query stage runs *inside* a tool, i.e. inside the agent's
+stream. It therefore inherited streaming from the surrounding run, and the
+`openai` SDK's structured-output path died on an internal assertion
+(`assert self.__current_completion_snapshot is not None` in
+`get_final_completion`).
+
+**Fixed** by pinning streaming per purpose in `core.llm`: only `chat` streams
+(`STREAMING_PURPOSES`). Every other purpose returns one JSON object, so
+streaming buys nothing and now cannot be switched on by a caller's context.
 
 ## D. Cost and metering findings
 
@@ -314,7 +343,40 @@ A live embeddings call returned
 `{'prompt_tokens': 14, 'total_tokens': 14, 'cost': 2.8e-07, …}`.
 **To do (F3.1 / S5.2.4):** report OpenRouter's own `cost` figure rather than
 estimating from hard-coded per-model prices. More accurate, and nothing to
-maintain as prices change.
+maintain as prices change. **But see D3 — it is not always reachable.**
+
+### D3. langchain-openai discards `usage.cost` on the streaming path
+**Measured in WP3** against langchain-openai 1.6.0. A *streamed* reply's token
+counts reach `AIMessageChunk.usage_metadata`, but the provider's raw usage dict
+— the only place `cost` appears — is dropped: `response_metadata` on the usage
+chunk is `{}`. `stream_usage=True` adds `stream_options.include_usage` to the
+request but changes nothing about what survives the parse. Non-streaming calls
+keep it in `response_metadata["token_usage"]["cost"]`.
+
+That is the one figure D1 forbids estimating, and it belongs to the *chat*
+model — streamed, because the streaming answer is the product, and the largest
+cost in a turn.
+
+**Fixed** by `core.usage_sniffer`: a transport wrapper that reads `usage.cost`
+off the HTTP response. The subtlety, which needed a test rather than a comment:
+the SDK stops reading the body at `data: [DONE]` and abandons the generator, so
+anything that scans *after* the iteration loop never runs. The first version did
+exactly that, sniffed nothing, and passed every other assertion.
+
+**Rejected:** a price table (forbidden by D1); OpenRouter's `/generation?id=`
+endpoint (extra round trip per turn, figure lags); subclassing `ChatOpenAI`
+(fragile across releases, and it would need re-verifying anyway).
+
+### D4. This OpenRouter account cannot reach the pinned chat model
+**Measured.** `anthropic/claude-sonnet-4.5` returns
+`404 — "No endpoints available matching your guardrail restrictions and data
+policy"`. `openai/gpt-4o-mini` and the embedding model work, so the key is
+fine and only the Anthropic route is blocked.
+
+**To do (owner action):** allow the provider at
+<https://openrouter.ai/settings/privacy>, or re-pin `models.chat` in
+`project.yaml` to a reachable model. The agent was verified end-to-end on
+`openai/gpt-4o-mini` in the meantime; nothing in the code needs to change.
 
 ### D2. Ingestion is effectively free; the cost ceiling is about judging
 Extrapolating that rate, embedding the whole 1054-requirement corpus costs
