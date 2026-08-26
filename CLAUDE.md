@@ -44,6 +44,7 @@ Implementation has not started yet. The repo currently contains the brief and th
 
 - Never add "Co-Authored-By" lines to commits or include Claude attribution in commit messages and PR descriptions.
 - Do NOT Commit any secrets — no API keys, passwords, or tokens in the files
+- After any dependency change, regenerate dependencies.txt with `make deps` (or `python3 scripts/gen_dependencies.py`) do not edit by hand.
 - Don't add any external libraries or packages without asking me first
 - Never delete anything without asking for permission while providing a sentance summary of why you are deleting it
 - If anything is unclear, ask me a question before making assumptions.
