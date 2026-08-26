@@ -482,3 +482,78 @@ def test_a_stored_verdict_round_trips_through_json(parts):
     second = evidence.check_implementation(engine, judge_llm, "SWS_CANIF_00023")
 
     assert second.verdict == first.verdict
+
+
+# --------------------------------------------------------------------------
+# blind mode — the measurement channel for story S4.4.2
+# --------------------------------------------------------------------------
+
+
+def test_blind_mode_withholds_the_claim_label(parts):
+    engine, _, _ = build_engine(parts)
+    requirement = requirement_of(parts, "SWS_CANIF_00329")
+    candidates, _, _ = evidence.gather_candidates(engine, requirement)
+    judge_llm, fake = make_judge(verdict_body("missing"))
+
+    evidence.judge(judge_llm, requirement, candidates, blind=True)
+
+    prompt = fake.prompt_of(0)
+    assert "!req — the developers state" not in prompt
+    assert "found by reference" in prompt
+
+
+def test_blind_mode_redacts_the_marker_from_the_source_too(parts):
+    """A unit's span starts at its attached comment block, so the annotation
+    is inside the code the judge reads. Blinding only the header would leave
+    the answer in the body — which is what a first version did."""
+    engine, _, _ = build_engine(parts)
+    conn = parts["conn"]
+    unit = db.list_code_units_by_annotation(conn, PROJECT, "SWS_CANIF_00329")[0]
+    conn.execute(
+        "UPDATE code_units SET text = ? WHERE repo_path = ? AND kind = ? AND symbol = ? "
+        "AND line_span_start = ?",
+        (
+            "/* !req 4.0.3/SWS_CANIF_00329 */\nStd_ReturnType CanIf_Transmit(void) { x(); }",
+            unit.repo_path,
+            unit.kind,
+            unit.symbol,
+            unit.line_span[0],
+        ),
+    )
+    conn.commit()
+    requirement = requirement_of(parts, "SWS_CANIF_00329")
+    candidates, _, _ = evidence.gather_candidates(engine, requirement)
+    judge_llm, fake = make_judge(verdict_body("missing"))
+
+    evidence.judge(judge_llm, requirement, candidates, blind=True)
+
+    prompt = fake.prompt_of(0)
+    assert "!req 4.0.3/SWS_CANIF_00329" not in prompt
+    assert evidence.REDACTED_MARKER in prompt
+
+
+def test_the_product_path_still_shows_the_annotation(parts):
+    """Blinding is a measurement mode, never the product's behaviour: the
+    annotations are real evidence and hiding them makes every verdict worse."""
+    engine, _, _ = build_engine(parts)
+    requirement = requirement_of(parts, "SWS_CANIF_00329")
+    candidates, _, _ = evidence.gather_candidates(engine, requirement)
+    judge_llm, fake = make_judge(verdict_body("missing"))
+
+    evidence.judge(judge_llm, requirement, candidates)
+
+    assert "!req — the developers state" in fake.prompt_of(0)
+
+
+def test_blind_verdicts_are_cached_apart_from_sighted_ones(parts):
+    """Two different questions were asked, so two different answers are
+    stored — a shared key would serve a blind verdict to the product."""
+    engine, _, _ = build_engine(parts)
+    judge_llm, fake = make_judge(verdict_body("implemented"), verdict_body("missing"))
+
+    sighted = evidence.check_implementation(engine, judge_llm, "SWS_CANIF_00023")
+    blind = evidence.check_implementation(engine, judge_llm, "SWS_CANIF_00023", blind=True)
+
+    assert fake.calls == 2
+    assert not blind.cached
+    assert (sighted.verdict.status, blind.verdict.status) == ("implemented", "missing")

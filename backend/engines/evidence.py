@@ -94,6 +94,14 @@ BY_ANNOTATION: FoundBy = "annotation"
 BY_SYMBOL: FoundBy = "symbol"
 BY_SEMANTIC: FoundBy = "semantic"
 
+#: What an annotation-found candidate is called in ``blind`` mode: the fact
+#: that a comment names the requirement is kept, its claim is not.
+BY_REFERENCE: FoundBy = "reference"
+
+#: Stands in for a redacted annotation, so the judge sees that something was
+#: withheld rather than reading a comment with a hole in it.
+REDACTED_MARKER = "[requirement annotation withheld]"
+
 #: Definitions before declarations. A header prototype is not an
 #: implementation, so an annotated prototype must never outrank an annotated
 #: definition in the candidate list (the same priority
@@ -400,6 +408,52 @@ Cite evidence by candidate NUMBER. Return only the JSON object the schema \
 describes.\
 """
 
+#: The same task with the annotation channel closed — used only by story
+#: S4.4.2's blind evaluation. It is a separate string rather than a
+#: conditional inside :data:`SYSTEM_PROMPT` so that the product prompt cannot
+#: be changed by accident while editing the measurement one, and so that a
+#: diff shows exactly what the judge was and was not told.
+BLIND_SYSTEM_PROMPT = """\
+You decide whether a specification requirement is implemented by a snapshot of \
+C source code, reading only the code.
+
+You will see one requirement and up to {max_candidates} numbered candidate code \
+units. Return one of four statuses:
+
+- implemented — a candidate clearly performs what the requirement mandates.
+- partial — some of the mandated behaviour is present, or it is present only \
+for some of the cases the requirement covers.
+- missing — the candidates are relevant enough to judge, and none of them \
+implements the requirement.
+- unverifiable — you cannot tell from what you were shown: the candidates are \
+unrelated, or the requirement is about configuration, documentation or \
+naming that source code cannot settle.
+
+`unverifiable` is a correct and expected answer. Never guess `missing` when \
+you mean "I cannot tell"; they are different statements about this code.
+
+Weigh the candidates by how each was found:
+
+- reference — a developer comment in this unit names this requirement. \
+Whether that comment claims the requirement implemented or explicitly \
+unimplemented has been withheld from you deliberately, and the marker is \
+redacted from the source. Decide from the code itself.
+- symbol — the requirement names this function by name. Strong relevance.
+- semantic — retrieved because it reads similarly. It may be unrelated, and \
+often is; a candidate found this way alone rarely supports `implemented`.
+
+A prototype or a declaration is not an implementation. A macro or a type \
+definition satisfies a requirement only when the requirement is about that \
+declaration.
+
+This snapshot implements an older release of the standard than the \
+specification does, so a requirement with no implementation is an ordinary and \
+expected outcome, not a defect to explain away.
+
+Cite evidence by candidate NUMBER. Return only the JSON object the schema \
+describes.\
+"""
+
 
 def judge(
     llm: Llm,
@@ -407,12 +461,23 @@ def judge(
     candidates: Sequence[Candidate],
     *,
     max_candidate_chars: int = MAX_CANDIDATE_CHARS,
+    blind: bool = False,
 ) -> tuple[Verdict, LlmUsage]:
     """Tier 3: one tool-less structured call, resolved back onto real code.
 
     ``llm`` must be tool-less (spec §8): retrieved source is untrusted input,
     it is fenced as data here, and the worst an injected instruction can then
     achieve is one wrong verdict rather than an action.
+
+    ``blind`` withholds every trace of the ``@req``/``!req`` annotations — the
+    per-candidate claim line *and* the marker text inside the source, since a
+    unit's span starts at its leading comment block
+    (``ingestion/code_indexer.py``) and therefore contains the annotation
+    verbatim. It exists for story S4.4.2 and only for it: those annotations
+    are that evaluation's ground truth, so a judge that can read them is being
+    handed the answer, and the resulting accuracy would measure obedience
+    rather than analysis. Never set it in the product path — the annotations
+    are real evidence and withholding them would make every verdict worse.
     """
     empty_usage = LlmUsage(purpose=llm.purpose)
 
@@ -433,12 +498,14 @@ def judge(
         )
 
     shown = list(candidates)
+    prompt = BLIND_SYSTEM_PROMPT if blind else SYSTEM_PROMPT
+    rendered = _render(shown, max_candidate_chars, blind=blind)
     messages = [
-        system(SYSTEM_PROMPT.format(max_candidates=len(shown))),
+        system(prompt.format(max_candidates=len(shown))),
         user(
             f"{fence(REQUIREMENT_FENCE, _requirement_block(requirement), what='requirement')}"
             f"\n\n"
-            f"{fence(CANDIDATES_FENCE, _render(shown, max_candidate_chars), what='C source')}"
+            f"{fence(CANDIDATES_FENCE, rendered, what='C source')}"
         ),
     ]
 
@@ -483,6 +550,7 @@ def check_implementation(
     *,
     use_cache: bool = True,
     limit: int = MAX_CANDIDATES,
+    blind: bool = False,
 ) -> EvidenceCheck:
     """All three tiers for one requirement, cache first.
 
@@ -526,9 +594,10 @@ def check_implementation(
     requirement = hit.requirement
     git_sha = engine.manifest.code.git_sha
 
+    cache_model_id = f"{judge_llm.model_id}#blind" if blind else judge_llm.model_id
     if use_cache:
         cached = db.get_verdict(
-            engine.conn, Requirement.canonical_id(requirement.id), git_sha, judge_llm.model_id
+            engine.conn, Requirement.canonical_id(requirement.id), git_sha, cache_model_id
         )
         if cached is not None:
             return EvidenceCheck(
@@ -539,13 +608,13 @@ def check_implementation(
             )
 
     candidates, usage, stages = gather_candidates(engine, requirement, limit=limit)
-    verdict, judge_usage = judge(judge_llm, requirement, candidates)
+    verdict, judge_usage = judge(judge_llm, requirement, candidates, blind=blind)
 
     db.put_verdict(
         engine.conn,
         Requirement.canonical_id(requirement.id),
         git_sha,
-        judge_llm.model_id,
+        cache_model_id,
         verdict.model_dump(mode="json"),
         engine.project_id,
     )
@@ -589,21 +658,40 @@ def _requirement_block(requirement: Requirement) -> str:
     return "\n".join(lines)
 
 
-def _render(candidates: Sequence[Candidate], max_chars: int) -> str:
+def _render(candidates: Sequence[Candidate], max_chars: int, *, blind: bool = False) -> str:
     """Numbered candidates, each headed by how it was found."""
     blocks = []
     for position, candidate in enumerate(candidates, start=1):
         unit = candidate.unit
         start, end = unit.line_span
+        found_by = BY_REFERENCE if (blind and candidate.claim is not None) else candidate.found_by
         head = (
             f"[{position}] {unit.repo_path}:{start}-{end} "
-            f"({unit.kind} {unit.symbol}) — found by {candidate.found_by}"
+            f"({unit.kind} {unit.symbol}) — found by {found_by}"
         )
-        if candidate.claim is not None:
+        if candidate.claim is not None and not blind:
             lines = ", ".join(str(line) for line in candidate.annotation_lines)
             head += f"\n    {_CLAIM_LABEL[candidate.claim]} (line {lines})"
-        blocks.append(f"{head}\n{_clip(unit.text, max_chars)}")
+        text = redact_annotations(unit) if blind else unit.text
+        blocks.append(f"{head}\n{_clip(text, max_chars)}")
     return "\n\n".join(blocks)
+
+
+def redact_annotations(unit: CodeUnit) -> str:
+    """``unit.text`` with every ``@req``/``!req`` marker removed.
+
+    A code unit's span begins at its attached comment block
+    (``ingestion/code_indexer.py``), so the annotation text is *inside* the
+    source the judge reads. Hiding only the per-candidate label would blind
+    the header and leave the answer in the body.
+
+    ``ReqAnnotation.raw`` is the matched text verbatim, so the removal is
+    exact rather than a second regex that could drift from the manifest's.
+    """
+    text = unit.text
+    for annotation in unit.req_annotations:
+        text = text.replace(annotation.raw, REDACTED_MARKER)
+    return text
 
 
 def _clip(text: str, max_chars: int) -> str:

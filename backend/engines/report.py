@@ -386,6 +386,7 @@ def run_report(
     ceiling: float,
     on_progress: ProgressFn | None = None,
     should_stop: Callable[[], bool] | None = None,
+    blind: bool = False,
 ) -> ReportResult:
     """Judge every requirement in ``scope``, stopping at ``ceiling``.
 
@@ -395,6 +396,9 @@ def run_report(
     verdict paid for before it.
 
     ``should_stop`` lets the API cancel a run between requirements.
+
+    ``blind`` is story S4.4.2's measurement mode and is never used by the
+    product — see :func:`engines.evidence.judge`.
     """
     started = time.perf_counter()
     requirements, unknown = resolve_scope(engine, scope)
@@ -422,7 +426,7 @@ def run_report(
             break
 
         check = evidence.check_implementation(
-            engine, judge_llm, requirement.id, use_cache=not scope.rejudge
+            engine, judge_llm, requirement.id, use_cache=not scope.rejudge, blind=blind
         )
         spent += check.cost_usd
         if not check.cached:
