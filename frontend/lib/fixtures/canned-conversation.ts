@@ -27,7 +27,11 @@
  * The Document tab says what is missing instead.
  *
  * The assistant prose is authored for the fixture. It is the one thing here
- * that a model would otherwise have written.
+ * that a model would otherwise have written, and it is written as markdown —
+ * bold, inline code, a blockquote and one fenced C block — because that is what
+ * the chat agent's system prompt asks the model for and what the renderer has to
+ * survive. The fenced block is a verbatim quotation of CanIf.c 832-841 at the
+ * pinned SHA, not an illustration.
  */
 
 import type { ChatEvent, RagStage } from "../events";
@@ -129,13 +133,14 @@ const EXCHANGE_1: CannedExchange = {
       },
     },
     ...tokens(
-      "The upper layer owns it. Can_Write copies the data out of the caller's " +
-        "buffer synchronously, so the driver never keeps a reference — but the " +
-        "caller must keep that buffer consistent until the call returns.\n\n" +
-        "SWS_Can_00011 states it directly: “The Can module shall directly " +
-        "copy the data from the upper layer buffers. It is the responsibility of " +
-        "the upper layer to keep the buffer consistent until return of function " +
-        "call (Can_Write).”\n\n" +
+      "The **upper layer** owns it. `Can_Write` copies the data out of the " +
+        "caller's buffer synchronously, so the driver never keeps a reference — " +
+        "but the caller must keep that buffer consistent until the call " +
+        "returns.\n\n" +
+        "SWS_Can_00011 states it directly:\n\n" +
+        "> The Can module shall directly copy the data from the upper layer " +
+        "buffers. It is the responsibility of the upper layer to keep the " +
+        "buffer consistent until return of function call (Can_Write).\n\n" +
         "The CAN Interface only takes ownership in one case, and only if it is " +
         "configured to: SWS_CANIF_00381 says that when Can_Write returns " +
         "CAN_BUSY and transmit buffering is enabled, CanIf checks whether it can " +
@@ -238,17 +243,31 @@ const EXCHANGE_2: CannedExchange = {
       },
     },
     ...tokens(
-      "Partial, confidence 0.61.\n\n" +
-        "CanIf_Transmit at CanIf.c:739-859 carries the tier-1 annotation @req " +
-        "CANIF381 on line 836, and the CAN_BUSY branch does exactly what the " +
-        "requirement describes — it calls qReplaceOrAdd into the configured " +
-        "CanIfTxBuffer.\n\n" +
-        "Two things stop this being implemented. The whole buffering branch sits " +
-        "behind #if (CANIF_PUBLIC_TX_BUFFERING == STD_ON), so a build with that " +
-        "off satisfies nothing. And the same function carries three negative " +
-        "annotations — !req CANIF323, !req CANIF666, !req CANIF058 — which is " +
-        "the code stating that parts of the transmit contract are not covered in " +
-        "this release.",
+      "**Partial**, confidence 0.61.\n\n" +
+        "`CanIf_Transmit` at CanIf.c:739-859 carries the tier-1 annotation " +
+        "`@req CANIF381` on line 836, and the CAN_BUSY branch does exactly what " +
+        "the requirement describes — it calls `qReplaceOrAdd` into the " +
+        "configured CanIfTxBuffer:\n\n" +
+        // Verbatim from CanIf.c 832-841 at the pinned SHA — the same slice the
+        // Code tab renders, quoted rather than paraphrased.
+        "```c\n" +
+        "if( CAN_BUSY == writeRet ) {\n" +
+        "    ret = E_NOT_OK;\n" +
+        "\n" +
+        "#if (CANIF_PUBLIC_TX_BUFFERING == STD_ON)\n" +
+        "    /* @req CANIF381 */\n" +
+        "    if( (0 != txPduPtr->CanIfTxPduBufferRef->CanIfBufferSize) &&\n" +
+        "        (CANIF_HANDLE_TYPE_BASIC == txPduPtr->CanIfTxPduBufferRef->CanIfBufferHthRef->CanIfHthType) ) {\n" +
+        "        ret = qReplaceOrAdd(txPduPtr->CanIfTxPduBufferRef, &canPdu, TRUE);\n" +
+        "    }\n" +
+        "#endif\n" +
+        "```\n\n" +
+        "Two things stop this being *implemented*. The whole buffering branch " +
+        "sits behind that `#if`, so a build with `CANIF_PUBLIC_TX_BUFFERING` off " +
+        "satisfies nothing. And the same function carries three negative " +
+        "annotations — `!req CANIF323`, `!req CANIF666`, `!req CANIF058` — which " +
+        "is the code stating that parts of the transmit contract are not covered " +
+        "in this release.",
     ),
     {
       type: "citation",
