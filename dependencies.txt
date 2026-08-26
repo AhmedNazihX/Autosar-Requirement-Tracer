@@ -30,6 +30,8 @@ declared, runtime:
   pydantic-settings      pydantic-settings>=2.15.0 -> 2.15.0        # environment configuration
   pymupdf                pymupdf>=1.28.2          -> 1.28.2        # PDF parsing: text, pages, bboxes (spec §3)
   pyyaml                 pyyaml>=6.0.3            -> 6.0.3         # project.yaml manifest loading
+  tree-sitter            tree-sitter>=0.26.0      -> 0.26.0      
+  tree-sitter-c          tree-sitter-c>=0.24.1    -> 0.24.2      
   uvicorn                uvicorn>=0.52.4          -> 0.52.4        # ASGI server (spec §3)
 
 declared, dev:
@@ -56,7 +58,7 @@ resolved transitively (16):
   typing-inspection                  0.4.4
   typing_extensions                  4.16.0
 
-total installed: 27 packages
+total installed: 29 packages
 
 FRONTEND — Node
 ------------------------------------------------------------------------
