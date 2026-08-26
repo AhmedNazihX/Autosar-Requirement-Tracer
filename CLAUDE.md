@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ReqTrace** — a requirements-to-code traceability chatbot for automotive embedded software (Sprint 2 course project; brief in `125.md`). It answers questions about AUTOSAR SWS requirements with source-linked citations and a split-window PDF/code preview, checks a permitted C repository for implementation evidence, and generates SRS → SWS → code traceability reports.
 
-Implementation has not started yet. The repo currently contains the brief and the approved design.
+**Progress: WP1 (platform & corpus) and WP2 (retrieval & RAG engine) are done; WP3 (agent & chat API) is next.** The corpus is ingested (4 SWS documents, 1054 requirements, 1253 code units) and the five retrieval stages of spec §4 are assembled behind `retrieval/pipeline.py`'s `search_requirements` / `search_code`. Measured facts worth not re-deriving live in `docs/findings/2026-08-26-corpus-and-toolchain-findings.md`.
 
 ## Sources of truth (read before changing anything)
 

@@ -265,6 +265,48 @@ italic+underline (5) and italic+bold+underline (7). Fixed in `1adb47c`,
 **but that fix has not been through review** — the F5.1 reviewer should
 check it.
 
+### C9. LangChain's `json_schema` structured output loses the response — and its cost
+**Measured while building `core/llm.py` (WP2).** Two surprises in
+langchain-openai 1.6.0, neither guessable from the API:
+
+1. `with_structured_output(schema, method="json_schema")` (the default method)
+   takes a **different SDK code path** — `root_client.chat.completions.parse()`,
+   not `client.create()` — so a test that stubs `.client` is bypassed and the
+   call escapes to the network.
+2. On that path the **`openai` SDK validates the reply itself**, inside its own
+   `.parse()` post-parser, and raises `pydantic.ValidationError` *before*
+   LangChain's output parser runs. So `include_raw=True` does **not** hand back
+   a `parsing_error`, and the response is gone — along with the `usage.cost` of
+   the call that produced it.
+
+**Consequence, already applied:** send the JSON Schema as a plain **dict** via
+`.bind(response_format=…)` (identical wire payload, no SDK-side validation),
+keep the raw message, and validate with Pydantic locally. That is what makes a
+retry-with-the-error-fed-back possible and keeps failed attempts billable.
+
+**Lesson worth keeping.** Faking at the HTTP layer (`httpx.MockTransport` under
+the real SDK, as `tests/support_llm.py` does) found both of these; a
+Python-level mock of the LangChain object would have hidden them and let tests
+reach OpenRouter. Same lesson as C1 — verify a dependency with a different
+tool than the one that reported success.
+
+### C10. `Engine`'s SQLite connection cannot be shared across threads
+**Measured.** `core.db.connect` uses sqlite3's default
+`check_same_thread=True`. Using one connection from a second thread raises
+`ProgrammingError: SQLite objects created in a thread can only be used in that
+same thread`.
+
+**Why it matters for WP3.** FastAPI runs `def` (non-async) endpoints in a
+threadpool, so a single `retrieval.pipeline.Engine` parked in `app.state`
+fails on the first request served by another worker. The Engine's other three
+dependencies are safe to share (immutable BM25 index, thread-safe Chroma
+client, connection-less embedding client).
+
+**To do (WP3):** build the Engine per request from a per-request connection,
+keeping index/collection/models in application state. `check_same_thread=False`
+silences the error without making interleaved use of one connection safe.
+Recorded in the `Engine` docstring too.
+
 ## D. Cost and metering findings
 
 ### D1. OpenRouter returns actual cost — do not build a price table

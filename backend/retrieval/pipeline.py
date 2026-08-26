@@ -83,6 +83,24 @@ class Engine:
     their arguments, and a test can substitute any one of them. The BM25 index
     is a value rather than something rebuilt per call — story S1.5.2 builds it
     at boot.
+
+    .. warning::
+       ``conn`` makes this **not** safe to share across threads, and WP3 has to
+       decide what to do about that. ``core.db.connect`` uses sqlite3's default
+       ``check_same_thread=True``, and FastAPI runs ``def`` (non-async)
+       endpoints in a threadpool — so a single Engine parked in ``app.state``
+       raises ``ProgrammingError: SQLite objects created in a thread can only
+       be used in that same thread`` on the first request that lands on another
+       worker. Measured, not theorised.
+
+       The other three dependencies are fine to share: the BM25 index is
+       immutable, the Chroma client is thread-safe, and the embedding client
+       holds no connection of its own (it takes ``conn`` per call).
+
+       So build the Engine per request from a per-request connection, keeping
+       the index, collection and models from application state. Passing
+       ``check_same_thread=False`` instead would silence the error without
+       making interleaved use of one connection safe.
     """
 
     manifest: ProjectManifest
