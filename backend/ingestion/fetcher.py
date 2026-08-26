@@ -13,14 +13,19 @@ Behaviour that matters downstream:
   network requests and reports ``skipped``. A missing, unparseable or
   mismatched sidecar (or a truncated file) yields ``redownloaded``.
 * **Atomic writes.** Bytes stream into ``<filename>.part`` and are renamed
-  into place only after the ``%PDF`` magic check passes, so an interrupted or
-  hijacked run can never leave a truncated/HTML file that a later existence
-  check would accept. A failed attempt leaves the ``.part`` behind for
-  inspection; a ``.part`` is never promoted to ``.pdf``.
+  into place only after the byte count matches ``Content-Length`` and the
+  ``%PDF`` magic check passes, so an interrupted, truncated or hijacked run
+  can never leave a file that a later existence check would accept. A failed
+  attempt leaves the ``.part`` behind for inspection; a ``.part`` is never
+  promoted to ``.pdf``.
 * **Progress hook.** ``on_progress(filename, bytes_done, bytes_total)`` is
   called as bytes arrive (``bytes_total`` is ``None`` when the server sends
   no ``Content-Length``). Story S3.6.2 streams these over SSE; nothing here
   knows about SSE.
+* **TLS.** The corpus host serves an incomplete certificate chain, completed
+  by a certificate pinned in ``ingestion/certs/`` — see the block comment
+  above :data:`PINNED_INTERMEDIATE_PEM`. Verification is never relaxed and
+  nothing fetched at runtime is ever trusted.
 
 The network call is isolated behind the ``downloader`` parameter so tests can
 substitute a fake and *prove* the second run never calls it.
@@ -34,11 +39,13 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+import certifi
+
 from core.manifest import DocumentEntry, ProjectManifest
-from ingestion import tls_chain
 
 #: ``(filename, bytes_done, bytes_total_or_None)``.
 ProgressCallback = Callable[[str, int, int | None], None]
@@ -59,9 +66,115 @@ _TIMEOUT_SECONDS = 120
 # User-Agent is a needless way to get a 403.
 _USER_AGENT = "ReqTrace/0.1 (+https://github.com/openAUTOSAR/classic-platform)"
 
+# --- the pinned intermediate certificate -----------------------------------
+#
+# www.autosar.org presents ONLY its leaf certificate and omits the
+# "Starfield Secure Certificate Authority - G2" intermediate that signed it
+# (``openssl s_client -showcerts`` returns one certificate and
+# "Verify return code: 21"). Browsers recover by fetching the missing issuer
+# from the leaf's AIA extension; OpenSSL, and therefore Python, does not, so
+# verification fails with "unable to get local issuer certificate".
+#
+# The fix is a certificate pinned IN THE REPOSITORY, never one fetched at
+# runtime. Fetching the issuer named by an unverified leaf and installing it
+# would let an on-path attacker nominate their own trust anchor; a pinned
+# file cannot be influenced by the network at all. The pin is enforced on
+# every use (:func:`read_pinned_intermediate`), so swapping the file for
+# another certificate fails loudly instead of silently widening trust.
+#
+# The certificate is genuine independently of how its bytes reached this
+# repository: its signature chains to "Starfield Root Certificate Authority
+# - G2", which already ships in certifi, and a forgery could not satisfy
+# that signature check.
+#
+#   openssl verify -CAfile "$(python -c 'import certifi;print(certifi.where())')" \
+#       ingestion/certs/starfield-secure-ca-g2.pem                        -> OK
+#
+CERTS_DIR = Path(__file__).resolve().parent / "certs"
+PINNED_INTERMEDIATE_PEM = CERTS_DIR / "starfield-secure-ca-g2.pem"
+PINNED_INTERMEDIATE_SHA256 = "93a07898d89b2cca166ba6f1f8a14138ce43828e491b831926bc8247d391cc72"
+PINNED_INTERMEDIATE_SUBJECT_CN = "Starfield Secure Certificate Authority - G2"
+PINNED_INTERMEDIATE_ISSUER_CN = "Starfield Root Certificate Authority - G2"
+
+_PEM_BEGIN = "-----BEGIN CERTIFICATE-----"
+_PEM_END = "-----END CERTIFICATE-----"
+
 
 class FetchError(Exception):
     """Raised when a document cannot be fetched or is not a PDF."""
+
+
+def fingerprint(der: bytes) -> str:
+    """Lower-case hex SHA-256 of a DER-encoded certificate."""
+    return hashlib.sha256(der).hexdigest()
+
+
+def read_pinned_intermediate() -> str:
+    """Return the pinned intermediate as a PEM block, enforcing its SHA-256 pin.
+
+    Raises :class:`FetchError` — naming the file and both fingerprints — if
+    the file is absent, is not a single PEM certificate, or does not match
+    :data:`PINNED_INTERMEDIATE_SHA256`. There is deliberately no fallback:
+    the alternative to a verified pin is not "try something else", it is
+    "stop".
+    """
+    if not PINNED_INTERMEDIATE_PEM.is_file():
+        raise FetchError(
+            f"pinned intermediate certificate missing: {PINNED_INTERMEDIATE_PEM}. "
+            f"It must be {PINNED_INTERMEDIATE_SUBJECT_CN!r} with SHA-256 "
+            f"{PINNED_INTERMEDIATE_SHA256}. Without it the corpus host's incomplete "
+            "certificate chain cannot be completed and no document can be fetched."
+        )
+
+    text = PINNED_INTERMEDIATE_PEM.read_text(encoding="utf-8")
+    start = text.find(_PEM_BEGIN)
+    end = text.find(_PEM_END)
+    if start == -1 or end == -1:
+        raise FetchError(
+            f"{PINNED_INTERMEDIATE_PEM}: no PEM certificate block found "
+            f"(expected {_PEM_BEGIN!r})"
+        )
+    block = text[start : end + len(_PEM_END)] + "\n"
+
+    try:
+        der = ssl.PEM_cert_to_DER_cert(block)
+    except (ValueError, TypeError) as exc:
+        raise FetchError(f"{PINNED_INTERMEDIATE_PEM}: not a valid PEM certificate — {exc}") from exc
+
+    actual = fingerprint(der)
+    if actual != PINNED_INTERMEDIATE_SHA256:
+        raise FetchError(
+            f"{PINNED_INTERMEDIATE_PEM}: certificate pin mismatch — refusing to trust it. "
+            f"Expected SHA-256 {PINNED_INTERMEDIATE_SHA256}, got {actual}. "
+            f"The pinned file must be {PINNED_INTERMEDIATE_SUBJECT_CN!r}, issued by "
+            f"{PINNED_INTERMEDIATE_ISSUER_CN!r}."
+        )
+    return block
+
+
+@lru_cache(maxsize=1)
+def corpus_ssl_context() -> ssl.SSLContext:
+    """A fully verifying SSL context that can complete the corpus host's chain.
+
+    ``certifi`` supplies the roots (deterministic across platforms, rather
+    than whatever the host OS happens to ship) and the pinned intermediate is
+    added so the corpus host's truncated chain reaches one of them. Hostname
+    checking and ``CERT_REQUIRED`` are left exactly as
+    :func:`ssl.create_default_context` sets them — this context verifies no
+    less than the default one, it simply knows one more real CA certificate
+    whose own root is already trusted.
+    """
+    block = read_pinned_intermediate()
+    context = ssl.create_default_context(cafile=certifi.where())
+    try:
+        # cadata, not cafile: what gets installed is exactly the bytes whose
+        # fingerprint was just checked, with no second read of the file.
+        context.load_verify_locations(cadata=block)
+    except ssl.SSLError as exc:
+        raise FetchError(
+            f"{PINNED_INTERMEDIATE_PEM}: OpenSSL rejected the pinned certificate — {exc}"
+        ) from exc
+    return context
 
 
 @dataclass(frozen=True)
@@ -154,6 +267,16 @@ def _stream(
                 written += len(chunk)
                 if on_chunk is not None:
                     on_chunk(written, total)
+
+    # A connection that closes cleanly mid-body raises nothing, and the first
+    # four bytes of a truncated PDF are still "%PDF" — so without this check a
+    # short read would be installed as a complete document and then reported
+    # "skipped" for ever, its sidecar matching the truncated bytes.
+    if total is not None and written != total:
+        raise FetchError(
+            f"{url}: truncated download — got {written:,} of {total:,} bytes "
+            "declared by Content-Length"
+        )
     return written
 
 
@@ -167,37 +290,27 @@ def urllib_downloader(
     """Stream ``url`` into ``dest``, reporting progress. Returns bytes written.
 
     Uses ``urllib`` from the stdlib deliberately: this is a one-shot blocking
-    download run from a CLI, so it needs no new dependency.
+    download run from a CLI, so it needs no HTTP client dependency.
 
-    ``www.autosar.org`` serves an incomplete certificate chain (see
-    ``ingestion/tls_chain``), which OpenSSL rejects even though browsers
-    accept it. On exactly that failure — and only when the caller has not
-    supplied its own ``ssl_context`` — the download is retried once with the
-    server's missing intermediate fetched from the leaf's AIA extension.
-    Verification stays fully enabled in both attempts.
+    TLS verification uses :func:`corpus_ssl_context` — certifi's roots plus
+    the pinned intermediate the corpus host omits — unless the caller passes
+    its own ``ssl_context``. There is no fallback and no retry: if
+    verification fails, it fails.
     """
+    context = ssl_context if ssl_context is not None else corpus_ssl_context()
     try:
-        return _stream(url, dest, on_chunk, ssl_context)
+        return _stream(url, dest, on_chunk, context)
     except urllib.error.HTTPError as exc:
         raise FetchError(f"{url}: HTTP {exc.code} {exc.reason}") from exc
     except urllib.error.URLError as exc:
-        if ssl_context is not None or not tls_chain.is_incomplete_chain_error(exc):
-            raise FetchError(f"{url}: network error — {exc.reason}") from exc
-
-    host, port = tls_chain.host_of(url)
-    try:
-        completed = tls_chain.completing_ssl_context(host, port)
-    except tls_chain.ChainCompletionError as exc:
-        raise FetchError(
-            f"{url}: TLS verification failed because the server sent an incomplete "
-            f"certificate chain, and the missing issuer could not be recovered — {exc}"
-        ) from exc
-    try:
-        return _stream(url, dest, on_chunk, completed)
-    except urllib.error.HTTPError as exc:
-        raise FetchError(f"{url}: HTTP {exc.code} {exc.reason}") from exc
-    except urllib.error.URLError as exc:
-        raise FetchError(f"{url}: network error after completing the chain — {exc.reason}") from exc
+        if isinstance(exc.reason, ssl.SSLCertVerificationError):
+            raise FetchError(
+                f"{url}: TLS certificate verification failed — {exc.reason}. "
+                f"The corpus host omits an intermediate certificate, which is supplied by "
+                f"{PINNED_INTERMEDIATE_PEM}; check that file is present and unmodified "
+                f"(expected SHA-256 {PINNED_INTERMEDIATE_SHA256})."
+            ) from exc
+        raise FetchError(f"{url}: network error — {exc.reason}") from exc
 
 
 def _looks_like_pdf(path: Path) -> bool:
