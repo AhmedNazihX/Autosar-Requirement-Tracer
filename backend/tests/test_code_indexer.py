@@ -24,6 +24,7 @@ from ingestion.code_indexer import (
     DECLARATION_SUFFIX,
     FILE_SCOPE_SUFFIX,
     FILE_UNIT_KIND,
+    PROTOTYPE_KIND,
     breadcrumb,
     c_parser,
     declarator_name,
@@ -116,6 +117,20 @@ def test_kinds_cover_struct_enum_typedef_macro_and_function(code):
     assert units["FIXTURE_MAX_CHANNELS"].kind == "macro"
     assert units["FIXTURE_IS_VALID"].kind == "macro"
     assert units["Fixture_Transmit"].kind == "function"
+
+
+def test_a_named_union_gets_its_own_kind(code):
+    """Folding unions into "struct" would be a silent mislabel; kind is a key."""
+    result = index_source(
+        "union Fixture_Word {\n    int as_int;\n    char as_bytes[4];\n};\n",
+        "t.c",
+        code=code,
+        git_sha=GIT_SHA,
+        project_id=PROJECT,
+    )
+    assert [(u.kind, u.symbol, u.line_span) for u in result.units] == [
+        ("union", "Fixture_Word", (1, 4))
+    ]
 
 
 def test_an_enum_body_produces_an_enum_kind_when_it_is_named(code):
@@ -249,22 +264,58 @@ def test_a_comment_separated_by_a_blank_line_is_not_swallowed(code):
     assert result.units[0].line_span == (3, 6)
 
 
-def test_header_prototypes_produce_units_marked_as_declarations(code):
+def test_header_prototypes_produce_prototype_units(code):
     result = index_fixture("fixture_sample.h", code)
-    prototypes = [u for u in result.units if u.kind == "function"]
+    prototypes = [u for u in result.units if u.kind == PROTOTYPE_KIND]
     assert [(u.symbol, u.line_span) for u in prototypes] == [
         ("Fixture_Transmit", (9, 10)),
         ("Fixture_MainFunction", (12, 13)),
     ]
     for unit in prototypes:
         assert unit.text.splitlines()[0].endswith(DECLARATION_SUFFIX)
+    # nothing in a header of only declarations may claim to be a definition
+    assert not any(u.kind == "function" for u in result.units)
+
+
+def test_a_declaration_and_a_definition_are_different_kinds(code):
+    """The judge decides "is this implemented"; a prototype is not evidence of it.
+
+    The distinction has to live in ``kind``, which is persisted and queryable,
+    not only in the breadcrumb prose that the reranker embeds.
+    """
+    definition = next(
+        u for u in index_fixture("fixture_sample.c", code).units if u.symbol == "Fixture_Transmit"
+    )
+    declaration = next(
+        u for u in index_fixture("fixture_sample.h", code).units if u.symbol == "Fixture_Transmit"
+    )
+    assert definition.kind == "function"
+    assert declaration.kind == "prototype"
+    assert PROTOTYPE_KIND == "prototype"
+    # the same symbol, told apart without reading either unit's text
+    assert definition.symbol == declaration.symbol
 
 
 def test_a_definition_is_not_marked_as_a_declaration(code):
     unit = next(
         u for u in index_fixture("fixture_sample.c", code).units if u.symbol == "Fixture_Transmit"
     )
+    assert unit.kind == "function"
     assert DECLARATION_SUFFIX not in unit.text.splitlines()[0]
+
+
+def test_a_static_forward_declaration_in_a_c_file_is_a_prototype(code):
+    result = index_source(
+        "static void f(void);\n\nstatic void f(void)\n{\n    return;\n}\n",
+        "t.c",
+        code=code,
+        git_sha=GIT_SHA,
+        project_id=PROJECT,
+    )
+    assert [(u.kind, u.symbol, u.line_span) for u in result.units] == [
+        ("prototype", "f", (1, 1)),
+        ("function", "f", (3, 6)),
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -353,7 +404,7 @@ def test_an_annotation_beyond_the_gap_becomes_a_file_scope_unit(code):
     )
     assert result.file_scope_annotations == 1
     file_unit = next(u for u in result.units if u.symbol == "t.c")
-    assert file_unit.kind == FILE_UNIT_KIND
+    assert file_unit.kind == FILE_UNIT_KIND == "file"
     assert file_unit.line_span == (1, 1)
     assert file_unit.text.splitlines()[0].endswith(FILE_SCOPE_SUFFIX)
     assert [a.canonical_id for a in file_unit.req_annotations] == ["SWS_CANIF_00001"]
@@ -440,6 +491,33 @@ def test_definitions_inside_preprocessor_branches_are_found(code):
     )
     assert [(u.kind, u.symbol, u.line_span) for u in result.units] == [("function", "f", (2, 6))]
     assert [a.canonical_id for a in result.units[0].req_annotations] == ["SWS_CANIF_00001"]
+
+
+def test_a_form_feed_does_not_shift_the_spans_below_it(code):
+    """`splitlines()` breaks on \\f; tree-sitter rows count only \\n.
+
+    A form feed is routine page-break punctuation in old C, and mixing the two
+    line definitions would slide every span after it by one — a code viewer
+    highlighting the wrong lines, invisible to any test that does not use one.
+    """
+    source = (
+        "void a(void)\n{\n    return;\n}\n"
+        "\f\n"
+        "/* @req CANIF001 */\nvoid b(void)\n{\n    return;\n}\n"
+    )
+    result = index_source(source, "t.c", code=code, git_sha=GIT_SHA, project_id=PROJECT)
+    lines = source.split("\n")
+
+    assert [(u.symbol, u.line_span) for u in result.units] == [
+        ("a", (1, 4)),
+        ("b", (6, 10)),
+    ]
+    unit_b = result.units[1]
+    body = unit_b.text.split("\n", 1)[1]
+    assert body == "\n".join(lines[5:10])
+    assert body.startswith("/* @req CANIF001 */")
+    assert "void b(void)" in body
+    assert [a.line for a in unit_b.req_annotations] == [6]
 
 
 def test_undecodable_bytes_do_not_cost_the_file_its_units(code, tmp_path: Path):

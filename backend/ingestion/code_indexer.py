@@ -1,12 +1,22 @@
 """Chunk C source into :class:`~core.models.CodeUnit`s with tree-sitter (S1.4.2).
 
-One unit per top-level definition — function, struct, enum, typedef, macro —
-each with a 1-based inclusive ``line_span`` and a breadcrumb header
-(``// CanIf.c > CanIf_Transmit``) prefixed to its text, per spec §4. The
+One unit per top-level definition — function, prototype, struct, union, enum,
+typedef, macro — each with a 1-based inclusive ``line_span`` and a breadcrumb
+header (``// CanIf.c > CanIf_Transmit``) prefixed to its text, per spec §4. The
 annotations found by :mod:`ingestion.annotations` are attached to the unit that
 encloses them, so tier-1 evidence (spec §5) can name a file and a line.
 
 Decisions worth knowing about, all of them load-bearing:
+
+* **A declaration is not an implementation.** A header prototype is
+  ``kind="prototype"``, never ``"function"``, because the evidence judge
+  decides whether a requirement is implemented and 301 of this corpus's 641
+  function-shaped units only declare. Annotations that live only on a
+  prototype must be weighable as the weak evidence they are.
+* **Annotations belonging to no definition become ``kind="file"`` units**
+  rather than borrowing another kind's name — ``kind`` is part of the storage
+  key, so a mislabel corrected later would orphan both the rows and their
+  cached embeddings.
 
 * **Identity must be stable across runs.** ``code_units`` is keyed on
   ``(project_id, repo_path, kind, symbol, line_span_start, line_span_end)``
@@ -62,21 +72,25 @@ from ingestion.code_fetcher import ProgressCallback, select_files
 #: ``// <file> > <symbol>`` — the chunk header the spec (§4) requires.
 BREADCRUMB_TEMPLATE = "// {file} > {symbol}"
 
-#: Suffix marking a unit that only *declares* something. ``CodeUnitKind`` has
-#: no ``prototype`` member and ``core/models.py`` is out of scope for this
-#: task, so a prototype is a ``function`` whose breadcrumb says otherwise —
-#: see the report's note on extending ``CodeUnitKind``.
+#: Kind for a unit that only *declares* a function. This is a first-class
+#: ``CodeUnitKind``, not a note in the text: the evidence judge (spec §5)
+#: decides whether a requirement is *implemented*, and a header prototype is
+#: not an implementation — 301 of this corpus's 641 function-shaped units are
+#: declarations, so an annotation found only on a prototype must be
+#: distinguishable from one found on a body without string-matching prose.
+PROTOTYPE_KIND: CodeUnitKind = "prototype"
+
+#: Breadcrumb suffix for a prototype. Redundant with ``kind`` on purpose — the
+#: breadcrumb is embedded, so it is what tells the retriever and the reranker
+#: that this chunk is a declaration.
 DECLARATION_SUFFIX = " (declaration)"
 
 #: Symbol shown for a file-scope unit; the file's own name is the symbol.
 FILE_SCOPE_SUFFIX = " (file scope)"
 
-#: Kind used for a file-scope unit holding annotations that belong to no
-#: definition (a file-header ``@req`` block, an annotation on a global). The
-#: honest value would be ``"file"``, which ``CodeUnitKind`` does not offer;
-#: this is the one place the model's vocabulary is stretched, and it is
-#: deliberately a single constant so it can be corrected in one line.
-FILE_UNIT_KIND: CodeUnitKind = "macro"
+#: Kind for a file-scope unit holding annotations that belong to no definition
+#: (a file-header ``@req`` block, an annotation on a global).
+FILE_UNIT_KIND: CodeUnitKind = "file"
 
 #: An annotation up to this many lines *above* a unit's (comment-extended)
 #: start still belongs to that unit. Measured over the real corpus: 3 lines
@@ -95,10 +109,12 @@ FILE_CLUSTER_GAP_LINES = 5
 _RECORD_KINDS: dict[str, CodeUnitKind] = {
     "struct_specifier": "struct",
     "enum_specifier": "enum",
-    # CodeUnitKind has no "union"; a union is a record type, so it is filed
-    # with structs rather than dropped. Only named unions reach this — the two
-    # in this corpus are anonymous and covered by their typedef.
-    "union_specifier": "struct",
+    # A union gets its own kind rather than being folded into "struct": the two
+    # in this corpus are anonymous and covered by their typedef, so folding
+    # would be invisible today and a silent mislabel the moment a named union
+    # appears. `kind` is part of the storage key, so a label corrected later
+    # orphans rows and embeddings.
+    "union_specifier": "union",
 }
 
 _DEFINITION_TYPES = frozenset(
@@ -133,6 +149,14 @@ def c_parser() -> Parser:
 
     The language comes from the ``tree_sitter_c`` module —
     ``Language.build_library`` was removed from the modern bindings.
+
+    .. warning::
+       One process-wide ``Parser`` instance, and a ``Parser`` is **not**
+       thread-safe: ``parse()`` mutates parser state, so two threads sharing
+       this object can corrupt each other's trees. Indexing is single-threaded
+       today (:func:`index_repo` is a plain loop). If D6 parallelizes it, give
+       each worker its own parser — ``Parser(Language(tree_sitter_c.language()))``
+       is cheap — rather than sharing this one.
     """
     return Parser(Language(tree_sitter_c.language()))
 
@@ -272,7 +296,15 @@ class _Emission:
     kind: CodeUnitKind
     symbol: str
     node: Node
-    declaration: bool = False
+
+    @property
+    def declaration(self) -> bool:
+        """True for a unit that only declares. Derived from ``kind``, not stored.
+
+        Keeping this a property rather than a flag means the breadcrumb suffix
+        and the persisted ``kind`` cannot drift apart.
+        """
+        return self.kind == PROTOTYPE_KIND
 
 
 def _emissions(node: Node) -> list[_Emission]:
@@ -318,7 +350,7 @@ def _emissions(node: Node) -> list[_Emission]:
         if _is_function_declaration(node):
             name = declarator_name(node.child_by_field_name("declarator"))
             if name:
-                out.append(_Emission("function", name, node, declaration=True))
+                out.append(_Emission(PROTOTYPE_KIND, name, node))
         # A plain variable declaration has no CodeUnitKind and is not indexed;
         # any annotation on it falls through to a file-scope unit rather than
         # being dropped.
@@ -463,7 +495,13 @@ def index_source(
     file name shown in its breadcrumb). ``scan`` is only for tests that want
     to inject annotations; by default the text is scanned here.
     """
-    lines = text.splitlines()
+    # `split("\n")`, never `splitlines()`: the latter also breaks on \f, \v,
+    # \x1c-\x1e, \x85 and the Unicode separators, while tree-sitter's rows and
+    # `annotations.line_offsets` count only \n. A form feed — routine page-break
+    # punctuation in old C — would otherwise shift every span below it, which is
+    # exactly the silent kind of defect a code viewer makes obvious and a test
+    # does not.
+    lines = text.split("\n")
     tree = c_parser().parse(text.encode("utf-8"))
 
     definitions: list[Node] = []

@@ -129,9 +129,24 @@ def test_code_unit_git_sha_must_be_hex40():
         _code_unit(git_sha="abc")
 
 
-@pytest.mark.parametrize("kind", ["function", "struct", "enum", "typedef", "macro"])
-def test_code_unit_kind_accepts_all_five(kind):
+@pytest.mark.parametrize(
+    "kind",
+    ["function", "prototype", "struct", "union", "enum", "typedef", "macro", "file"],
+)
+def test_code_unit_kind_accepts_every_member(kind):
     assert _code_unit(kind=kind).kind == kind
+
+
+def test_code_unit_kind_separates_a_definition_from_a_declaration():
+    """``function`` is an implementation; ``prototype`` only declares one.
+
+    The evidence judge (spec §5) rules on whether a requirement is
+    *implemented*, so this distinction has to be a persisted, queryable field
+    rather than something a caller infers from a unit's text.
+    """
+    definition = _code_unit(kind="function")
+    declaration = _code_unit(kind="prototype")
+    assert definition.kind != declaration.kind
 
 
 def test_code_unit_kind_rejects_unknown_value():

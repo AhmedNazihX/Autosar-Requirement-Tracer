@@ -17,7 +17,29 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 DocType = Literal["requirement", "context"]
-CodeUnitKind = Literal["function", "struct", "enum", "typedef", "macro"]
+
+#: What a ``CodeUnit`` is. ``function`` is a *definition* — an implementation —
+#: and ``prototype`` is only a declaration; the distinction is structured
+#: rather than left to prose because the evidence judge (spec §5) decides
+#: "is this requirement implemented", and an annotation sitting on a header
+#: prototype is not implementation evidence. ``file`` is a file-scope unit
+#: holding annotations that belong to no definition (a file-header ``@req``
+#: block), which would otherwise have to borrow another kind's name.
+#:
+#: ``kind`` is part of the ``code_units`` primary key (``core/db.py``) and
+#: ingestion is upsert-only with no stale-row sweep, so renaming a member
+#: after rows exist orphans both the rows and their cached embeddings. Add
+#: members; do not repurpose them.
+CodeUnitKind = Literal[
+    "function",
+    "prototype",
+    "struct",
+    "union",
+    "enum",
+    "typedef",
+    "macro",
+    "file",
+]
 AnnotationMarker = Literal["@", "!"]
 AnnotationClaim = Literal["claimed_implemented", "claimed_not_implemented"]
 
