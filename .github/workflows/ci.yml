@@ -1,0 +1,59 @@
+name: CI
+
+# Runs the same `make` targets a developer runs locally, deliberately: a check
+# that only exists in CI drifts from the one people actually use.
+"on":
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `deps-check` reads resolved versions out of the backend venv, so the
+      # sync has to happen first. It reads the frontend *lockfile* directly and
+      # does not need node_modules.
+      - name: Sync backend
+        run: cd backend && uv sync --frozen
+
+      - name: Install frontend
+        run: cd frontend && npm ci
+
+      # Called out as its own step so a stale dependencies.txt names itself in
+      # the job list rather than hiding inside a generic "lint" failure. This is
+      # the drift that survived two work packages before it was enforced.
+      - name: dependencies.txt is current
+        run: make deps-check
+
+      - name: Lint
+        run: make lint
+
+      # No corpus and no API key: data/ is gitignored and every engine test
+      # injects a fake transport, so the suite is fully offline. The five
+      # PDF-parsing tests skip with an actionable message rather than passing
+      # silently — that is expected here, not a gap.
+      - name: Backend tests
+        run: cd backend && uv run pytest -q -rs
+
+      - name: Frontend typecheck
+        run: cd frontend && npx tsc --noEmit
+
+      - name: Frontend build
+        run: cd frontend && npm run build

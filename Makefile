@@ -1,4 +1,4 @@
-.PHONY: dev install test lint deps deps-check
+.PHONY: dev install install-hooks test lint deps deps-check
 
 dev:
 	@trap 'kill 0' EXIT INT TERM; \
@@ -6,9 +6,16 @@ dev:
 	(cd frontend && npm run dev) & \
 	wait
 
-install:
+install: install-hooks
 	cd backend && uv sync
 	cd frontend && npm install
+
+# Git does not track .git/hooks, so the hook lives in .githooks/ and this
+# points git at it. Part of `install` so a fresh clone gets it without having
+# to know it exists.
+install-hooks:
+	git config core.hooksPath .githooks
+	@echo "pre-commit hook active (.githooks/pre-commit)"
 
 test:
 	cd backend && uv run pytest

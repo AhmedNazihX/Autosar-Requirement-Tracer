@@ -1,0 +1,35 @@
+#!/bin/sh
+# Fast pre-commit checks. Install with `make install-hooks`.
+#
+# Deliberately does NOT run the test suite: at ~27s that gets bypassed with
+# --no-verify within a day, and a hook people skip protects nothing. It runs
+# the two checks that are near-instant and catch the mistakes that actually
+# happened on this project:
+#
+#   1. dependencies.txt drift — the instruction to regenerate was written down
+#      in CLAUDE.md and still missed for two work packages.
+#   2. ruff — cheaper to catch here than in CI.
+#
+# The full suite runs in CI (.github/workflows/ci.yml).
+set -e
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+fail() {
+    echo ""
+    echo "pre-commit: $1" >&2
+    echo "  (to commit anyway: git commit --no-verify)" >&2
+    exit 1
+}
+
+if ! python3 scripts/gen_dependencies.py --check >/dev/null 2>&1; then
+    python3 scripts/gen_dependencies.py --check || true
+    fail "dependencies.txt is stale — run 'make deps' and stage the result."
+fi
+
+if [ -x backend/.venv/bin/ruff ]; then
+    (cd backend && .venv/bin/ruff check .) || fail "ruff found problems in backend/."
+else
+    echo "pre-commit: backend/.venv not found, skipping ruff (run 'make install')" >&2
+fi
