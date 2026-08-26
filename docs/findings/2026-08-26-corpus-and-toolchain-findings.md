@@ -67,13 +67,33 @@ a section of its own.
 ### A4. The 4.0.3 → R23-11 identifier drift *is* the thesis, and it is measurable
 **Measured.** Code annotations use the old AUTOSAR 4.0.3 form (`CANIF023`);
 the R23-11 specifications use `SWS_CANIF_00023`. Normalizing module +
-zero-padded number joins **73%** of CanIf's annotated IDs. The
-**27% that do not join are requirements deleted or renumbered between
-releases** — genuine drift, not a bug in the normalizer.
+zero-padded number resolves **68.1%** of CanIf's 323 annotated IDs (220).
+The **~32% that do not resolve are requirements deleted or renumbered
+between releases** — genuine drift, not a bug in the normalizer.
 
-**Why it matters.** That 27% is the most concrete evidence the product works.
-It is also the number most likely to be mistaken for a defect by a reader
-(or a grader) who does not know it was measured deliberately.
+**Why it matters.** That unresolved third is the most concrete evidence the
+product works. It is also the number most likely to be mistaken for a defect
+by a reader (or a grader) who does not know it was measured deliberately.
+
+**On the figure itself, because this document previously contradicted
+itself.** An earlier revision said 73%, which came from the very first
+measurement over five `.c` files only (179 of 245). §A5's table then said
+68% (186 of 271) from the full-corpus scan including headers. The running
+pipeline now reports **68.1% (220 of 323)** — a third denominator again,
+because the `prototype` and `file` unit kinds changed what counts as an
+annotation site. All three are "correct" over their own denominator, which is
+exactly how a figure quietly becomes wrong when quoted without one.
+
+**The authoritative number is whatever the pipeline reports**, because it is
+the only one derived from the shipped code rather than from an exploratory
+script. Quote it with its denominator, and prefer regenerating over copying:
+`uv run python -m ingestion.run ../projects/autosar-can/project.yaml
+--stop-after store` prints the join rates.
+
+This correction was caught by an implementer that was handed 73% for the
+README and refused it, on the grounds that putting an unverified figure into
+the file being fixed *for honesty* would reintroduce the defect. It was
+right.
 
 **To do.** Surface it as a first-class output: the extraction/ingestion
 report should list annotated IDs that resolve to no requirement in the
