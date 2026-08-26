@@ -12,6 +12,7 @@ from pathlib import Path
 
 from core.manifest import load_manifest
 from ingestion.context_chunker import (
+    MAX_CAPTION_CHARS,
     MAX_CHUNK_CHARS,
     MIN_CHUNK_CHARS,
     caption_extent,
@@ -122,11 +123,12 @@ def test_a_chunk_never_splits_mid_sentence_at_a_paragraph_boundary():
 
 def test_figure_and_table_captions_are_excluded():
     caption = (
-        "Figure 7.4: CanTpNTa, CanTpNSa and CanTpNAe configuration overview showing the "
-        "relationship between the addressing formats and the configuration containers, "
-        "reproduced here at length so that the caption is comfortably longer than the "
-        "minimum chunk size and cannot be dropped merely for being short."
+        "Figure 7.4: CanTpNTa, CanTpNSa and CanTpNAe configuration overview, showing how "
+        "the addressing formats relate to the configuration containers."
     )
+    # Long enough that the minimum-length rule is not what removes it, short
+    # enough to stay inside the caption bound.
+    assert MIN_CHUNK_CHARS < len(caption) < MAX_CAPTION_CHARS
     document = document_from_blocks(["1\nIntroduction\n", LONG_PROSE + "\n", caption + "\n"])
     _, chunks, stats = chunk_for(document)
 
@@ -138,22 +140,25 @@ def test_figure_and_table_captions_are_excluded():
 
 def test_table_captions_are_excluded_too():
     caption = (
-        "Table 3: Development errors of the Can module, listing every error code together "
-        "with the API service that raises it, given here at length so the caption clears "
-        "the minimum chunk length and can only be removed by the caption rule itself."
+        "Table 3: Development errors of the Can module, listing every error code "
+        "together with the API service that is able to raise it."
     )
+    assert MIN_CHUNK_CHARS < len(caption) < MAX_CAPTION_CHARS
     document = document_from_blocks(["1\nIntroduction\n", caption + "\n", LONG_PROSE + "\n"])
     _, chunks, stats = chunk_for(document)
     assert stats.caption_residues_stripped == 1
     assert all("Development errors of the Can module" not in chunk.text for chunk in chunks)
 
 
-def test_a_multi_line_multi_sentence_caption_is_removed_whole():
-    """The real shape: a caption that wraps and runs to three sentences.
+def test_a_multi_line_caption_is_kept_whole_rather_than_fragmented():
+    """The real shape whose end cannot be told from a fused paragraph's.
 
-    Verbatim from CAN Driver page 36, line breaks included. Stripping only the
-    *first line* would leave 'numbering of HTHs and HRHs are implementation
-    specific.' — a mid-caption fragment — indexed as prose.
+    Verbatim from CAN Driver page 36, line breaks included: a caption whose
+    first line has no terminator and whose third line does. That is exactly
+    the shape a period-less caption fused onto a paragraph takes, so it is
+    kept whole as prose (case 3). The outcome that must *not* happen is a
+    mid-caption fragment — stripping just the first line would index
+    'numbering of HTHs and HRHs are implementation specific. …' on its own.
     """
     caption = (
         "Figure 7.3: Example of assignment of HTHs and HRHs to the Hardware Objects. The\n"
@@ -163,10 +168,13 @@ def test_a_multi_line_multi_sentence_caption_is_removed_whole():
     document = document_from_blocks(["1\nIntroduction\n", LONG_PROSE + "\n", caption])
     _, chunks, stats = chunk_for(document)
 
-    assert stats.caption_residues_stripped == 1
-    assert stats.caption_remainders_kept == 0
-    assert all("numbering of HTHs" not in chunk.text for chunk in chunks)
-    assert all("only an example" not in chunk.text for chunk in chunks)
+    assert stats.caption_residues_stripped == 0
+    assert stats.caption_residues_kept_whole == 1
+    fragments = [c.text for c in chunks if "numbering of HTHs" in c.text]
+    assert fragments, "the caption text must survive somewhere, not be dropped"
+    assert all(text.startswith("Figure 7.3:") for text in fragments), (
+        "the caption must be kept whole, never split mid-caption"
+    )
 
 
 def test_prose_fused_onto_a_caption_survives_the_caption_strip():
@@ -200,18 +208,93 @@ def test_prose_fused_onto_a_caption_survives_the_caption_strip():
     assert survivor.text.startswith("The Can module provides services")
 
 
-def test_caption_extent_measures_the_caption_not_the_first_line():
-    single = "Figure 10.1: Overview about CAN Interface configuration containers\n"
-    assert caption_extent(single) == len(single), "no terminator: the caption is the whole residue"
+def test_a_caption_without_a_period_fused_onto_prose_keeps_the_prose():
+    """The round-1 fix's own blind spot, one level deeper.
 
+    Every earlier test used a caption whose first line ends in a period, which
+    takes the unambiguous path. Here the caption line has **no** terminator and
+    the fused paragraph's first sentence spans three physical lines, so the
+    old line-walking extent consumed the caption *and the whole paragraph* and
+    dropped both — with `caption_remainders_kept` staying 0, so the counters
+    showed nothing wrong. The residue must now be kept whole as prose.
+    """
+    fused = (
+        "Figure 9.2: Message routing\n"
+        "The module forwards frames between the two configured\n"
+        "CAN channels without modification, as specified in the safety\n"
+        "manual, section 4, which is reproduced at length here so the residue "
+        "comfortably clears the minimum chunk size.\n"
+    )
+    document = document_from_blocks(["1\nIntroduction\n", fused])
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.caption_residues_stripped == 0, "the caption's end is not identifiable here"
+    assert stats.caption_residues_kept_whole == 1
+    assert chunks, "the paragraph must not be dropped"
+    assert any("forwards frames between the two configured" in chunk.text for chunk in chunks), (
+        "the paragraph fused onto a period-less caption was silently deleted"
+    )
+    # Kept whole means the caption rides along as prose — noise, not loss.
+    assert any("Message routing" in chunk.text for chunk in chunks)
+
+
+def test_a_period_less_caption_alone_is_still_stripped():
+    """Keeping-whole must not become the rule for ordinary single-line captions.
+
+    97 of the corpus's 102 captions are exactly this shape.
+    """
+    document = document_from_blocks(
+        [
+            "1\nIntroduction\n",
+            "Figure 10.1: Overview about CAN Interface configuration containers\n",
+            LONG_PROSE + "\n",
+        ]
+    )
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.caption_residues_stripped == 1
+    assert stats.caption_residues_kept_whole == 0
+    assert all("Overview about CAN Interface" not in chunk.text for chunk in chunks)
+    assert any("Can module provides services" in chunk.text for chunk in chunks)
+
+
+def test_an_overlong_caption_like_residue_is_kept_as_prose():
+    """A long paragraph that merely starts like a caption must not be eaten."""
+    long_residue = "Table 4: " + "the quick brown fox jumps over the lazy dog " * 12
+    assert len(long_residue) > MAX_CAPTION_CHARS
+    document = document_from_blocks(["1\nIntroduction\n", long_residue + "\n"])
+    _, chunks, stats = chunk_for(document)
+
+    assert caption_extent(long_residue + "\n") == 0
+    assert stats.caption_residues_stripped == 0
+    assert stats.caption_residues_kept_whole == 1
+    assert any("quick brown fox" in chunk.text for chunk in chunks)
+
+
+def test_caption_extent_decides_the_three_cases():
+    """Case 1 first line, case 2 whole residue, case 3 keep everything."""
+    # Case 1 — the caption line ends a sentence: the caption is that line, and
+    # what follows is a different paragraph.
+    fused = "Figure 7.1: Layered Software Architecture.\nThe Can module provides services.\n"
+    assert caption_extent(fused) == len("Figure 7.1: Layered Software Architecture.\n")
+
+    # Case 2 — nothing in the residue ends a sentence, so there is no paragraph
+    # after the caption to lose. 97 of the corpus's 102 captions look like this.
+    single = "Figure 10.1: Overview about CAN Interface configuration containers\n"
+    assert caption_extent(single) == len(single)
+
+    # Case 3 — a *later* line ends a sentence. Could be a two-line caption
+    # (this real one from CAN Driver page 39 is) or a paragraph fused onto a
+    # period-less caption. Indistinguishable, so keep it all as prose.
     wrapped = (
         "Figure 7.5: Example of assignment of same HRHs to multiple Objects The\n"
         "chosen numbering is only an example.\n"
     )
-    assert caption_extent(wrapped) == len(wrapped)
+    assert caption_extent(wrapped) == 0
 
-    fused = "Figure 7.1: Layered Software Architecture.\nThe Can module provides services.\n"
-    assert caption_extent(fused) == len("Figure 7.1: Layered Software Architecture.\n")
+    # The bound, and the degenerate input.
+    assert caption_extent("Table 4: " + "x " * MAX_CAPTION_CHARS) == 0
+    assert caption_extent("") == 0
 
 
 def test_front_matter_before_the_first_heading_is_excluded():

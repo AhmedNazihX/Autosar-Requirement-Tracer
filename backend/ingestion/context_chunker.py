@@ -33,7 +33,10 @@ What is deliberately dropped, and why (all counted in
   page furniture for retrieval purposes. Only the caption itself is removed
   (:func:`caption_extent`); text following it in the same residue is chunked
   as ordinary prose, so a caption PyMuPDF has fused with the paragraph after
-  it cannot take that paragraph down with it.
+  it cannot take that paragraph down with it. Where the caption's end cannot
+  be identified without guessing, the residue is kept whole as prose rather
+  than dropped — dropping is the destructive direction, so the heuristic
+  defaults to keeping.
 * **bibliography and change-history sections** — see
   :data:`EXCLUDED_SECTION_RULES`.
 * **short residue** — anything below :data:`MIN_CHUNK_CHARS` after all of the
@@ -76,10 +79,16 @@ MAX_CHUNK_CHARS = 800
 #: Figure and table captions. ``Figure 10.8: CanTpNTa … overview``.
 CAPTION_PATTERN = re.compile(r"\A(?:Figure|Table)\s+[A-Za-z0-9.\-]+\s*:", re.I)
 
-#: A line that completes a sentence, and so ends a caption. Used by
+#: A line that completes a sentence, and so can end a caption. Used by
 #: :func:`caption_extent` — captions in this corpus wrap across several
-#: physical lines, so the caption is not "the first line".
+#: physical lines, so the caption is not simply "the first line".
 CAPTION_LINE_END_PATTERN = re.compile(r"[.!?]['\"’”)]?\s*\Z")
+
+#: Upper bound on a stripped caption. The observed maximum over the four
+#: documents is 176 characters (median 43, p90 67), so this leaves headroom
+#: while still refusing to swallow a long block whose first line merely
+#: happens to look like a caption. See :func:`caption_extent`.
+MAX_CAPTION_CHARS = 200
 
 #: Sentence-ish boundaries used when a single paragraph exceeds the ceiling.
 SENTENCE_BOUNDARY_PATTERN = re.compile(r"(?<=[.;:!?])\s+")
@@ -117,6 +126,11 @@ class ChunkingStats:
     residues_considered: int = 0
     #: Residues whose leading caption was stripped (see :func:`caption_extent`).
     caption_residues_stripped: int = 0
+    #: Residues that matched the caption pattern but whose caption could not be
+    #: bounded without guessing, so the whole residue was kept as prose. Erring
+    #: this way is deliberate: misfiled caption text is recoverable noise, a
+    #: deleted paragraph is not.
+    caption_residues_kept_whole: int = 0
     #: Of those, how many left text behind after the caption, and how many
     #: characters that text came to. The remainder is ordinary prose from then
     #: on — still subject to the minimum-length rule, not dropped by fiat.
@@ -196,36 +210,72 @@ def subtract_spans(
 
 
 def caption_extent(slice_text: str) -> int:
-    """How many characters of ``slice_text`` the leading caption occupies.
+    """Characters of ``slice_text`` the leading caption occupies, or ``0``.
 
-    Captions in this corpus wrap across physical lines and often run to
-    several sentences (``"Figure 7.3: Example of assignment of HTHs and HRHs
-    to the Hardware Objects. The numbering … is only an example."`` is one
-    three-line block), so the caption is *not* simply the first line. The
-    extent is the leading run of lines up to and including the first line that
-    completes a sentence; a caption with no sentence terminator anywhere — the
-    common single-line ``"Figure 10.1: Overview about …"`` shape — consumes the
-    whole residue.
+    ``0`` means *this residue must not be treated as a caption at all* — the
+    caller keeps the whole thing as prose. That is the deliberate default
+    whenever the caption's end cannot be identified without guessing, because
+    dropping is the destructive direction: a caption misfiled as prose is
+    recoverable noise, a paragraph deleted as caption is gone with no record.
 
-    This exists so the caption rule can be **non-destructive**: only the
-    caption is removed, and anything after it is chunked as ordinary prose. The
-    previous behaviour discarded the entire residue, which would have silently
-    deleted a paragraph whenever PyMuPDF fused a caption with the text
-    following it. Measured over the four-document corpus, 101 of 102 caption
-    residues are caption-only and the remaining one leaves 40 characters that
-    are themselves the caption's closing sentence — so nothing is lost today,
-    but nothing is discarded unmeasured any more either.
+    Three cases, in the order they are decided:
 
-    The heuristic's known limit: for a *fused* block whose caption has no
-    terminating period, the first line of the following paragraph is consumed
-    as part of the caption. No such block occurs in this corpus.
+    1. **The caption line ends a sentence.** Unambiguous — the caption is that
+       line, and anything after it is a different paragraph. This is the shape
+       that recovers prose PyMuPDF has fused onto a caption.
+    2. **No line in the residue ends a sentence.** Then there is no paragraph
+       after the caption to lose, so the whole residue is caption. This is the
+       overwhelmingly common case: the single-line ``"Figure 10.1: Overview
+       about …"`` shape.
+    3. **A *later* line ends a sentence.** Ambiguous: the terminator may close
+       a multi-sentence caption, or it may close the first sentence of a
+       paragraph fused onto the caption, and nothing in the text distinguishes
+       them. Keep the residue as prose.
+
+    Case 3 is why this returns ``0`` rather than walking on. The earlier
+    implementation accumulated lines until *any* line ended in ``.!?``, which
+    meant a caption with no terminating period followed by a paragraph whose
+    first sentence spans several lines had the caption **and the whole
+    paragraph** consumed and dropped, with ``caption_remainders_kept`` staying
+    at zero so the counters showed nothing wrong. Stripping only the first line
+    in case 3 is not an option either: it would leave a mid-caption fragment
+    (``"numbering of HTHs and HRHs are implementation specific. …"``) indexed
+    as prose.
+
+    Measured over the four documents, which is where the bound and the case
+    split come from — 102 caption residues:
+
+    ============================================  =====
+    caption extent is one line                     97
+    two lines                                       1
+    three lines                                     1
+    eight lines (short lines around a figure)       3
+    no line ends a sentence at all (case 2)        99
+    a line ends a sentence (cases 1 and 3)          3
+    ============================================  =====
+
+    Extents run 28–176 characters, median 43, p90 67. :data:`MAX_CAPTION_CHARS`
+    is set above the observed maximum with headroom; a residue whose caption
+    would exceed it is kept as prose, which guards against a long block whose
+    first line merely happens to look like a caption.
+
+    Note that no *character* bound could have separated case 3 from the
+    adversarial fusion on its own — a real 176-character caption and a
+    150-character caption-plus-paragraph overlap — which is why case 3 is
+    resolved by policy rather than by a threshold.
     """
-    consumed = 0
-    for line in slice_text.splitlines(keepends=True):
-        consumed += len(line)
-        if CAPTION_LINE_END_PATTERN.search(line):
-            break
-    return consumed
+    lines = slice_text.splitlines(keepends=True)
+    if not lines:
+        return 0
+
+    if CAPTION_LINE_END_PATTERN.search(lines[0]):
+        extent = len(lines[0])  # case 1
+    elif any(CAPTION_LINE_END_PATTERN.search(line) for line in lines[1:]):
+        return 0  # case 3 — ambiguous, keep everything
+    else:
+        extent = len(slice_text)  # case 2
+
+    return extent if extent <= MAX_CAPTION_CHARS else 0
 
 
 def _split_to_ceiling(text: str, base: int) -> list[tuple[int, int]]:
@@ -368,15 +418,21 @@ def _collect_units(
             if CAPTION_PATTERN.match(normalize(slice_text)):
                 # A caption is a boundary and is not prose — but whatever
                 # follows it in the same residue is, so strip the caption
-                # rather than discarding the residue.
+                # rather than discarding the residue. A zero extent means the
+                # caption's end could not be identified without guessing; the
+                # residue is then kept whole as prose, never dropped.
                 flush()
-                stats.caption_residues_stripped += 1
-                residue_start += caption_extent(slice_text)
-                slice_text = cleaned.text[residue_start:residue_end]
-                if not slice_text.strip():
-                    continue
-                stats.caption_remainders_kept += 1
-                stats.caption_remainder_chars += len(normalize(slice_text))
+                extent = caption_extent(slice_text)
+                if extent == 0:
+                    stats.caption_residues_kept_whole += 1
+                else:
+                    stats.caption_residues_stripped += 1
+                    residue_start += extent
+                    slice_text = cleaned.text[residue_start:residue_end]
+                    if not slice_text.strip():
+                        continue
+                    stats.caption_remainders_kept += 1
+                    stats.caption_remainder_chars += len(normalize(slice_text))
 
             if pending and residue_start != pending[-1].cleaned_end:
                 flush()

@@ -193,6 +193,8 @@ def _document_section(manifest: ProjectManifest, ingestion: DocumentIngestion) -
             f"of those, {stats.caption_remainders_kept} left text after the caption "
             f"({stats.caption_remainder_chars} characters) which is chunked as ordinary "
             f"prose rather than discarded with the caption",
+            f"- caption-like residues kept whole as prose because the caption's end was "
+            f"not identifiable without guessing: {stats.caption_residues_kept_whole}",
             f"- dropped, below {MIN_CHUNK_CHARS} characters: {stats.chunks_dropped_short} chunks",
             "",
         ]
@@ -274,7 +276,8 @@ def render_extraction_report(
             "- a figure/table caption is stripped from its residue rather than the "
             "residue being discarded, so prose following a caption in the same block "
             "survives; the remainder is then subject to the minimum-length rule like "
-            "any other prose",
+            "any other prose. Where the caption's end is ambiguous the residue is kept "
+            "whole as prose — dropping is the destructive direction",
             "- excluded sections, by heading title (with all descendants): "
             + ", ".join(f"{name} = `{p.pattern}`" for name, p in EXCLUDED_SECTION_RULES.items()),
             "",
