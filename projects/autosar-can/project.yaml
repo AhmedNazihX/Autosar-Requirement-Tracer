@@ -1,0 +1,70 @@
+project_id: autosar-can
+name: AUTOSAR CAN Stack (R23-11) vs. openAUTOSAR classic-platform
+version: R23-11
+
+documents:
+  - key: can_driver
+    title: Specification of CAN Driver
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANDriver.pdf
+    filename: AUTOSAR_CP_SWS_CANDriver.pdf
+    module: Can
+    req_id_pattern: 'SWS_Can(?:_CONSTR)?_\d+'
+    expected_requirements: 240
+  - key: can_interface
+    title: Specification of CAN Interface
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANInterface.pdf
+    filename: AUTOSAR_CP_SWS_CANInterface.pdf
+    module: CanIf
+    req_id_pattern: 'SWS_CANIF(?:_CONSTR)?_\d+'
+    expected_requirements: 398
+
+extraction:
+  req_id_pattern: 'SWS_[A-Za-z]+(?:_CONSTR)?_\d+'
+  upstream_id_pattern: '(?:SRS|RS)_[A-Za-z]+_\d+'
+  symbol_pattern: '\b((?:Can|CanIf|CanTp|CanSM|CanNm|Det|EcuM|PduR|Com|ComM)_[A-Z][A-Za-z0-9]*)\b'
+  body_open: "⌈"
+  body_close: "⌋"
+  footer_patterns:
+    - '\n\d+ of \d+\nDocument ID \d+: \S+\n'
+    - '\n{title}\nAUTOSAR CP R23-11\n'
+  drop_markers: ["▽", "△"]
+
+code:
+  repo_url: https://github.com/openAUTOSAR/classic-platform
+  git_sha: 09433770bebb8f27a7b480d7c96d814c68ffed3e
+  license: GPL-2.0
+  language: c
+  include_globs:
+    - communication/CanIf/**/*.[ch]
+    - communication/CanTp/**/*.[ch]
+    - communication/CanSM/**/*.[ch]
+    - communication/CanNm/**/*.[ch]
+    - communication/PduR/**/*.[ch]
+    - communication/Com/**/*.[ch]
+  exclude_globs:
+    - '**/lwip-2.0.3/**'
+    - '**/*_Cfg.[ch]'
+  annotation_pattern: '(?P<marker>[@!])req\s+(?:(?P<release>[\d.]+)/)?(?P<module>[A-Za-z]+)(?P<num>\d+)'
+  annotation_markers:
+    "@": claimed_implemented
+    "!": claimed_not_implemented
+  annotation_module_map:
+    CANIF: CANIF
+    CAN: Can
+    CANTP: CanTp
+    CANSM: CanSM
+    CANNM: CanNm
+    PDUR: PduR
+    COM: Com
+  annotation_id_template: 'SWS_{module}_{num:05d}'
+
+models:
+  chat: anthropic/claude-sonnet-4.5
+  judge: openai/gpt-4o-mini
+  rerank: openai/gpt-4o-mini
+  title: openai/gpt-4o-mini
+  embedding: openai/text-embedding-3-small
+
+limits:
+  max_report_cost_usd: 2.0
+  report_cost_target_usd: 0.50
