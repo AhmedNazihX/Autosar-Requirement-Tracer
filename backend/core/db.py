@@ -29,6 +29,7 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from core.models import CodeUnit, ReqAnnotation, Requirement
 
@@ -444,6 +445,41 @@ def get_requirement(conn: sqlite3.Connection, project_id: str, req_id: str) -> R
 # --------------------------------------------------------------------------
 
 
+def list_requirements(
+    conn: sqlite3.Connection,
+    project_id: str,
+    *,
+    source_docs: Sequence[str] | None = None,
+    doc_type: str | None = "requirement",
+) -> list[Requirement]:
+    """Requirements in scope, in the order they appear in their documents.
+
+    Used to resolve a traceability report's scope (story S4.2.1). ``doc_type``
+    defaults to ``"requirement"`` because a report is about normative
+    requirements — context prose has a synthetic id (``CTX_can_driver_6_14``)
+    and nothing to trace — and ``None`` lifts the filter.
+
+    Ordered by document, page and then id so a report's matrix reads in
+    document order rather than in whatever order SQLite happened to store.
+    """
+    conditions = ["project_id = ?"]
+    params: list[Any] = [project_id]
+    if doc_type is not None:
+        conditions.append("doc_type = ?")
+        params.append(doc_type)
+    if source_docs is not None:
+        if not source_docs:
+            return []
+        conditions.append(f"source_doc IN ({', '.join('?' * len(source_docs))})")
+        params.extend(source_docs)
+    rows = conn.execute(
+        f"SELECT * FROM requirements WHERE {' AND '.join(conditions)} "
+        "ORDER BY source_doc, page, id",
+        params,
+    ).fetchall()
+    return [_row_to_requirement(row) for row in rows]
+
+
 def _code_unit_params(unit: CodeUnit) -> dict:
     return {
         "project_id": unit.project_id,
@@ -750,6 +786,86 @@ def page_counts(conn: sqlite3.Connection, project_id: str) -> dict[str, int]:
             "SELECT doc_key, page_count FROM documents WHERE project_id = ?", (project_id,)
         )
     }
+
+
+# --------------------------------------------------------------------------
+# report_runs — one row per traceability report (story S4.2.1)
+#
+# The in-process registry (``api/reports.py``) owns a *running* job; this table
+# owns the record of one. The split is deliberate: a run's live progress is
+# per-process state that means nothing after a restart, while its result is a
+# document someone will export next week. Writing progress here would put a
+# SQLite write between every judged requirement and the browser, for a number
+# nobody reads afterwards.
+# --------------------------------------------------------------------------
+
+
+def create_report_run(
+    conn: sqlite3.Connection,
+    project_id: str,
+    scope: dict,
+    *,
+    est_cost_usd: float | None = None,
+    run_id: str | None = None,
+) -> str:
+    identifier = run_id or uuid.uuid4().hex
+    conn.execute(
+        "INSERT INTO report_runs (id, project_id, scope, status, created_at, est_cost_usd) "
+        "VALUES (?, ?, ?, 'running', ?, ?)",
+        (identifier, project_id, json.dumps(scope), _now_iso(), est_cost_usd),
+    )
+    conn.commit()
+    return identifier
+
+
+def finish_report_run(
+    conn: sqlite3.Connection,
+    run_id: str,
+    *,
+    status: str,
+    actual_cost_usd: float | None = None,
+    result: dict | None = None,
+) -> None:
+    conn.execute(
+        "UPDATE report_runs SET status = ?, completed_at = ?, actual_cost_usd = ?, "
+        "result = ? WHERE id = ?",
+        (
+            status,
+            _now_iso(),
+            actual_cost_usd,
+            json.dumps(result) if result is not None else None,
+            run_id,
+        ),
+    )
+    conn.commit()
+
+
+def _row_to_report_run(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "scope": json.loads(row["scope"]),
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "completed_at": row["completed_at"],
+        "est_cost_usd": row["est_cost_usd"],
+        "actual_cost_usd": row["actual_cost_usd"],
+        "result": json.loads(row["result"]) if row["result"] else None,
+    }
+
+
+def get_report_run(conn: sqlite3.Connection, run_id: str) -> dict | None:
+    row = conn.execute("SELECT * FROM report_runs WHERE id = ?", (run_id,)).fetchone()
+    return _row_to_report_run(row) if row is not None else None
+
+
+def list_report_runs(conn: sqlite3.Connection, project_id: str) -> list[dict]:
+    """Newest first, without the (potentially large) stored result."""
+    rows = conn.execute(
+        "SELECT * FROM report_runs WHERE project_id = ? ORDER BY created_at DESC, id DESC",
+        (project_id,),
+    ).fetchall()
+    return [{**_row_to_report_run(row), "result": None} for row in rows]
 
 
 # --------------------------------------------------------------------------

@@ -271,7 +271,11 @@ def semantic_candidates(
 
 
 def gather_candidates(
-    engine: Engine, requirement: Requirement, *, limit: int = MAX_CANDIDATES
+    engine: Engine,
+    requirement: Requirement,
+    *,
+    limit: int = MAX_CANDIDATES,
+    include_semantic: bool = True,
 ) -> tuple[list[Candidate], PipelineUsage, tuple[StageLog, ...]]:
     """Tiers 1 and 2 merged into the ≤8 candidates spec §5 allows.
 
@@ -282,6 +286,11 @@ def gather_candidates(
 
     The semantic pass is skipped when the cheap tiers already fill the budget,
     which is what makes an annotated requirement cost nothing before the judge.
+
+    ``include_semantic=False`` stops before it unconditionally, which is how
+    the report's cost estimate (:func:`engines.report.estimate_cost`) counts
+    real candidates without paying for any retrieval — it must not spend money
+    working out what spending money would cost.
     """
     candidates: list[Candidate] = []
     seen: set[tuple[str, str, str, tuple[int, int]]] = set()
@@ -296,7 +305,7 @@ def gather_candidates(
 
     take(annotation_candidates(engine, requirement))
     take(anchor_candidates(engine, requirement))
-    if len(candidates) >= limit:
+    if not include_semantic or len(candidates) >= limit:
         return candidates, PipelineUsage(), ()
 
     semantic, usage, stages = semantic_candidates(engine, requirement)

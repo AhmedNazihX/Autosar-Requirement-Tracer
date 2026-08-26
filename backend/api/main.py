@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api import chat, deps, documents, setup, threads
+from api import chat, deps, documents, reports, setup, threads
 from core.config import get_settings
 
 __version__ = "0.1.0"
@@ -28,6 +28,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        # A report job is a background thread spending money in a loop. Left
+        # running, it keeps uvicorn from exiting and keeps billing after the
+        # server is meant to be gone.
+        reports.REGISTRY.cancel_all()
         app.state.reqtrace.close()
 
 
@@ -35,6 +39,7 @@ app = FastAPI(title="ReqTrace API", version=__version__, lifespan=lifespan)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(threads.router)
+app.include_router(reports.router)
 app.include_router(setup.router)
 
 

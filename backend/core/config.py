@@ -20,7 +20,17 @@ class Settings(BaseSettings):
     )
 
     openrouter_api_key: str | None = None
-    max_report_cost_usd: float = 2.0
+
+    #: The report cost hard stop (spec §11). ``None`` means "not set here",
+    #: which is a different statement from "$2" and has to stay distinguishable:
+    #: the ceiling is configured in *two* places — this environment variable
+    #: and the manifest's ``limits.max_report_cost_usd`` — and
+    #: :func:`engines.report.ceiling_usd` gives the environment precedence when
+    #: it is set. A plain ``2.0`` default here would make an unset variable
+    #: silently override a manifest that said something else.
+    #: ``.env.example`` ships it set to 2.0, and the manifest agrees, so the
+    #: effective default is unchanged.
+    max_report_cost_usd: float | None = None
 
     #: Which corpus this backend serves. A path, not a project name, because
     #: every corpus-specific value (model IDs, globs, the pinned SHA) lives in
