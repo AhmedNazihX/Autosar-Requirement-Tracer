@@ -141,7 +141,9 @@ export function CodeTab({
           <span className="text-foreground">
             GET /code/{"{path}"}?lines=a-b
           </span>{" "}
-          in WP4; the pane can only ever open paths inside the pinned snapshot.
+          , which the backend already serves (story S3.3.2); this pane fetching
+          it is story S5.3.2. The pane can only ever open paths inside the
+          pinned snapshot.
         </Meta>
       </div>
     </div>

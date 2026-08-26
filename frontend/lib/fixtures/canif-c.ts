@@ -7,11 +7,13 @@
  *   path   communication/CanIf/src/CanIf.c
  *   lines  715-885 of 1927
  *
- * It is committed rather than fetched because GET /code/{path} (spec §6) does
- * not exist yet and data/ is gitignored. Nothing else about the Code tab is
+ * It is committed rather than fetched because data/ is gitignored, so a clone
+ * that has not run ingestion has no snapshot to slice. GET /code/{path} itself
+ * exists as of WP3 (story S3.3.2). Nothing else about the Code tab is
  * fixture-shaped: the highlighter, the gutter, the annotation bars and the
  * evidence band all read the same fields a real `citation` event carries, so
- * swapping this constant for a fetched slice is the only change WP4 needs.
+ * swapping this constant for a fetched slice is the only change story S5.3.2
+ * needs.
  *
  * Generated, not hand-written: it is a quotation.
  */
@@ -195,4 +197,5 @@ void CanIf_TxConfirmation(PduIdType canTxPduId) {
     if( E_OK == CanIf_GetPduMode(txPduPtr->CanIfTxPduBufferRef->CanIfBufferHthRef->CanIfCanControllerIdRef, &mode) ) {
         /* @req 4.0.3/CANIF489*/
         /* @req 4.0.3/CANIF491 Part of */
-        /* @req 4.0.3/CANIF075 */`;
+        /* @req 4.0.3/CANIF075 */
+`;

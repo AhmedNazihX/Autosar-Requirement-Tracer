@@ -18,11 +18,12 @@ import { Cap, Meta } from "@/components/reqtrace/text";
 /**
  * The Document tab, in its designed awaiting-backend state.
  *
- * pdf.js is pre-approved (spec §7) but deliberately not wired here:
- * `GET /documents/{doc}/view` is a WP4 story and the PDFs are gitignored, so
- * there is no page image and no stored bbox to draw a highlight from. Faking
- * either would put a fabricated rectangle on screen — the exact failure the
- * canvas's `source-states` note exists to prevent.
+ * pdf.js is pre-approved (spec §7) but deliberately not wired here yet.
+ * `GET /documents/{doc}/view` now EXISTS (WP3, story S3.3.2) and returns real
+ * page + bbox coordinates; what is missing is this pane fetching it and
+ * rendering the PDF, which is story S5.3.1. Until then nothing is faked —
+ * a fabricated rectangle is the exact failure the canvas's `source-states`
+ * note exists to prevent.
  *
  * What it does show is everything the `citation` event actually carries: the
  * document, the page, the section, and the verbatim extracted requirement text
@@ -94,8 +95,9 @@ export function DocumentTab({
           <span className="font-mono">
             GET /documents/{citation.doc}/view?highlight={citation.req_id}
           </span>
-          , which lands in WP4. The requirement text below is what ingestion
-          extracted for this citation.
+          , which the backend already serves (story S3.3.2); this pane fetching
+          and rendering it is story S5.3.1. The requirement text below is what
+          ingestion extracted for this citation.
           {citation.bbox === null ? (
             <>
               {" "}

@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Progress: WP1, WP2 and WP3 are done; WP4 (evidence & traceability) is next.** The corpus is ingested (4 SWS documents, 1054 requirements, 1253 code units); spec §4's five retrieval stages are assembled behind `retrieval/pipeline.py`; and the agent, chat SSE endpoint, read endpoints, threads and setup API are live. 3 of the 5 tools are registered — WP4's story S4.3.2 adds the other two to `agent/tools.py`'s `TOOL_BUILDERS`. Measured facts worth not re-deriving live in `docs/findings/2026-08-26-corpus-and-toolchain-findings.md`; C9–C12 and D3–D4 are WP3's.
 
+**The frontend is further along than the plan's ordering implies, and this is not obvious from the plan.** `frontend/` already has the app shell, thread sidebar, chat pane, split source pane and a committed canned-conversation fixture, all written against the SSE contract in `frontend/lib/events.ts` — which is the *authority* on the wire format (`api/chat_events.py` is the Python side of it; do not fork them). So most of WP5 is **wiring, not building**: `lib/chat-sources.ts` defaults to the canned source (`NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live` switches it), `lib/threads.ts` is still localStorage-backed rather than calling the live `/threads` endpoints, and the two source-pane tabs render fixtures rather than fetching `/documents/{doc}/view` and `/code/{path}`. Those endpoints all exist as of WP3.
+
 ## Sources of truth (read before changing anything)
 
 1. `docs/specs/2026-08-26-reqtrace-design.md` — the approved design spec. All architectural decisions live here, including grill-session amendments (§11).

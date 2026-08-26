@@ -14,9 +14,10 @@
  *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=canned   (default)
  *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live     POST /api/py/chat
  *
- * The live source is written, typed and reachable today — it is how the
- * killed-backend case is exercised — even though `POST /chat` is a WP3 story
- * and currently answers 404 through the proxy.
+ * `POST /chat` exists as of WP3 (story S3.3.1), so the live source works
+ * against a running backend. `canned` stays the default so the committed demo
+ * conversation renders with no backend and no API key at all; set
+ * NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live to drive the real one.
  */
 
 import { isChatEvent, type ChatEvent } from "./events";
@@ -182,8 +183,9 @@ export function sseSource(): ChatSource {
 function describeHttpFailure(status: number): string {
   if (status === 404) {
     return (
-      "The chat endpoint is not available on this backend yet " +
-      "(POST /chat is a WP3 story). Nothing was sent to a model."
+      "The backend is running but has no /chat endpoint, so it is older than " +
+      "this build of the UI. Restart it from the current backend/ directory. " +
+      "Nothing was sent to a model."
     );
   }
   if (status >= 500) {
