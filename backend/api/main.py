@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api import chat, deps
+from api import chat, deps, documents
 from core.config import get_settings
 
 __version__ = "0.1.0"
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="ReqTrace API", version=__version__, lifespan=lifespan)
 app.include_router(chat.router)
+app.include_router(documents.router)
 
 
 @app.get("/health")
