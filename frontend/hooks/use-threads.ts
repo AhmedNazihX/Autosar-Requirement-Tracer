@@ -28,6 +28,7 @@ import {
   type Thread,
   type ThreadSummary,
 } from "@/lib/threads";
+import { chatSourceKind } from "@/lib/chat-sources";
 import { buildDemoThread } from "@/lib/fixtures/canned-conversation";
 
 export interface UseThreadsResult {
@@ -63,13 +64,17 @@ export function useThreads(): UseThreadsResult {
   // acceptance vehicle visible on first load, and it is stored exactly like a
   // real thread — full event array per message — so reload replays it rather
   // than re-seeding it.
+  //
+  // Gated on the chat source being canned. The demo thread is a fixture, and
+  // once WP3 makes `live` the default an unconditional seed would write a
+  // fixture into a real user's thread list on their very first visit.
   useEffect(() => {
     if (booted.current) return;
     booted.current = true;
 
     void (async () => {
       let existing = await listThreads();
-      if (existing.length === 0) {
+      if (existing.length === 0 && chatSourceKind() === "canned") {
         await putThread(buildDemoThread());
         existing = await listThreads();
       }
