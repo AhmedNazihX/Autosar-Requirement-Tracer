@@ -66,8 +66,12 @@ PDF_MAGIC = b"%PDF"
 _CHUNK_BYTES = 256 * 1024
 _TIMEOUT_SECONDS = 120
 # autosar.org serves the standards to ordinary browsers; a default urllib
-# User-Agent is a needless way to get a 403.
-_USER_AGENT = "ReqTrace/0.1 (+https://github.com/openAUTOSAR/classic-platform)"
+# User-Agent is a needless way to get a 403. The contact URL is *this*
+# project's repository: a crawler that identifies itself as somebody else's
+# project is worse than one that does not identify itself at all.
+_USER_AGENT = (
+    "ReqTrace/0.1 (+https://github.com/TuringCollegeSubmissions/anazih-AE.AFA.3.5)"
+)
 
 # --- the pinned intermediate certificate -----------------------------------
 #

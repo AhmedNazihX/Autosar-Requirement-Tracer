@@ -522,7 +522,7 @@ def extract_context_chunks(
                     page=page,
                     bbox=bbox,
                     char_span=(source_start, source_end),
-                    source_doc=entry.filename,
+                    source_doc=entry.key,
                     upstream_ids=[],
                     named_symbols=extract_named_symbols(
                         text, manifest.extraction.symbol_pattern

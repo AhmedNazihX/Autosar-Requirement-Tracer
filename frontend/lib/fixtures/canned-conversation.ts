@@ -38,28 +38,33 @@ import type { ChatEvent, RagStage } from "../events";
 import type { Thread } from "../threads";
 
 const CHAT_MODEL = "anthropic/claude-sonnet-4.5";
+
+// `doc` is the document's MANIFEST KEY, exactly as ingestion stores it in
+// `Requirement.source_doc` and exactly what `GET /documents/{doc}/view` will
+// take — see projects/autosar-can/project.yaml. Not a filename: filenames and
+// extensions have no business in a URL, and the key survives a rename.
 const GIT_SHA = "09433770bebb8f27a7b480d7c96d814c68ffed3e";
 
 const CAN_DRIVER = {
-  doc: "AUTOSAR_CP_SWS_CANDriver",
+  doc: "can_driver",
   doc_title: "CAN Driver",
   page_count: 131,
 } as const;
 
 const CAN_IF = {
-  doc: "AUTOSAR_CP_SWS_CANInterface",
+  doc: "can_interface",
   doc_title: "CAN Interface",
   page_count: 228,
 } as const;
 
 const CAN_TP = {
-  doc: "AUTOSAR_CP_SWS_CANTransportLayer",
+  doc: "can_transport",
   doc_title: "CAN Transport Layer",
   page_count: 108,
 } as const;
 
 const CAN_SM = {
-  doc: "AUTOSAR_CP_SWS_CANStateManager",
+  doc: "can_statemanager",
   doc_title: "CAN State Manager",
   page_count: 115,
 } as const;

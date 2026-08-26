@@ -10,10 +10,17 @@ A missing database is not an error: a fresh clone has no ``data/`` at all, and
 the API must still boot so the first-run setup screen (story S3.6.1) can tell
 the user to run ingestion. :func:`load_indexes` reports that as
 ``records == 0`` with ``bm25`` still usable (and empty), never a crash.
+
+Neither is an *unreadable* one. ``make dev`` while ingestion is running is
+enough to meet a WAL-locked database, and a truncated file is enough to meet a
+corrupt one; both used to escape the lifespan and kill the server, which is
+precisely when the first-run screen needs the server up in order to say what is
+wrong. Every load path here degrades to a reported ``error`` instead.
 """
 
 from __future__ import annotations
 
+import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,12 +70,30 @@ def load_indexes(manifest: ProjectManifest, db_path: Path | None = None) -> Star
             ),
         )
 
-    conn = db.connect(path)
     try:
-        db.migrate(conn)
-        index = bm25.build_from_sqlite(conn, manifest.project_id)
-    finally:
-        conn.close()
+        conn = db.connect(path)
+        try:
+            db.migrate(conn)
+            index = bm25.build_from_sqlite(conn, manifest.project_id)
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError) as exc:
+        # A locked (ingestion is running), corrupt or unreadable database. The
+        # server must still come up: story S3.6.1's first-run screen reports
+        # this error, and it cannot report anything if the process died.
+        return StartupIndexes(
+            project_id=manifest.project_id,
+            bm25=bm25.build_index([]),
+            records=0,
+            elapsed_seconds=time.perf_counter() - started,
+            db_path=path,
+            error=(
+                f"could not read the index at {path} ({type(exc).__name__}: {exc}) — "
+                "if ingestion is running, wait for it to finish and restart; otherwise "
+                "delete the file and re-run "
+                "'uv run python -m ingestion.run ../projects/autosar-can/project.yaml'"
+            ),
+        )
     return StartupIndexes(
         project_id=manifest.project_id,
         bm25=index,

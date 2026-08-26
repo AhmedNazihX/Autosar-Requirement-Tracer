@@ -87,12 +87,25 @@ export interface RequirementCitation {
   kind: "requirement";
   /** Exactly as the corpus spells it. NEVER normalise the casing. */
   req_id: string;
-  /** Document id, e.g. `AUTOSAR_CP_SWS_CANInterface`. */
+  /**
+   * The document's **manifest key** — `can_interface`, never a filename and
+   * never a PDF title. One identity end to end: it is what ingestion stores
+   * as `Requirement.source_doc` and what `GET /documents/{doc}/view` (spec
+   * §6) takes. `doc_title` is the human-readable name.
+   */
   doc: string;
   doc_title: string;
   page: number;
   bbox: [number, number, number, number] | null;
-  /** Set when the requirement spans pages and `bbox` is therefore null. */
+  /**
+   * Set when the requirement spans pages and `bbox` is therefore null.
+   *
+   * NOTE for WP3: the backend cannot populate this from storage yet.
+   * `Requirement` records only the *start* page (`core/models.py`), so there
+   * is no end page to send. Acceptable under ruling R21 — but widen the model
+   * before wiring this, rather than hunting for a field that was never
+   * stored. Until then only the canned fixture can carry it.
+   */
   page_span?: [number, number];
   page_count: number;
   section?: string;
@@ -122,6 +135,11 @@ export interface UpstreamCitation {
   req_id: string;
   /** The SWS requirement that cites it. */
   cited_by: string;
+  /**
+   * The upstream document's name, for display only. Not a manifest key:
+   * SRS documents are not in the corpus, so there is nothing to key on and
+   * nothing to open.
+   */
   doc: string;
 }
 

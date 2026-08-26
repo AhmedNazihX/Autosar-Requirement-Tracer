@@ -80,6 +80,12 @@ BREADCRUMB_TEMPLATE = "// {file} > {symbol}"
 #: distinguishable from one found on a body without string-matching prose.
 PROTOTYPE_KIND: CodeUnitKind = "prototype"
 
+#: Kind for a unit that *defines* a function — the counterpart of
+#: :data:`PROTOTYPE_KIND` and the one kind that counts as an implementation.
+#: Named for the same reason: callers that compare against it (the vector-store
+#: filter in ``ingestion.run``, for one) must not spell the string themselves.
+FUNCTION_KIND: CodeUnitKind = "function"
+
 #: Breadcrumb suffix for a prototype. Redundant with ``kind`` on purpose — the
 #: breadcrumb is embedded, so it is what tells the retriever and the reranker
 #: that this chunk is a declaration.
@@ -314,7 +320,7 @@ def _emissions(node: Node) -> list[_Emission]:
     if node.type == "function_definition":
         name = declarator_name(node.child_by_field_name("declarator"))
         if name:
-            out.append(_Emission("function", name, node))
+            out.append(_Emission(FUNCTION_KIND, name, node))
         return out
 
     if node.type in ("preproc_def", "preproc_function_def"):

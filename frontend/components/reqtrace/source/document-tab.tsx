@@ -56,8 +56,9 @@ export function DocumentTab({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex h-[34px] flex-none items-center gap-2 border-b pr-2 pl-3">
+        {/* The manifest key, not a filename — so no `.pdf` is appended. */}
         <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
-          {citation.doc}.pdf
+          {citation.doc}
         </span>
         <div className="flex flex-none items-center gap-px">
           <Button variant="ghost" size="icon-xs" aria-label="Previous page" disabled>
@@ -138,7 +139,7 @@ export function DocumentTab({
             <Meta>
               {citation.page} of {citation.page_count}
             </Meta>
-            <Meta className="truncate">Document ID: {citation.doc}</Meta>
+            <Meta className="truncate">Document key: {citation.doc}</Meta>
           </div>
 
           <div className="flex flex-col gap-2 pt-1">

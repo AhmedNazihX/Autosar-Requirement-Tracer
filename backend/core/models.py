@@ -51,6 +51,20 @@ class Requirement(BaseModel):
     in the CAN Driver doc, ``SWS_CANIF_00001`` in the CAN Interface doc) —
     citations must render verbatim. Use :meth:`canonical_id` to normalize an
     id for case-insensitive lookup; it never mutates ``id`` itself.
+
+    ``source_doc`` is the **manifest key** for the document (``can_driver``),
+    never its filename. One vocabulary, end to end: it is the manifest's own —
+    the corpus-abstraction boundary CLAUDE.md locks — it survives a filename
+    change, and it is what ``GET /documents/{doc}/view`` (spec §6) and the
+    frontend's ``citation`` events use. The PDF filename stays on the manifest
+    entry, where the fetcher and the human-facing ingestion artifacts read it.
+
+    There is deliberately **no end page**: ``page`` is where the requirement
+    starts, and a requirement whose text crosses a page break gets
+    ``bbox=None`` rather than a wrong rectangle. So a citation's optional
+    ``page_span`` cannot be populated from storage (acceptable under ruling
+    R21) — WP3 should widen this model first rather than hunt for a field that
+    was never stored.
     """
 
     model_config = ConfigDict(extra="forbid")

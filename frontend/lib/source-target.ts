@@ -51,12 +51,3 @@ export function targetForEvents(
   }
   return null;
 }
-
-/** Stable identity for a target, so effects can depend on "did the view change". */
-export function targetKey(target: SourceTarget | null): string {
-  if (!target) return "";
-  if (target.citation.kind === "requirement") {
-    return `document:${target.citation.doc}:${target.citation.req_id}:${target.citation.page}`;
-  }
-  return `code:${target.citation.repo_path}:${target.citation.line_span[0]}-${target.citation.line_span[1]}`;
-}

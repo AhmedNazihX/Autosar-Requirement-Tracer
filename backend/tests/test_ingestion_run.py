@@ -28,7 +28,7 @@ from core.embeddings import API_KEY_ENV_VAR, EmbeddingBatch
 from core.manifest import load_manifest
 from ingestion import run
 from ingestion.context_chunker import extract_context_chunks
-from ingestion.extraction_report import DocumentIngestion
+from ingestion.extraction_report import DocumentIngestion, ingest_document
 from ingestion.req_extractor import extract_requirements
 from ingestion.spot_check import CRITERIA, render_spot_check, select_picks
 from tests.support_extraction import document_from_blocks
@@ -462,6 +462,65 @@ def test_extractor_warnings_fail_the_run_only_after_the_report_is_written(corpus
     assert paths.extraction_report_path(manifest).is_file(), "the report must survive the failure"
     assert str(paths.extraction_report_path(manifest)) in message
     assert not paths.db_path(manifest).exists(), "nothing may be indexed after a warning"
+
+
+def test_the_same_id_in_two_documents_fails_the_run_after_the_report(tmp_path, monkeypatch):
+    """The other half of ruling R26, which no per-document pass can see.
+
+    ``requirements``' primary key spans the corpus and the insert is
+    ``ON CONFLICT DO UPDATE`` (idempotent re-ingestion needs it), so a
+    cross-document collision would otherwise be silently merged — one
+    requirement left wearing the other's text.
+    """
+    manifest_dir = tmp_path / "projects" / "fixture-can"
+    manifest_dir.mkdir(parents=True)
+    twice = {
+        **FIXTURE_MANIFEST,
+        "documents": [
+            FIXTURE_MANIFEST["documents"][0],
+            {
+                # The same document under a second key: same ids, different key.
+                **FIXTURE_MANIFEST["documents"][0],
+                "key": "fixture_driver_copy",
+                "filename": "FixtureCANDriverCopy.pdf",
+            },
+        ],
+    }
+    manifest_path = manifest_dir / "project.yaml"
+    manifest_path.write_text(yaml.safe_dump(twice), encoding="utf-8")
+    source_pdf = tmp_path / "source" / "FixtureCANDriver.pdf"
+    write_fixture_pdf(source_pdf)
+    manifest = load_manifest(manifest_path)
+
+    with pytest.raises(run.IngestionError) as error:
+        run.run_ingestion(
+            manifest,
+            run.Options(skip_embeddings=True),
+            reporter=run.Reporter(quiet=True),
+            downloader=FakeDownloader(source_pdf),
+            git_runner=FakeGit({"communication/Fix/Fix.c": FIXTURE_C}),
+        )
+
+    message = str(error.value)
+    assert "two documents cannot share one requirement id" in message
+    assert "SWS_Fix_00001" in message
+    assert paths.extraction_report_path(manifest).is_file(), "the report must survive the failure"
+    assert not paths.db_path(manifest).exists(), "nothing may be indexed after a collision"
+
+
+def test_cross_document_duplicates_ignores_a_repeat_within_one_document(corpus):
+    """That case is the extractor's warning; this check must not double-report it."""
+    manifest, _, source_pdf = corpus
+    entry = manifest.documents[0]
+    pdf = paths.data_dir(manifest) / "docs" / entry.filename
+    FakeDownloader(source_pdf)(entry.url, pdf)
+    result = ingest_document(manifest, entry, pdf)
+    result.extraction.requirements.append(result.extraction.requirements[0])
+
+    assert run.cross_document_duplicates([result]) == []
+    assert run.cross_document_duplicates([result, result]) == [], (
+        "the same document object twice is one document, not a collision"
+    )
 
 
 def test_a_missing_key_is_reported_before_anything_is_fetched(corpus, monkeypatch, capsys):

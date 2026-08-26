@@ -15,6 +15,7 @@ Two things here look odd until you know why:
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -59,7 +60,7 @@ def requirement(
         page=page,
         bbox=(71.0, 100.0, 524.0, 160.0),
         char_span=(10, 90),
-        source_doc="AUTOSAR_CP_SWS_CANDriver.pdf",
+        source_doc="can_driver",
         upstream_ids=upstream or [],
         named_symbols=symbols or [],
         version=MANIFEST.version,
@@ -118,7 +119,8 @@ def test_a_requirement_document_embeds_its_title_and_carries_filter_metadata():
     metadata = document.metadata
     assert metadata["req_id"] == "SWS_Can_00011"
     assert metadata["doc_type"] == "requirement"
-    assert metadata["source_doc"] == "AUTOSAR_CP_SWS_CANDriver.pdf"
+    # The manifest key is the document identity everywhere downstream.
+    assert metadata["source_doc"] == "can_driver"
     assert metadata["module"] == "Can"
     assert metadata["section_path"] == "7.2 Can_Write"
     assert metadata["page"] == 32
@@ -470,3 +472,42 @@ def test_startup_without_a_database_reports_how_to_build_one(tmp_path: Path):
     assert indexes.records == 0
     assert "ingestion.run" in (indexes.error or "")
     assert bm25.search(indexes.bm25, "Can_Write") == []
+
+
+def test_startup_with_an_unreadable_database_reports_it_instead_of_dying(tmp_path: Path):
+    """A corrupt or WAL-locked database must not kill the lifespan.
+
+    ``make dev`` while ingestion is running is exactly this case, and the
+    first-run screen (story S3.6.1) can only report a broken index if the
+    server is still up to serve it.
+    """
+    path = tmp_path / "corrupt.db"
+    path.write_bytes(b"this is not a database, it is 40 bytes of noise")
+
+    indexes = load_indexes(MANIFEST, path)
+
+    assert not indexes.ready
+    assert indexes.records == 0
+    assert "could not read the index" in (indexes.error or "")
+    assert "DatabaseError" in (indexes.error or "")
+    assert bm25.search(indexes.bm25, "Can_Write") == []
+
+
+def test_startup_with_a_locked_database_reports_it_instead_of_dying(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """The WAL-lock case, forced deterministically rather than by racing."""
+    path = tmp_path / "locked.db"
+    connection = db.connect(path)
+    db.migrate(connection)
+
+    def locked(*args, **kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(db, "migrate", locked)
+    indexes = load_indexes(MANIFEST, path)
+    connection.close()
+
+    assert not indexes.ready
+    assert "could not read the index" in (indexes.error or "")
+    assert "database is locked" in (indexes.error or "")

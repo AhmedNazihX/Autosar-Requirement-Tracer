@@ -28,11 +28,21 @@ acceptance criterion for three of the stories this composes, so it is a
 property of the pipeline rather than a nicety.
 
 **Ruling R26: report first, fail second.** Duplicate requirement ids are a
-*warning* in the extractor (which cannot see the storage constraint) and an
-*error* at the SQLite insert. Raising in the extractor would suppress the very
+*warning* in the extractor (which cannot see the storage constraint) and fatal
+*here*. Raising in the extractor would suppress the very
 ``extraction_report.md`` that names the collision, so instead this CLI writes
 the report and *then* exits non-zero on any extractor warning. That ordering
 is the whole point: the evidence survives the failure.
+
+The ruling's original wording said the error lands "at the SQLite insert". It
+cannot, and the ruling is amended rather than pretended: ``core/db.py``'s
+upserts are ``ON CONFLICT DO UPDATE``, which idempotent re-ingestion
+*requires* — a second run must overwrite its own rows, not fail on them. So
+the gate is entirely in this module, and it is two checks, not one: the
+extractor's per-document warning (an id twice in one document), plus
+:func:`cross_document_duplicates` (the same id in two documents), which no
+per-document pass can see and which the upsert would otherwise silently
+merge. Today's corpus has neither — 1054 ids, 1054 unique.
 
 **Never a stack trace.** Every foreseeable fault — a missing key, an
 unreachable URL, a SHA mismatch, a manifest error, an unwritable path — is
@@ -74,7 +84,12 @@ from ingestion.code_fetcher import (
     repo_dir,
     subprocess_git_runner,
 )
-from ingestion.code_indexer import PROTOTYPE_KIND, RepoIndexResult, index_repo
+from ingestion.code_indexer import (
+    FUNCTION_KIND,
+    PROTOTYPE_KIND,
+    RepoIndexResult,
+    index_repo,
+)
 from ingestion.extraction_report import (
     DocumentIngestion,
     ExtractionReportError,
@@ -407,16 +422,52 @@ def render_summary(summary: RunSummary) -> str:
 def _connect(path: Path) -> sqlite3.Connection:
     """Open the registry, creating the schema if needed.
 
-    ``synchronous = NORMAL`` because ``core.db`` commits per row and this
-    database is entirely derived: the worst a crash mid-ingestion can cost is
-    a re-run of a command that is idempotent by design. With ``FULL`` the
-    ~5000 per-row commits fsync 5000 times for no benefit anyone can use.
+    ``synchronous = NORMAL`` because ``core.db`` commits per row for the
+    registry tables and this database is entirely derived: the worst a crash
+    mid-ingestion can cost is a re-run of a command that is idempotent by
+    design. With ``FULL`` every one of those commits fsyncs, for a durability
+    guarantee nobody here can use.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = db.connect(path)
     conn.execute("PRAGMA synchronous = NORMAL")
     db.migrate(conn)
     return conn
+
+
+def cross_document_duplicates(results: Sequence[DocumentIngestion]) -> list[str]:
+    """Ids that two *different* documents both produced, as report lines.
+
+    The other half of ruling R26. The extractor warns about an id appearing
+    twice in one document, but it sees one document at a time, and
+    ``requirements``' primary key is ``(project_id, id)`` across the whole
+    corpus — so a cross-document collision would be silently merged by the
+    upsert, leaving one requirement wearing the other's text. Nothing else in
+    the pipeline can catch it.
+
+    Matched on :meth:`Requirement.canonical_id`, not the raw id: lookup is
+    case-insensitive (``core/db.py``), so ``SWS_Can_00491`` and
+    ``SWS_CAN_00491`` in two documents would be one requirement to every
+    reader even though SQLite would store both rows.
+
+    Context chunks are checked alongside requirements because they share the
+    table and the key.
+    """
+    owner: dict[str, tuple[str, str]] = {}
+    collisions: list[str] = []
+    for result in results:
+        key = result.entry.key
+        for record in (*result.extraction.requirements, *result.context_chunks):
+            canonical = Requirement.canonical_id(record.id)
+            previous = owner.get(canonical)
+            if previous is None:
+                owner[canonical] = (key, record.id)
+            elif previous[0] != key:
+                collisions.append(
+                    f"{key}: id {record.id} was already extracted from {previous[0]} "
+                    f"as {previous[1]} — two documents cannot share one requirement id"
+                )
+    return collisions
 
 
 def embeddable_code_units(units: Sequence[CodeUnit]) -> tuple[list[CodeUnit], int]:
@@ -451,7 +502,7 @@ def embeddable_code_units(units: Sequence[CodeUnit]) -> tuple[list[CodeUnit], in
     duplicate. The rule is a deterministic function of the snapshot, so two
     runs drop exactly the same units.
     """
-    defined = {unit.symbol for unit in units if unit.kind == "function"}
+    defined = {unit.symbol for unit in units if unit.kind == FUNCTION_KIND}
     kept: list[CodeUnit] = []
     dropped = 0
     for unit in units:
@@ -589,7 +640,7 @@ def run_ingestion(
     no calls. They default to ``None`` and are resolved here rather than in the
     signature, so a default bound at import time cannot outlive a patch.
     """
-    fetch = downloader if downloader is not None else urllib_downloader
+    download = downloader if downloader is not None else urllib_downloader
     git = git_runner if git_runner is not None else subprocess_git_runner
     opts = options if options is not None else Options()
     report = reporter if reporter is not None else Reporter()
@@ -614,14 +665,14 @@ def run_ingestion(
     fetches: list[FetchResult] = fetch_documents(
         manifest,
         docs_target,
-        downloader=fetch,
+        downloader=download,
         on_progress=lambda filename, done, total: report.once(
             filename, f"      downloading {filename} ..."
         ),
         force=opts.force,
     )
-    for fetch in fetches:
-        report.line(f"      {fetch.action:<14}{fetch.filename} ({fetch.bytes:,} bytes)")
+    for fetched in fetches:
+        report.line(f"      {fetched.action:<14}{fetched.filename} ({fetched.bytes:,} bytes)")
     if not opts.runs("extract"):
         return RunSummary(
             project_id=manifest.project_id,
@@ -631,8 +682,8 @@ def run_ingestion(
     # -- 3. requirements, context chunks, and the evidence artifacts -------
     report.stage("extract", "parsing PDFs and extracting requirements")
     results: list[DocumentIngestion] = []
-    for entry, fetch in zip(manifest.documents, fetches, strict=True):
-        result = ingest_document(manifest, entry, fetch.path)
+    for entry, fetched in zip(manifest.documents, fetches, strict=True):
+        result = ingest_document(manifest, entry, fetched.path)
         results.append(result)
         report.line(
             f"      {entry.key:<18}{len(result.extraction.requirements):>5} requirements "
@@ -649,12 +700,15 @@ def run_ingestion(
     report.line(f"      wrote {artifacts[0]}")
     report.line(f"      wrote {spot_path}")
 
-    # Ruling R26: the report is on disk, so now the warnings may be fatal.
+    # Ruling R26: the report is on disk, so now the warnings may be fatal. This
+    # is the *only* place a duplicate id is fatal — the SQLite upsert cannot
+    # refuse one without breaking idempotent re-ingestion.
     warnings = [
         f"{result.entry.key}: {warning}"
         for result in results
         for warning in result.extraction.warnings
     ]
+    warnings.extend(cross_document_duplicates(results))
     if warnings:
         raise IngestionError(
             f"{len(warnings)} extraction warning(s) — refusing to index a corpus the "
@@ -667,14 +721,14 @@ def run_ingestion(
             key=result.entry.key,
             filename=result.entry.filename,
             module=result.entry.module,
-            fetch_action=fetch.action,
+            fetch_action=fetched.action,
             requirements=len(result.extraction.requirements),
             expected=result.entry.expected_requirements,
             context_chunks=len(result.context_chunks),
             misses=len(result.extraction.misses),
             warnings=len(result.extraction.warnings),
         )
-        for result, fetch in zip(results, fetches, strict=True)
+        for result, fetched in zip(results, fetches, strict=True)
     ]
 
     if not opts.runs("code"):

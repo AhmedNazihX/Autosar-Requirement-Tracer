@@ -17,9 +17,12 @@ __version__ = "0.1.0"
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Build the in-memory BM25 index from SQLite before serving (spec §3).
 
-    Never fatal. A fresh clone has no ``data/`` yet, so the index comes up
-    empty with ``indexes.error`` explaining how to build it — the first-run
-    setup screen (story S3.6.1) needs the server up in order to say so.
+    Never fatal, and that is enforced in :mod:`retrieval.startup` rather than
+    promised here. A fresh clone has no ``data/`` yet; a database that is
+    corrupt or WAL-locked (``make dev`` while ingestion runs) is just as
+    survivable. Either way the index comes up empty with ``indexes.error``
+    explaining what to do — the first-run setup screen (story S3.6.1) needs
+    the server up in order to say so.
     """
     app.state.indexes = load_indexes_from_settings(get_settings().project_manifest)
     yield

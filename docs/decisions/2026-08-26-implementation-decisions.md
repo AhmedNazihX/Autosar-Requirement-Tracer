@@ -292,6 +292,18 @@ duplicate surfaces one stage later than it could, with a better diagnostic.
 **Carry into D6:** the CLI must exit non-zero on extractor warnings after
 writing the report.
 
+**R26 amended (task D7).** "An error at the SQLite insert" was not
+implementable and is withdrawn: `core/db.py`'s upserts are `ON CONFLICT DO
+UPDATE`, which idempotent re-ingestion *requires* — a second run must
+overwrite its own rows rather than fail on them. The protection is therefore
+entirely in `ingestion/run.py`, and it is now two checks rather than one: the
+extractor's per-document warning, plus `cross_document_duplicates()` for the
+same id in two documents, which no per-document pass can see and which the
+upsert would otherwise silently merge into one requirement wearing the
+other's text. Both fire after the report is written, so the ordering the
+ruling cared about is unchanged. The docstrings that described the old
+wording were corrected in the same commit.
+
 Ruling R27: on the **checkpoint rail**, the implementer is right about the
 deviation and wrong about the mechanism. The canvas's literal per-turn
 alignment genuinely breaks the rail — at 300–450 px per exchange only two

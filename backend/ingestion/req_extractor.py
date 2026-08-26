@@ -115,6 +115,10 @@ class DocumentExtraction:
     """Everything :func:`extract_requirements` learned about one document."""
 
     document_key: str
+    #: The document's identity as every downstream reader sees it: the
+    #: **manifest key**, matching ``Requirement.source_doc``. The PDF filename
+    #: lives on the manifest entry (``entry.filename``), which is where the
+    #: fetcher and the human-facing artifacts read it from.
     source_doc: str
     module: str
     title: str
@@ -337,7 +341,7 @@ def extract_requirements(
                 page=page,
                 bbox=bbox,
                 char_span=(source_start, source_end),
-                source_doc=entry.filename,
+                source_doc=entry.key,
                 upstream_ids=_dedupe(m.group(0) for m in upstream_pattern.finditer(refs)),
                 named_symbols=extract_named_symbols(text, symbol_pattern),
                 version=manifest.version,
@@ -363,7 +367,7 @@ def extract_requirements(
 
     return DocumentExtraction(
         document_key=entry.key,
-        source_doc=entry.filename,
+        source_doc=entry.key,
         module=entry.module,
         title=entry.title,
         page_count=document.page_count,

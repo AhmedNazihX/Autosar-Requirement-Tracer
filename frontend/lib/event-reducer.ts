@@ -60,16 +60,6 @@ export interface ReduceOptions {
   live?: boolean;
 }
 
-export const EMPTY_RENDER_STATE: MessageRenderState = {
-  text: "",
-  toolCalls: [],
-  sources: [],
-  upstream: [],
-  usage: null,
-  error: null,
-  status: "complete",
-};
-
 export function reduceEvents(
   events: readonly ChatEvent[],
   options: ReduceOptions = {},

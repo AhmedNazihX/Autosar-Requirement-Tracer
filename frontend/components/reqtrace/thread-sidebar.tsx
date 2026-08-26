@@ -212,7 +212,14 @@ export function ThreadSidebar({
             ? "Index status is not reported by /health yet"
             : "Start it with `make dev` — the UI keeps working"}
         </Meta>
-        <Meta>Snapshot pinned in projects/autosar-can/project.yaml</Meta>
+        {/*
+          Says where this SHA comes from, and it is the code fixture — not the
+          manifest. The two agree today only because the fixture was cut from
+          the pinned snapshot; naming the manifest here would become a wrong
+          claim in a demo the first time either moves. WP3 replaces this with
+          the SHA the backend reports.
+        */}
+        <Meta>Snapshot sha of the committed code fixture</Meta>
         {health.status === "unreachable" ? (
           <Button
             variant="ghost"

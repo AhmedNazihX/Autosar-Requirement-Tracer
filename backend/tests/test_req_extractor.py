@@ -397,7 +397,10 @@ def test_every_extracted_requirement_carries_the_manifest_provenance():
     for req in extracted:
         assert req.project_id == MANIFEST.project_id
         assert req.version == MANIFEST.version
-        assert req.source_doc == DOCUMENTS["can_driver"].filename
+        # The manifest KEY, not the filename: one document identity end to
+        # end, from storage through the API path to a citation event.
+        assert req.source_doc == DOCUMENTS["can_driver"].key == "can_driver"
+        assert req.source_doc != DOCUMENTS["can_driver"].filename
         assert req.doc_type == "requirement"
 
 
