@@ -80,6 +80,7 @@ def keyless_settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
         ("chat", "anthropic/claude-sonnet-4.5"),
         ("judge", "openai/gpt-4o-mini"),
         ("rerank", "openai/gpt-4o-mini"),
+        ("translate", "openai/gpt-4o-mini"),
         ("title", "openai/gpt-4o-mini"),
     ],
 )

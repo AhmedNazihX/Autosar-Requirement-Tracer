@@ -68,7 +68,7 @@ API_KEY_ENV_EXAMPLE = "backend/.env.example"
 #: The purposes a chat model can be built for — each one a field of the
 #: manifest's ``models`` block. ``embedding`` is excluded on purpose: it is
 #: not a chat model and it belongs to :mod:`core.embeddings`.
-PURPOSES: tuple[str, ...] = ("chat", "judge", "rerank", "title")
+PURPOSES: tuple[str, ...] = ("chat", "judge", "rerank", "translate", "title")
 
 #: Asks OpenRouter to report what the call actually cost (finding D1).
 USAGE_EXTRA_BODY: dict[str, Any] = {"usage": {"include": True}}

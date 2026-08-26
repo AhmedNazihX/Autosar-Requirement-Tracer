@@ -132,6 +132,8 @@ class ModelsConfig(BaseModel):
     chat: str = Field(min_length=1)
     judge: str = Field(min_length=1)
     rerank: str = Field(min_length=1)
+    #: Query rewriting (story S2.3.1) and self-query filter extraction (S2.4.1).
+    translate: str = Field(min_length=1)
     title: str = Field(min_length=1)
     embedding: str = Field(min_length=1)
 
