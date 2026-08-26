@@ -11,20 +11,32 @@ This is a plain module of functions taking an explicit
 R10. Callers only ever see :class:`~core.models.Requirement` and
 :class:`~core.models.CodeUnit` in and out of the requirement/code-unit CRUD;
 list-valued fields are (de)serialized to JSON text here.
+
+**Cached vectors are float32 BLOBs, never JSON.** See
+:func:`get_embedding` / :func:`put_embeddings` — the encoding is the one
+part of this module where getting it wrong is silent rather than loud, so it
+is spelled out there.
 """
 
 from __future__ import annotations
 
+import array
 import json
 import sqlite3
+import sys
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
 from core.models import CodeUnit, ReqAnnotation, Requirement
 
-SCHEMA_VERSION = 1
+#: 1 — the original schema.
+#: 2 — ``embedding_cache.embedding`` holds a float32 BLOB instead of a JSON
+#:     text array. No DDL changed (TEXT affinity stores a BLOB as-is); the
+#:     migration exists only to discard rows written under version 1, which
+#:     are then recomputed. See :func:`_discard_legacy_embeddings`.
+SCHEMA_VERSION = 2
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -117,6 +129,11 @@ CREATE TABLE IF NOT EXISTS verdict_cache (
     PRIMARY KEY (req_id, git_sha, model_id)
 );
 
+-- ``embedding`` holds a float32 BLOB (schema version 2). The declared type
+-- is left as TEXT deliberately: SQLite's TEXT affinity stores a BLOB value
+-- as-is, so changing the encoding needed no DDL change and no rewrite of
+-- this table's definition. ``typeof(embedding)`` is therefore the authority
+-- on what a row actually holds, and the reader keys on it.
 CREATE TABLE IF NOT EXISTS embedding_cache (
     content_hash TEXT NOT NULL,
     model_id TEXT NOT NULL,
@@ -183,12 +200,51 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def migrate(conn: sqlite3.Connection) -> None:
-    """Create all tables/indexes if missing. Idempotent — safe to call twice."""
+    """Create all tables/indexes if missing, then apply pending migrations.
+
+    Idempotent — safe to call twice, and safe to call on a database written by
+    an older version of this module.
+    """
     conn.executescript(_DDL)
-    row = conn.execute("SELECT COUNT(*) AS n FROM schema_version").fetchone()
+    row = conn.execute(
+        "SELECT COUNT(*) AS n, MAX(version) AS version FROM schema_version"
+    ).fetchone()
     if row["n"] == 0:
+        # A database this module just created: nothing to migrate, and no
+        # legacy row can exist in it.
         conn.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
+        conn.commit()
+        return
+
+    from_version = int(row["version"])
+    if from_version >= SCHEMA_VERSION:
+        conn.commit()
+        return
+    if from_version < 2:
+        _discard_legacy_embeddings(conn)
+    conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
     conn.commit()
+
+
+def _discard_legacy_embeddings(conn: sqlite3.Connection) -> int:
+    """Delete schema-version-1 (JSON text) rows from ``embedding_cache``.
+
+    They are *discarded* rather than read: a JSON row and a float32 blob are
+    both just bytes in a TEXT-affinity column, and decoding one as the other
+    would hand retrieval a plausible-looking garbage vector — the worst
+    failure available here. Deleting them costs one re-embedding of the
+    corpus (measured at $0.0073 for 3356 chunks), which is cheaper than
+    carrying a second decoder forever.
+
+    The space the deleted rows free is reused by the blobs written next, so
+    the file does not grow; it also does not shrink without an explicit
+    ``VACUUM``, which is deliberately not run here — story S1.5.2 requires
+    API startup under 5 seconds and this function is on that path.
+    """
+    deleted = conn.execute(
+        "DELETE FROM embedding_cache WHERE typeof(embedding) <> 'blob'"
+    ).rowcount
+    return deleted if deleted > 0 else 0
 
 
 # --------------------------------------------------------------------------
@@ -455,30 +511,121 @@ def put_verdict(
 
 # --------------------------------------------------------------------------
 # embedding_cache — keyed by content hash + model id
+#
+# Vectors are stored as **float32 BLOBs**, four bytes per dimension. Under
+# schema version 1 they were JSON text, at ~20 characters per float: one
+# 1536-dimension vector was a 31,002-character string, and the cache alone
+# was 110 MB of a 114 MB database. The same vectors as float32 are 20.6 MB.
+#
+# **The narrowing to float32 is deliberate, not an oversight.** OpenRouter
+# returns JSON numbers that Python parses as float64, so encoding to float32
+# loses precision. That is the right trade here: these vectors are only ever
+# compared by cosine similarity, where float32 is the industry norm, and
+# Chroma — which holds the authoritative copy for search — stores float32
+# itself. A round-trip is therefore exact to float32, not to float64.
+# (Measured on this corpus, ``text-embedding-3-small`` values are already
+# float32-representable, so the narrowing is in practice a no-op.)
+#
+# Preserving float64 would have cost 41 MB instead of 20.6 MB and bought
+# precision nothing downstream can use.
 # --------------------------------------------------------------------------
+
+#: float32. Four bytes per dimension, and the reason a blob is 5x smaller
+#: than the JSON it replaced.
+_VECTOR_TYPECODE = "f"
+_VECTOR_ITEM_BYTES = 4
+
+
+def _encode_vector(vector: Sequence[float]) -> bytes:
+    """Pack ``vector`` as little-endian float32 bytes."""
+    packed = array.array(_VECTOR_TYPECODE, vector)
+    if sys.byteorder != "little":
+        # Byte order is normalized so a database file stays readable if it is
+        # ever opened on a machine of the opposite endianness.
+        packed.byteswap()
+    return packed.tobytes()
+
+
+def _decode_vector(blob: bytes) -> list[float]:
+    """Unpack little-endian float32 bytes back into a list of floats."""
+    if len(blob) % _VECTOR_ITEM_BYTES != 0:
+        raise ValueError(
+            f"cached embedding is {len(blob)} byte(s), which is not a whole number of "
+            f"float32 values — refusing to decode a truncated vector"
+        )
+    packed = array.array(_VECTOR_TYPECODE)
+    packed.frombytes(blob)
+    if sys.byteorder != "little":
+        packed.byteswap()
+    return packed.tolist()
 
 
 def get_embedding(
     conn: sqlite3.Connection, content_hash: str, model_id: str
 ) -> list[float] | None:
+    """The cached vector for ``(content_hash, model_id)``, or ``None``.
+
+    ``typeof(embedding) = 'blob'`` is part of the query, not an assertion
+    afterwards: a schema-version-1 row holds JSON *text* in the same column,
+    and decoding one as float32 bytes would return a garbage vector that
+    looks perfectly healthy. Restricting the SELECT means such a row can only
+    ever be a cache **miss** — the text is never handed to the decoder at
+    all — so the chunk is re-embedded rather than silently mispaired.
+    :func:`migrate` deletes those rows outright; this is the second line of
+    defence, for a connection that skipped it.
+    """
     row = conn.execute(
-        "SELECT embedding FROM embedding_cache WHERE content_hash = ? AND model_id = ?",
+        "SELECT embedding FROM embedding_cache "
+        "WHERE content_hash = ? AND model_id = ? AND typeof(embedding) = 'blob'",
         (content_hash, model_id),
     ).fetchone()
-    return json.loads(row["embedding"]) if row is not None else None
+    return _decode_vector(row["embedding"]) if row is not None else None
+
+
+_UPSERT_EMBEDDING_SQL = """
+INSERT INTO embedding_cache (content_hash, model_id, embedding, created_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (content_hash, model_id) DO UPDATE SET
+    embedding = excluded.embedding,
+    created_at = excluded.created_at
+"""
+
+
+def put_embeddings(
+    conn: sqlite3.Connection,
+    model_id: str,
+    entries: Iterable[tuple[str, Sequence[float]]],
+) -> int:
+    """Cache ``(content_hash, vector)`` pairs in **one** transaction.
+
+    Returns how many rows were written. One commit for the whole batch rather
+    than one per row: a cold ingest of this corpus caches ~3358 vectors, and
+    committing each one meant ~3358 fsyncs.
+
+    All-or-nothing on purpose. Every vector is encoded *before* anything is
+    executed, and any failure during the write is rolled back, so the cache
+    can never end up claiming a vector it does not hold — a false hit would
+    pair a chunk with someone else's vector, which is far worse than a slow
+    ingest or a lost batch.
+    """
+    now = _now_iso()
+    rows = [
+        (content_hash, model_id, _encode_vector(vector), now)
+        for content_hash, vector in entries
+    ]
+    if not rows:
+        return 0
+    try:
+        conn.executemany(_UPSERT_EMBEDDING_SQL, rows)
+    except Exception:
+        conn.rollback()
+        raise
+    conn.commit()
+    return len(rows)
 
 
 def put_embedding(
-    conn: sqlite3.Connection, content_hash: str, model_id: str, embedding: list[float]
+    conn: sqlite3.Connection, content_hash: str, model_id: str, embedding: Sequence[float]
 ) -> None:
-    conn.execute(
-        """
-        INSERT INTO embedding_cache (content_hash, model_id, embedding, created_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT (content_hash, model_id) DO UPDATE SET
-            embedding = excluded.embedding,
-            created_at = excluded.created_at
-        """,
-        (content_hash, model_id, json.dumps(embedding), _now_iso()),
-    )
-    conn.commit()
+    """Cache a single vector. :func:`put_embeddings` for a batch."""
+    put_embeddings(conn, model_id, [(content_hash, embedding)])

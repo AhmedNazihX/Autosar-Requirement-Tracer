@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pytest
@@ -488,20 +489,212 @@ def test_verdict_cache_put_overwrites_same_triple(conn):
 # --------------------------------------------------------------------------
 
 
+MODEL = "openai/text-embedding-3-small"
+
+
+class _CommitSpy:
+    """A connection proxy that counts ``commit``/``rollback`` calls.
+
+    Commits are counted rather than timed: "one transaction" is a claim about
+    how many times the write is flushed, and a timing measurement would prove
+    something else on a fast disk.
+    """
+
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+        self.commits = 0
+        self.rollbacks = 0
+
+    def commit(self) -> None:
+        self.commits += 1
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
+        self._connection.rollback()
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+
 def test_embedding_cache_hit(conn):
     embedding = [0.1, 0.2, 0.3]
-    db.put_embedding(conn, "hash-abc", "openai/text-embedding-3-small", embedding)
+    db.put_embedding(conn, "hash-abc", MODEL, embedding)
 
-    assert db.get_embedding(conn, "hash-abc", "openai/text-embedding-3-small") == embedding
+    hit = db.get_embedding(conn, "hash-abc", MODEL)
+
+    assert hit is not None
+    assert len(hit) == len(embedding)
+    assert hit == pytest.approx(embedding, abs=1e-6)
 
 
 def test_embedding_cache_miss_on_different_hash(conn):
-    db.put_embedding(conn, "hash-abc", "openai/text-embedding-3-small", [0.1, 0.2])
+    db.put_embedding(conn, "hash-abc", MODEL, [0.1, 0.2])
 
-    assert db.get_embedding(conn, "hash-xyz", "openai/text-embedding-3-small") is None
+    assert db.get_embedding(conn, "hash-xyz", MODEL) is None
 
 
 def test_embedding_cache_miss_on_different_model(conn):
-    db.put_embedding(conn, "hash-abc", "openai/text-embedding-3-small", [0.1, 0.2])
+    db.put_embedding(conn, "hash-abc", MODEL, [0.1, 0.2])
 
     assert db.get_embedding(conn, "hash-abc", "openai/text-embedding-3-large") is None
+
+
+def test_a_cached_vector_round_trips_to_float32_precision(conn):
+    """Exact to float32, and the dimension count survives."""
+    embedding = [0.0, 1.0, -1.0, 0.1, 1e-7, -3.4e38, 0.0250244140625]
+    db.put_embedding(conn, "hash-precision", MODEL, embedding)
+
+    hit = db.get_embedding(conn, "hash-precision", MODEL)
+
+    assert hit is not None
+    assert len(hit) == 7
+    # float32 is a real narrowing from Python's float64: assert the documented
+    # precision rather than pretending the round-trip is bit-exact in float64.
+    assert hit == pytest.approx(embedding, rel=1e-6, abs=1e-12)
+    # Values that are already float32-representable — which is what
+    # text-embedding-3-small actually returns — come back bit-exact.
+    assert hit[0] == 0.0 and hit[1] == 1.0 and hit[2] == -1.0
+    assert hit[6] == 0.0250244140625
+
+
+def test_a_cached_vector_is_stored_as_a_float32_blob(conn):
+    """Four bytes per dimension, not ~20 characters of JSON."""
+    db.put_embedding(conn, "hash-blob", MODEL, [0.5] * 1536)
+
+    row = conn.execute(
+        "SELECT typeof(embedding) AS kind, length(embedding) AS size FROM embedding_cache "
+        "WHERE content_hash = ?",
+        ("hash-blob",),
+    ).fetchone()
+
+    assert row["kind"] == "blob"
+    assert row["size"] == 1536 * 4
+
+
+def test_each_cached_vector_pairs_with_its_own_content_hash(conn):
+    """The failure that matters is mispairing, so assert the pairing itself."""
+    vectors = {
+        "hash-a": [1.0, 0.0, 0.0],
+        "hash-b": [0.0, 1.0, 0.0],
+        "hash-c": [0.0, 0.0, 1.0],
+    }
+    db.put_embeddings(conn, MODEL, vectors.items())
+
+    for content_hash, vector in vectors.items():
+        hit = db.get_embedding(conn, content_hash, MODEL)
+        assert hit == pytest.approx(vector, abs=1e-6), f"{content_hash} got someone else's vector"
+
+
+def test_writing_a_batch_of_vectors_commits_exactly_once(conn):
+    spy = _CommitSpy(conn)
+
+    written = db.put_embeddings(spy, MODEL, [(f"hash-{n}", [float(n)] * 8) for n in range(50)])
+
+    assert written == 50
+    assert spy.commits == 1
+    assert spy.rollbacks == 0
+    assert conn.execute("SELECT COUNT(*) AS n FROM embedding_cache").fetchone()["n"] == 50
+
+
+def test_writing_nothing_touches_nothing(conn):
+    spy = _CommitSpy(conn)
+
+    assert db.put_embeddings(spy, MODEL, []) == 0
+    assert spy.commits == 0
+
+
+def test_a_failure_mid_batch_leaves_no_vector_claimed(conn):
+    """A partial cache would silently pair chunks with the wrong vectors."""
+    db.put_embedding(conn, "hash-existing", MODEL, [0.25, 0.5])
+    spy = _CommitSpy(conn)
+
+    entries = [
+        ("hash-1", [1.0, 1.0]),
+        ("hash-2", [2.0, 2.0]),
+        # An unsupported key type: sqlite3 refuses it *during* the write, and
+        # hash-1/hash-2 are genuinely inserted before it does (verified: they
+        # are visible inside the open transaction), so the rollback is what
+        # actually keeps this promise rather than sqlite validating up front.
+        (["not", "a", "hash"], [3.0, 3.0]),
+        ("hash-4", [4.0, 4.0]),
+    ]
+    with pytest.raises(sqlite3.ProgrammingError):
+        db.put_embeddings(spy, MODEL, entries)
+
+    assert spy.commits == 0
+    assert spy.rollbacks == 1
+    assert db.get_embedding(conn, "hash-1", MODEL) is None
+    assert db.get_embedding(conn, "hash-2", MODEL) is None
+    assert db.get_embedding(conn, "hash-4", MODEL) is None
+    # And the batch did not take the rest of the cache with it.
+    assert db.get_embedding(conn, "hash-existing", MODEL) == pytest.approx([0.25, 0.5], abs=1e-6)
+
+
+def test_a_vector_that_cannot_be_encoded_writes_nothing(conn):
+    spy = _CommitSpy(conn)
+
+    with pytest.raises(TypeError):
+        db.put_embeddings(spy, MODEL, [("hash-ok", [1.0]), ("hash-bad", ["not a float"])])
+
+    assert spy.commits == 0
+    assert conn.execute("SELECT COUNT(*) AS n FROM embedding_cache").fetchone()["n"] == 0
+
+
+# -- the schema-version-1 encoding ------------------------------------------
+
+
+def _write_legacy_json_row(connection: sqlite3.Connection, content_hash: str) -> None:
+    """Write a row the way schema version 1 did: a JSON *text* array."""
+    connection.execute(
+        "INSERT INTO embedding_cache (content_hash, model_id, embedding, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (content_hash, MODEL, json.dumps([0.1, 0.2, 0.3]), "2026-08-26T00:00:00+00:00"),
+    )
+    connection.commit()
+
+
+def test_a_legacy_json_row_is_a_cache_miss_not_a_garbage_vector(conn):
+    """Decoding JSON text as float32 bytes would return a plausible lie."""
+    _write_legacy_json_row(conn, "hash-legacy")
+
+    assert conn.execute(
+        "SELECT typeof(embedding) AS kind FROM embedding_cache"
+    ).fetchone()["kind"] == "text"
+    assert db.get_embedding(conn, "hash-legacy", MODEL) is None
+
+
+def test_migrating_a_version_1_database_discards_its_json_vectors(tmp_path):
+    """The rows go; everything else stays and the version moves to 2."""
+    path = tmp_path / "legacy.sqlite3"
+    connection = db.connect(path)
+    db.migrate(connection)
+    _write_legacy_json_row(connection, "hash-legacy")
+    db.put_embedding(connection, "hash-blob", MODEL, [0.5, 0.5])
+    db.upsert_requirement(connection, _requirement())
+    connection.execute("UPDATE schema_version SET version = 1")
+    connection.commit()
+
+    db.migrate(connection)
+
+    assert connection.execute("SELECT version FROM schema_version").fetchone()["version"] == 2
+    remaining = connection.execute(
+        "SELECT content_hash FROM embedding_cache"
+    ).fetchall()
+    assert [row["content_hash"] for row in remaining] == ["hash-blob"]
+    assert db.get_embedding(connection, "hash-blob", MODEL) == pytest.approx([0.5, 0.5], abs=1e-6)
+    assert db.get_requirement(connection, "autosar-can", "SWS_Can_00011") is not None
+    connection.close()
+
+
+def test_a_truncated_blob_is_refused_rather_than_decoded(conn):
+    """Three bytes are not a float32; say so instead of guessing."""
+    conn.execute(
+        "INSERT INTO embedding_cache (content_hash, model_id, embedding, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        ("hash-truncated", MODEL, b"\x00\x01\x02", "2026-08-26T00:00:00+00:00"),
+    )
+    conn.commit()
+
+    with pytest.raises(ValueError, match="not a whole number of float32"):
+        db.get_embedding(conn, "hash-truncated", MODEL)

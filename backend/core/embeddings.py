@@ -335,9 +335,13 @@ class EmbeddingClient:
                     f"{self.model_id}: transport returned {len(batch.vectors)} vector(s) for "
                     f"{len(window)} input(s) — refusing to pair vectors with chunks by position"
                 )
+            if conn is not None:
+                # One transaction per provider batch, not one per vector: the
+                # cache write is a single commit (see db.put_embeddings), and
+                # a batch that fails leaves the cache unchanged rather than
+                # half-claiming vectors.
+                db.put_embeddings(conn, self.model_id, zip(window, batch.vectors, strict=True))
             for digest, vector in zip(window, batch.vectors, strict=True):
-                if conn is not None:
-                    db.put_embedding(conn, digest, self.model_id, vector)
                 for position in pending[digest]:
                     vectors[position] = vector
             done += len(window)
