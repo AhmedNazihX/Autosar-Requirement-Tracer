@@ -389,3 +389,25 @@ def test_importing_the_module_without_a_key_does_not_raise():
     )
     assert completed.returncode == 0, completed.stderr
     assert "imported" in completed.stdout
+
+
+# --------------------------------------------------------------------------
+# streaming is a per-purpose decision
+# --------------------------------------------------------------------------
+
+
+def test_only_the_chat_model_streams():
+    """Measured, not preferred: nested calls inherit streaming in LangGraph.
+
+    A ``structured`` call made from inside a tool — the self-query stage does
+    exactly that — inherited streaming from the surrounding agent run, and the
+    openai SDK's structured-output path then failed on an internal assertion in
+    ``get_final_completion``. Pinning streaming off for every non-chat purpose
+    makes those calls behave identically standalone and inside the agent.
+    """
+    chat, _ = fake_llm(MANIFEST, purpose="chat")
+    assert chat.model.disable_streaming is False
+
+    for purpose in ("judge", "rerank", "translate", "title"):
+        llm, _ = fake_llm(MANIFEST, purpose=purpose)
+        assert llm.model.disable_streaming is True, purpose

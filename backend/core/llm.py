@@ -73,6 +73,18 @@ PURPOSES: tuple[str, ...] = ("chat", "judge", "rerank", "translate", "title")
 #: Asks OpenRouter to report what the call actually cost (finding D1).
 USAGE_EXTRA_BODY: dict[str, Any] = {"usage": {"include": True}}
 
+#: The only purpose that streams. Every other purpose returns one JSON object
+#: to be validated, and streaming it buys nothing.
+#:
+#: This is not a preference, it is a correctness fix. Measured: inside a
+#: LangGraph stream, a *nested* model call inherits streaming from the
+#: surrounding run — so the self-query call made from inside a tool was
+#: streamed, and the openai SDK's structured-output path then died on
+#: ``assert self.__current_completion_snapshot is not None`` in
+#: ``get_final_completion``. Pinning streaming off per purpose makes these
+#: calls behave the same whether they run standalone or inside an agent.
+STREAMING_PURPOSES: frozenset[str] = frozenset({"chat"})
+
 #: Deterministic by default. Every WP2 stage is a reproducible transformation
 #: of its input, and a sampling temperature would make the pipeline's own
 #: tests flaky before it made any answer better.
@@ -267,6 +279,8 @@ def chat_model(
         timeout=timeout,
         max_retries=max_retries,
         extra_body=dict(USAGE_EXTRA_BODY),
+        # Only the chat model streams. See STREAMING_PURPOSES.
+        disable_streaming=purpose not in STREAMING_PURPOSES,
         **kwargs,
     )
     return Llm(purpose=purpose, model_id=model_id, model=model)

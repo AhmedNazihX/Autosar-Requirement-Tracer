@@ -24,6 +24,7 @@ import array
 import json
 import sqlite3
 import sys
+import threading
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
@@ -203,6 +204,94 @@ ON CONFLICT (project_id, repo_path, kind, symbol, line_span_start, line_span_end
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+class ConnectionPool:
+    """One SQLite connection per thread, all onto the same file.
+
+    Needed because the agent is multi-threaded *within* a single request:
+    LangGraph runs tool nodes on a thread pool, so a tool reading SQLite is
+    already on a different thread from the request that opened the connection.
+    A plain connection raises ``ProgrammingError: SQLite objects created in a
+    thread can only be used in that same thread``.
+
+    **Why not ``check_same_thread=False``.** ``sqlite3.threadsafety`` is 3
+    ("serialized") on this build, which reads like permission to share one
+    connection. Measured: 8 threads × 40 reads on a shared connection gave 6
+    errors — ``InterfaceError: bad parameter or other API misuse`` — and one
+    read returned the wrong row. ``Connection.execute`` allocates an implicit
+    cursor and concurrent implicit-cursor use races. The wrong-row case is the
+    dangerous one: an occasional mystery rather than a crash.
+    ``tests/test_db_threads.py`` pins that down so the pool cannot be
+    "simplified" away.
+
+    Quacks like a connection for the handful of methods this codebase uses, so
+    every ``db.<function>(conn, ...)`` call site works unchanged.
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self.path = str(db_path)
+        self._local = threading.local()
+        self._all: list[sqlite3.Connection] = []
+        self._lock = threading.Lock()
+
+    def connection(self) -> sqlite3.Connection:
+        """This thread's connection, opening it on first use."""
+        existing = getattr(self._local, "conn", None)
+        if existing is None:
+            existing = connect(self.path)
+            self._local.conn = existing
+            # Tracked so close_all() can release them; the list is only ever
+            # appended to and drained, and both are under the lock.
+            with self._lock:
+                self._all.append(existing)
+        return existing
+
+    # -- the connection surface this codebase actually uses ----------------
+
+    def execute(self, *args, **kwargs):
+        return self.connection().execute(*args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        return self.connection().executemany(*args, **kwargs)
+
+    def executescript(self, *args, **kwargs):
+        return self.connection().executescript(*args, **kwargs)
+
+    def commit(self) -> None:
+        self.connection().commit()
+
+    def rollback(self) -> None:
+        self.connection().rollback()
+
+    def cursor(self):
+        return self.connection().cursor()
+
+    @property
+    def row_factory(self):
+        return self.connection().row_factory
+
+    def close_all(self) -> None:
+        """Close every connection this pool opened, on any thread.
+
+        Closing another thread's connection is allowed — it is the *use* of one
+        that is thread-bound, not the close.
+        """
+        with self._lock:
+            connections, self._all = self._all, []
+        for conn in connections:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                # Already closed, or its thread died holding it. Nothing useful
+                # to do at shutdown.
+                pass
+        self._local = threading.local()
+
+
+def pooled(db_path: str | Path) -> ConnectionPool:
+    """A :class:`ConnectionPool` for ``db_path``. Safe to share across threads."""
+    return ConnectionPool(db_path)
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

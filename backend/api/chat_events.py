@@ -327,6 +327,13 @@ class TurnMeter:
     model: str
     _llm: dict[str, LlmUsage] = field(default_factory=dict)
     _embedding: EmbeddingUsage = field(default_factory=EmbeddingUsage)
+    #: Charges read straight off the HTTP responses by
+    #: :mod:`core.usage_sniffer`. Separate from ``_llm`` because it covers the
+    #: one case LangChain loses: a *streamed* reply's ``usage.cost``. Only the
+    #: chat model's client sniffs — the judge, reranker and rewriter are
+    #: non-streaming, so their cost arrives intact in ``LlmUsage`` and sniffing
+    #: them too would double-count.
+    _wire_cost_usd: float = 0.0
 
     def add_llm(self, usage: LlmUsage) -> None:
         """Accumulate one LLM call's usage under its own purpose."""
@@ -355,13 +362,22 @@ class TurnMeter:
             self.add_llm(one)
         self.add_embedding(usage.embedding)
 
+    def add_wire_cost(self, cost_usd: float) -> None:
+        """Add a charge observed on the wire (see :mod:`core.usage_sniffer`)."""
+        if cost_usd > 0.0:
+            self._wire_cost_usd += cost_usd
+
     def by_purpose(self) -> dict[str, LlmUsage]:
         """The LLM breakdown. Embeddings are not a purpose here."""
         return dict(self._llm)
 
     @property
     def cost_usd(self) -> float:
-        return sum(one.cost_usd for one in self._llm.values()) + self._embedding.cost_usd
+        return (
+            sum(one.cost_usd for one in self._llm.values())
+            + self._embedding.cost_usd
+            + self._wire_cost_usd
+        )
 
     def usage_event(self, *, elapsed_ms: int) -> UsageEvent:
         """The turn's single ``usage`` event."""

@@ -50,7 +50,7 @@ def engine(tmp_path: Path):
     """The shared fixture index — see ``tests/support_engine``."""
     parts = build_index(tmp_path)
     yield parts
-    parts["conn"].close()
+    parts["conn"].close_all()
 
 
 def build(parts, **kwargs):

@@ -40,7 +40,7 @@ def context(tmp_path: Path):
     """A :class:`ToolContext` over the shared fixture index."""
     parts = build_index(tmp_path)
     yield parts
-    parts["conn"].close()
+    parts["conn"].close_all()
 
 
 def make(parts, *, translate_replies=(), rerank_replies=()) -> tuple[ToolContext, dict]:
@@ -330,10 +330,19 @@ def test_search_code_needs_a_query_or_a_symbol(context):
 # --------------------------------------------------------------------------
 
 
-def test_a_tool_that_breaks_returns_an_error_instead_of_raising(context):
-    """The turn must survive: the model explains the failure to the user."""
+def test_a_tool_that_breaks_returns_an_error_instead_of_raising(context, tmp_path):
+    """The turn must survive: the model explains the failure to the user.
+
+    Broken by pointing the pool at an unopenable path rather than by closing a
+    connection — the pool reopens on demand, which is the whole point of it.
+    """
+    import dataclasses
+
+    from core import db
+
     ctx, _ = make(context)
-    ctx.engine.conn.close()  # anything the tool touches is now broken
+    unopenable = db.pooled(tmp_path / "no-such-dir" / "broken.db")
+    ctx = dataclasses.replace(ctx, engine=dataclasses.replace(ctx.engine, conn=unopenable))
 
     payload = call(ctx, "lookup_requirement", req_id="SWS_Can_00011")
 

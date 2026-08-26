@@ -104,8 +104,17 @@ class FakeOpenRouter:
             return reply
         return httpx.Response(200, json=reply)
 
+    def transport(self) -> httpx.MockTransport:
+        """The bare transport, for composing with a wrapper.
+
+        The cost sniffer (:mod:`core.usage_sniffer`) wraps a transport, and
+        production wraps the real one exactly this way — so a test that wants
+        cost recovery composes the two rather than faking the sniffer.
+        """
+        return httpx.MockTransport(self._handle)
+
     def http_client(self) -> httpx.Client:
-        return httpx.Client(transport=httpx.MockTransport(self._handle))
+        return httpx.Client(transport=self.transport())
 
     @property
     def calls(self) -> int:

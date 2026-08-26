@@ -206,7 +206,9 @@ def build_index(tmp_path: Path) -> dict:
     Built the way the real thing is: rows into SQLite, documents and vectors
     into Chroma, BM25 from SQLite. The LLM fakes are attached per test.
     """
-    conn = db.connect(tmp_path / "reqtrace.db")
+    # A pool, not a bare connection: LangGraph runs tool nodes on a thread
+    # pool, so the agent reads SQLite from threads other than this one.
+    conn = db.pooled(tmp_path / "reqtrace.db")
     db.migrate(conn)
 
     requirements = [_requirement(*fields) for fields in REQUIREMENTS]
