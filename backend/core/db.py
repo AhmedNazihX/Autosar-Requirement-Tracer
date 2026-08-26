@@ -516,6 +516,65 @@ def list_code_units_by_symbol(
     return [_row_to_code_unit(row) for row in rows]
 
 
+def list_code_units_by_annotation(
+    conn: sqlite3.Connection, project_id: str, canonical_id: str
+) -> list[CodeUnit]:
+    """Tier-1 evidence: every code unit whose annotations name ``canonical_id``.
+
+    **Both claim polarities are returned.** A ``!req`` is a developer's
+    explicit statement that a requirement is *not* implemented (finding A2),
+    which is evidence about that requirement just as much as an ``@req`` is —
+    so the filtering belongs to the caller, which knows what it is asking.
+    :attr:`~core.models.CodeUnit.claimed_implemented_ids` is the narrower view.
+
+    The match is over ``req_annotations``, a JSON array, via SQLite's JSON1
+    ``json_each``. Two details are load-bearing:
+
+    * **Case-insensitive.** Annotation ids come from the manifest's
+      ``annotation_id_template`` and keep its casing (``SWS_Can_00272``),
+      while the ``requirements`` table stores an upper-cased ``canonical_id``.
+      A caller holding either spelling must reach the same rows.
+    * **``DISTINCT``.** ``json_each`` produces one row per annotation, so a
+      unit whose comment block names the same id twice would otherwise be
+      counted as two pieces of evidence.
+    """
+    rows = conn.execute(
+        """
+        SELECT DISTINCT c.* FROM code_units c, json_each(c.req_annotations) a
+        WHERE c.project_id = ?
+          AND UPPER(json_extract(a.value, '$.canonical_id')) = UPPER(?)
+        ORDER BY c.repo_path, c.line_span_start, c.kind, c.symbol
+        """,
+        (project_id, canonical_id),
+    ).fetchall()
+    return [_row_to_code_unit(row) for row in rows]
+
+
+def annotated_ids(conn: sqlite3.Connection, project_id: str) -> dict[str, set[str]]:
+    """``canonical_id -> the set of claims made about it anywhere in the code``.
+
+    The corpus-wide view of the annotations, used to build the judge's
+    evaluation set (story S4.4.1): an id mapping to ``{"claimed_implemented"}``
+    is a positive, one mapping to ``{"claimed_not_implemented"}`` is a
+    negative, and one mapping to *both* is neither — the code contradicts
+    itself about it, so §S4.4.1 excludes and counts those rather than guessing.
+
+    Keys are upper-cased so they join against ``requirements.canonical_id``.
+    """
+    claims: dict[str, set[str]] = {}
+    for row in conn.execute(
+        """
+        SELECT UPPER(json_extract(a.value, '$.canonical_id')) AS canonical_id,
+               json_extract(a.value, '$.claim') AS claim
+        FROM code_units c, json_each(c.req_annotations) a
+        WHERE c.project_id = ?
+        """,
+        (project_id,),
+    ):
+        claims.setdefault(row["canonical_id"], set()).add(row["claim"])
+    return claims
+
+
 # --------------------------------------------------------------------------
 # threads + messages
 # --------------------------------------------------------------------------
