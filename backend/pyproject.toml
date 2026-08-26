@@ -5,11 +5,14 @@ description = "ReqTrace backend — requirements-to-code traceability chatbot AP
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "certifi>=2026.7.22",
+    "chromadb>=1.5.9",
     "fastapi>=0.141.1",
+    "openai>=2.16.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
     "pymupdf>=1.28.2",
     "pyyaml>=6.0.3",
+    "rank-bm25>=0.2.2",
     "tree-sitter>=0.26.0",
     "tree-sitter-c>=0.24.1",
     "uvicorn>=0.52.4",
