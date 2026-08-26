@@ -1,0 +1,91 @@
+"use client";
+
+import { CodeIcon, FileTextIcon, XIcon } from "lucide-react";
+
+import type { HighlightedFile } from "@/lib/code-highlight";
+import type { SourceTab, SourceTarget } from "@/lib/source-target";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { CodeTab } from "./code-tab";
+import { DocumentTab } from "./document-tab";
+
+/**
+ * The source pane: two tabs over one target.
+ *
+ * The target is always a `citation` event — never a path the user typed, never a
+ * file picker. That is the whole security posture of this pane in one sentence:
+ * it can only open what the indexed snapshot already told the chat about.
+ *
+ * Tab state is lifted, because a citation click has to be able to switch tabs.
+ */
+export function SourcePane({
+  target,
+  tab,
+  onTabChange,
+  onClose,
+  codeFile,
+}: {
+  target: SourceTarget | null;
+  tab: SourceTab;
+  onTabChange: (tab: SourceTab) => void;
+  onClose: () => void;
+  codeFile: HighlightedFile;
+}) {
+  const requirement =
+    target?.citation.kind === "requirement" ? target.citation : null;
+  const code = target?.citation.kind === "code" ? target.citation : null;
+
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => onTabChange(value as SourceTab)}
+      className="flex min-h-0 flex-1 flex-col gap-0"
+    >
+      <div className="flex h-10 flex-none items-center border-b pr-1.5 pl-2">
+        <TabsList
+          variant="line"
+          className="h-10 gap-0 rounded-none bg-transparent p-0"
+        >
+          <TabsTrigger
+            value="document"
+            className="h-10 flex-none gap-1.5 px-3 text-[12.8px] [&::after]:bottom-0!"
+          >
+            <FileTextIcon className="size-3.5" />
+            Document
+          </TabsTrigger>
+          <TabsTrigger
+            value="code"
+            className="h-10 flex-none gap-1.5 px-3 text-[12.8px] [&::after]:bottom-0!"
+          >
+            <CodeIcon className="size-3.5" />
+            Code
+          </TabsTrigger>
+        </TabsList>
+        <span className="flex-1" />
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClose}
+          aria-label="Close source pane"
+        >
+          <XIcon />
+        </Button>
+      </div>
+
+      <TabsContent
+        value="document"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <DocumentTab citation={requirement} />
+      </TabsContent>
+
+      <TabsContent
+        value="code"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <CodeTab file={codeFile} citation={code} />
+      </TabsContent>
+    </Tabs>
+  );
+}
