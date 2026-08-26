@@ -23,6 +23,7 @@ import pytest
 
 from core.manifest import load_manifest
 from core.models import Requirement
+from ingestion.text_norm import extract_named_symbols, normalize_requirement_text
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REAL_MANIFEST_PATH = REPO_ROOT / "projects" / "autosar-can" / "project.yaml"
@@ -45,18 +46,18 @@ def load(fixture: str, half: str) -> dict[str, Any]:
 
 
 def normalize(text: str, document_title: str) -> str:
-    """The text-normalization contract the ``.expected.json`` labels assume.
+    """The normalization contract, from its single implementation.
 
-    Documented in ``fixtures/golden/README.md``; D4's extractor must produce
-    the same shape. In order: drop page furniture, drop the table-continuation
-    markers, rejoin words split across a line break, collapse whitespace.
+    ``ingestion.text_norm`` is the spec (ratified as binding on D4's
+    extractor); this wrapper only binds it to the real manifest so the tests
+    read cleanly. It is deliberately *not* a second copy of the rules.
     """
-    for pattern in MANIFEST.extraction.footer_patterns:
-        text = re.sub(pattern.replace("{title}", re.escape(document_title)), "\n", text)
-    for marker in MANIFEST.extraction.drop_markers:
-        text = text.replace(marker, " ")
-    text = text.replace("-\n", "")
-    return re.sub(r"\s+", " ", text).strip()
+    return normalize_requirement_text(
+        text,
+        footer_patterns=MANIFEST.extraction.footer_patterns,
+        drop_markers=MANIFEST.extraction.drop_markers,
+        document_title=document_title,
+    )
 
 
 @pytest.fixture(params=FIXTURES, ids=FIXTURE_IDS)
@@ -239,6 +240,23 @@ def test_named_symbols_match_the_manifest_symbol_pattern(fixture_entry: dict[str
                 f"{req['id']}: {symbol!r} does not match the manifest symbol_pattern"
             )
             assert symbol in req["text"], f"{req['id']}: {symbol!r} is not in the labeled text"
+
+
+def test_named_symbols_are_complete_not_merely_correct(fixture_entry: dict[str, Any]):
+    """No symbol in the labeled text may be missing from ``named_symbols``.
+
+    The other test only proves every *listed* symbol is real. This one closes
+    the other direction: the list must equal every match of the manifest's
+    ``symbol_pattern`` in the labeled text, in first-appearance order,
+    deduplicated — the rule ``ingestion.text_norm`` defines and D4 will use.
+    """
+    expected = load(fixture_entry["fixture"], "expected")
+    for req in expected["requirements"]:
+        derived = extract_named_symbols(req["text"], MANIFEST.extraction.symbol_pattern)
+        assert req["named_symbols"] == derived, (
+            f"{req['id']}: named_symbols is {req['named_symbols']} but the labeled text "
+            f"yields {derived} — a symbol was missed, duplicated, or mis-ordered"
+        )
 
 
 def test_labeled_ids_are_unique_across_the_whole_fixture_set():

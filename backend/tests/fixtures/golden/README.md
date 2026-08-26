@@ -78,31 +78,41 @@ requirements: [ { id, title, text, upstream_ids, named_symbols,
 * `upstream_ids` — the `(…)` list after the closing `⌋`, matching
   `(?:SRS|RS)_[A-Za-z]+_\d+`. Ids referenced inside the body are **not**
   upstream ids.
-* `named_symbols` — matches of the manifest's `symbol_pattern` in the
-  normalized body, first-appearance order, deduplicated.
+* `named_symbols` — `extract_named_symbols()` over the normalized body: every
+  match of the manifest's `symbol_pattern`, first-appearance order,
+  deduplicated. Asserted for **completeness**, not just correctness — the
+  labeled list must equal that function's output exactly.
 * `spans_page_break` — `true` when the body crosses a page boundary, i.e. the
   case where `Requirement.bbox` must be `None` and `char_span` is the only
   usable locator. Such a requirement is labeled on the page **its id appears
   on**, exactly once, and never again on the continuation page.
 
-The labeled `text` assumes this normalization, applied in this order:
+### The normalization contract lives in code, not here
 
-1. drop page furniture — the manifest's `extraction.footer_patterns`
-   (`\n<N> of <M>\nDocument ID <k>: <doc>\n` and
-   `\n<title>\nAUTOSAR CP R23-11\n`);
-2. drop the manifest's `extraction.drop_markers` (`▽`, `△`);
-3. rejoin words split across a line break: delete every `-\n`
-   (`partici-\npating` → `participating`, `Can_-\nSetControllerMode` →
-   `Can_SetControllerMode`, `SRS_BSW_-\n00369` → `SRS_BSW_00369`);
-4. collapse every remaining whitespace run to a single space, then strip.
-
-Nothing else is removed — bullet markers (`•`), source quotation marks
-(`’`), and hyphens that were not at a line break stay as they are. Step 3 is
-lossy in principle (a genuine end-of-line hyphen in a compound word would be
-swallowed); no such case occurs on these seven pages, and each was checked.
-`backend/tests/test_golden_fixtures.py` re-applies exactly these rules and
+The labeled `text` assumes the normalization defined by
+**`backend/ingestion/text_norm.py`**, which is the single source of truth —
+its module docstring is the spec, and it is ratified as binding on the
+extractor (S1.3.3/D4). **Call `normalize_requirement_text()`; do not
+reimplement it.** `test_golden_fixtures.py` imports that same function and
 asserts every labeled `text` is found verbatim in the frozen page output, so a
-transcription slip fails the suite.
+transcription slip or a divergent reimplementation fails the suite.
+
+Two details of that contract are easy to get wrong from a prose summary, so
+they are stated here as well — but the module, not this file, is authoritative:
+
+* a `footer_patterns` match is replaced with a **single newline `"\n"`**, not
+  deleted. The patterns are anchored on the newlines around the furniture, and
+  pattern 1 consumes the newline that pattern 2 needs to match the following
+  page's header. Deleting instead of substituting leaves the page-35 header in
+  the text and fuses `driver.Specification` — it breaks the p034/p035 pair.
+* a `drop_markers` occurrence (`▽`, `△`) is replaced with a **single space**,
+  not deleted, so a marker between two words cannot fuse them. (No fixture
+  distinguishes the two today — the markers occur only on p023, which has no
+  labeled text — hence stating it explicitly.)
+
+Nothing else is removed: bullet markers (`•`), the source's curly apostrophes
+(`’`), hyphens that were not at a line break, and the source's own spelling
+mistakes all survive verbatim.
 
 ## Regenerating the `.blocks.json` halves
 
