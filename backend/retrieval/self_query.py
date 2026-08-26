@@ -65,6 +65,19 @@ MAX_RESOLVED_SECTIONS = 40
 QUESTION_FENCE = "<<<USER_QUESTION>>>"
 
 
+def combine(conditions: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Several Chroma conditions as one ``where`` clause.
+
+    A single condition is emitted bare and several are wrapped in ``$and``,
+    because Chroma rejects a one-element ``$and``.
+    """
+    if not conditions:
+        return None
+    if len(conditions) == 1:
+        return conditions[0]
+    return {"$and": conditions}
+
+
 class QueryFilter(BaseModel):
     """The filter as the model returns it — unvalidated against the corpus.
 
@@ -117,11 +130,13 @@ class Filter:
     def is_empty(self) -> bool:
         return self.module is None and self.doc_type is None and not self.section_paths
 
-    def where(self) -> dict[str, Any] | None:
-        """This filter as a Chroma ``where`` clause, or ``None`` if empty.
+    def conditions(self) -> list[dict[str, Any]]:
+        """This filter as a list of Chroma conditions, in a stable order.
 
-        A single condition is emitted bare and several are wrapped in ``$and``,
-        because Chroma rejects a one-element ``$and``.
+        Exposed separately from :meth:`where` so the pipeline can add its own
+        constraint — ``search_requirements`` excludes code chunks, and combining
+        by nesting one ``where`` clause inside another is how a malformed
+        ``$and`` gets built.
         """
         conditions: list[dict[str, Any]] = []
         if self.doc_type is not None:
@@ -130,12 +145,11 @@ class Filter:
             conditions.append({"module": self.module})
         if self.section_paths:
             conditions.append({"section_path": {"$in": list(self.section_paths)}})
+        return conditions
 
-        if not conditions:
-            return None
-        if len(conditions) == 1:
-            return conditions[0]
-        return {"$and": conditions}
+    def where(self) -> dict[str, Any] | None:
+        """This filter as a Chroma ``where`` clause, or ``None`` if empty."""
+        return combine(self.conditions())
 
     def matches(self, record: Bm25Record) -> bool:
         """Whether ``record`` satisfies this filter — the BM25 side of the same test."""
@@ -314,9 +328,11 @@ otherwise. A wrong filter is far worse than no filter: it hides the answer \
 entirely, while no filter merely returns a slightly broader result.
 
 - module: only when the question names a module or its document.
-- doc_type: 'requirement' when the question asks what is *required* or \
-mandated; 'context' when it asks what something *means* or how it works; \
-'code' when it asks about the implementation. Null when unclear.
+- doc_type: default to null. Use 'requirement' only when the question \
+explicitly asks what is *required*, mandated or specified. Use 'context' only \
+when the question asks purely for a definition or terminology — never for a \
+"how does X work" question, whose answer is normally a requirement. Use \
+'code' only when the question is about the implementation source.
 - section: only words that would plausibly appear in a document section \
 heading. Never invent one.
 

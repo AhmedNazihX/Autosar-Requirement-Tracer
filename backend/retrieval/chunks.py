@@ -100,6 +100,61 @@ def module_names(manifest: ProjectManifest) -> list[str]:
     ]
 
 
+@dataclass(frozen=True)
+class ChunkRef:
+    """A chunk id taken apart into the storage key it was built from.
+
+    Fusion (:mod:`retrieval.hybrid`) works on ids alone, so the pipeline needs
+    a way back from an id to the ``Requirement`` or ``CodeUnit`` it names.
+    Parsing lives here beside :func:`requirement_chunk_key` and
+    :func:`code_chunk_key` so the format has exactly one definition — a parser
+    that drifted from the builder would resolve some ids to the wrong row and
+    others to none, both silently.
+    """
+
+    kind: str
+    req_id: str | None = None
+    repo_path: str | None = None
+    code_kind: str | None = None
+    symbol: str | None = None
+    line_span: tuple[int, int] | None = None
+
+
+def parse_chunk_key(chunk_id: str) -> ChunkRef | None:
+    """Take ``chunk_id`` apart, or ``None`` if it is not one of ours.
+
+    ``None`` rather than an exception: an unparseable id means the index holds
+    something this build did not write, which the pipeline should skip rather
+    than die on.
+
+    Code keys split safely on ``:`` because none of their four parts can
+    contain one — a POSIX repo path, a ``CodeUnitKind`` member, a C identifier
+    and a line span. The split is bounded to four so a path containing an
+    unexpected colon fails to parse instead of shifting every field left.
+    """
+    if chunk_id.startswith("req:"):
+        req_id = chunk_id[4:]
+        return ChunkRef(kind="requirement", req_id=req_id) if req_id else None
+
+    if not chunk_id.startswith("code:"):
+        return None
+
+    parts = chunk_id[5:].split(":")
+    if len(parts) != 4:
+        return None
+    repo_path, code_kind, symbol, span = parts
+    start, _, end = span.partition("-")
+    if not (repo_path and code_kind and symbol and start.isdigit() and end.isdigit()):
+        return None
+    return ChunkRef(
+        kind="code",
+        repo_path=repo_path,
+        code_kind=code_kind,
+        symbol=symbol,
+        line_span=(int(start), int(end)),
+    )
+
+
 def module_by_document(manifest: ProjectManifest) -> dict[str, str]:
     """``source_doc`` → module, from the manifest's own document entries.
 
