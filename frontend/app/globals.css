@@ -39,6 +39,29 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* ReqTrace token extensions (design canvas F5.0, ruling R18) mapped to
+     Tailwind utilities so `background:var(--muted)` in the mockup is `bg-muted`
+     in the component, 1:1. */
+  --color-destructive-bg: var(--destructive-bg);
+  --color-destructive-border: var(--destructive-border);
+  --color-source: var(--source);
+  --color-source-bg: var(--source-bg);
+  --color-source-border: var(--source-border);
+  --color-highlight: var(--highlight);
+  --color-verdict-implemented: var(--verdict-implemented);
+  --color-verdict-implemented-bg: var(--verdict-implemented-bg);
+  --color-verdict-implemented-border: var(--verdict-implemented-border);
+  --color-verdict-partial: var(--verdict-partial);
+  --color-verdict-partial-bg: var(--verdict-partial-bg);
+  --color-verdict-partial-border: var(--verdict-partial-border);
+  --color-verdict-missing: var(--verdict-missing);
+  --color-verdict-missing-bg: var(--verdict-missing-bg);
+  --color-verdict-missing-border: var(--verdict-missing-border);
+  --color-verdict-unverifiable: var(--verdict-unverifiable);
+  --color-verdict-unverifiable-bg: var(--verdict-unverifiable-bg);
+  --color-verdict-unverifiable-border: var(--verdict-unverifiable-border);
+  --color-code-bg: var(--code-bg);
+  --color-code-gutter: var(--code-gutter);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -81,6 +104,44 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Geist is loaded by app/layout.tsx as --font-geist-sans; @theme inline maps
+     --font-sans onto it, so it has to resolve to something here. */
+  --font-sans: var(--font-geist-sans);
+
+  /* --- ReqTrace extension 1: destructive surface (errors only, never a
+     verdict) --- */
+  --destructive-bg: oklch(0.968 0.019 25);
+  --destructive-border: oklch(0.885 0.05 25);
+  /* --- extension 2: source-link accent (citations, pdf highlight, evidence
+     band — one colour means "pointer into a source") --- */
+  --source: oklch(0.5 0.13 245);
+  --source-bg: oklch(0.966 0.021 245);
+  --source-border: oklch(0.865 0.05 245);
+  --highlight: oklch(0.72 0.16 240 / 0.2);
+  /* --- extension 3: the four verdicts. equal chroma; missing is neutral --- */
+  --verdict-implemented: oklch(0.47 0.11 152);
+  --verdict-implemented-bg: oklch(0.958 0.03 152);
+  --verdict-implemented-border: oklch(0.855 0.06 152);
+  --verdict-partial: oklch(0.5 0.11 68);
+  --verdict-partial-bg: oklch(0.962 0.04 80);
+  --verdict-partial-border: oklch(0.86 0.07 76);
+  --verdict-missing: oklch(0.556 0 0);
+  --verdict-missing-bg: oklch(0.975 0 0);
+  --verdict-missing-border: oklch(0.885 0 0);
+  --verdict-unverifiable: oklch(0.49 0.12 292);
+  --verdict-unverifiable-bg: oklch(0.962 0.03 292);
+  --verdict-unverifiable-border: oklch(0.87 0.05 292);
+  /* --- extension 4: code theme (drives Shiki, see lib/code-theme.ts) --- */
+  --code-comment: oklch(0.6 0.02 250);
+  --code-keyword: oklch(0.46 0.14 302);
+  --code-type: oklch(0.45 0.1 232);
+  --code-fn: oklch(0.46 0.12 258);
+  --code-string: oklch(0.45 0.11 150);
+  --code-number: oklch(0.48 0.12 40);
+  --code-macro: oklch(0.5 0.08 320);
+  --code-gutter: oklch(0.72 0 0);
+  --code-bg: oklch(0.995 0 0);
 }
 
 .dark {
@@ -115,6 +176,34 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  --destructive-bg: oklch(0.275 0.055 22);
+  --destructive-border: oklch(0.4 0.09 22);
+  --source: oklch(0.78 0.12 245);
+  --source-bg: oklch(0.278 0.048 245);
+  --source-border: oklch(0.4 0.07 245);
+  --highlight: oklch(0.7 0.16 240 / 0.3);
+  --verdict-implemented: oklch(0.8 0.13 152);
+  --verdict-implemented-bg: oklch(0.28 0.05 152);
+  --verdict-implemented-border: oklch(0.4 0.07 152);
+  --verdict-partial: oklch(0.82 0.12 78);
+  --verdict-partial-bg: oklch(0.29 0.05 74);
+  --verdict-partial-border: oklch(0.42 0.07 74);
+  --verdict-missing: oklch(0.708 0 0);
+  --verdict-missing-bg: oklch(0.245 0 0);
+  --verdict-missing-border: oklch(0.36 0 0);
+  --verdict-unverifiable: oklch(0.8 0.12 292);
+  --verdict-unverifiable-bg: oklch(0.29 0.05 292);
+  --verdict-unverifiable-border: oklch(0.42 0.07 292);
+  --code-comment: oklch(0.62 0.02 250);
+  --code-keyword: oklch(0.78 0.13 302);
+  --code-type: oklch(0.78 0.09 232);
+  --code-fn: oklch(0.8 0.1 258);
+  --code-string: oklch(0.78 0.1 150);
+  --code-number: oklch(0.8 0.11 40);
+  --code-macro: oklch(0.76 0.07 320);
+  --code-gutter: oklch(0.46 0 0);
+  --code-bg: oklch(0.18 0 0);
 }
 
 @layer base {
