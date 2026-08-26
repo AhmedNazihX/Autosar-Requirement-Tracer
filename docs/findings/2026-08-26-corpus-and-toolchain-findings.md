@@ -100,23 +100,38 @@ report should list annotated IDs that resolve to no requirement in the
 corpus, grouped by module, labelled as release drift rather than as errors.
 Cite the figure in the README.
 
-### A5. Corpus-wide tier-1 join rate is 50%, and which modules join is uneven
-**Measured**, after the owner widened the corpus to four documents:
+### A5. Corpus-wide tier-1 join rate is 38%, 70% for modules whose specs are ingested
+**Measured by the shipped pipeline**, over the whole indexed corpus:
 
-| Prefix | unique IDs | joins corpus |
+| Scope | annotated IDs | resolve to a requirement |
 |---|---|---|
-| `CANIF` | 271 | 186 (68%) |
-| `CANSM` | 192 | 159 (82%) |
-| `CANTP` | 122 | 89 (72%) |
-| `CANNM` | 199 | **0** |
-| `COM` | 73 | **0** |
-| `CAN` | 1 | 1 |
-| total | 858 | **435 (50%)** |
+| corpus-wide | 1267 | **481 (38.0%)** |
+| modules whose specs are ingested | 684 | **481 (70.3%)** |
+| `CanIf` | 323 | 220 (68.1%) |
+| `CanSM` | — | 75.3% |
+| `CanTp` | — | 67.4% |
+| `CanNm`, `Com` | 272 | **0** — specs not ingested |
+| `Can` | 1 | 1 |
+
+Regenerate rather than copy these:
+`uv run python -m ingestion.run ../projects/autosar-can/project.yaml --stop-after store`.
+
+**An earlier revision of this section said 50% (435 of 858) and is
+superseded.** That figure came from an exploratory scan of five `.c` files
+before headers were indexed and before the `prototype` and `file` unit kinds
+existed, so its denominator counted fewer annotation sites. Both numbers are
+"right" over their own denominator, which is precisely how a metric goes
+stale without one — see §A4 for the same trap hit twice. **The pipeline's
+figures are authoritative**, because they are the only ones derived from
+shipped code; the README quotes these and nothing else.
 
 **Why it matters.** `CanNm` and `Com` contribute 272 annotated IDs that
 resolve to nothing, because their SWS documents are not ingested. They still
 earn their place for `search_code` and tier-2 semantic evidence, but they
-add no traceability.
+add no traceability. The gap between 38% corpus-wide and 70% for
+spec-ingested modules is entirely those two modules plus header-only IDs —
+so quoting 38% alone understates the pipeline, and quoting 70% alone
+overstates its coverage. Both belong together.
 
 **To do.** Optional and cheap: adding the CanNm and Com SWS documents is a
 **manifest edit only** — no code change — and would lift the join rate
