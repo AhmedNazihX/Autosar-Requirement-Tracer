@@ -25,6 +25,7 @@ import type { ChatEvent } from "./events";
 
 const STORAGE_KEY = "reqtrace.threads.v1";
 const LAYOUT_KEY_PREFIX = "reqtrace.layout.";
+const ACTIVE_KEY = "reqtrace.activeThread";
 
 export type MessageRole = "user" | "assistant";
 
@@ -228,6 +229,31 @@ export function setPaneLayout(
       LAYOUT_KEY_PREFIX + threadId,
       JSON.stringify(layout),
     );
+  } catch {
+    /* ignore */
+  }
+}
+
+/* ----------------------------------------------------------- last active ---- */
+/* Which thread to reopen on load. Also view state, and also per-browser: two
+ * windows on the same threads legitimately sit on different ones, so this never
+ * belongs in the thread record. Without it a reload jumps to whichever thread
+ * happens to be newest, and "reload replays this thread" stops being true. */
+
+export function getActiveThreadId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ACTIVE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveThreadId(threadId: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (threadId === null) window.localStorage.removeItem(ACTIVE_KEY);
+    else window.localStorage.setItem(ACTIVE_KEY, threadId);
   } catch {
     /* ignore */
   }
