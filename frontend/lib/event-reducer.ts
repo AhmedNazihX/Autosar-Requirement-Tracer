@@ -172,21 +172,6 @@ export function reduceEvents(
 }
 
 /**
- * Paragraph split for the places that need one line of an answer rather than
- * the whole thing — the checkpoint rail's tooltip preview, and thread titles.
- *
- * The chat pane itself no longer uses this: assistant text renders through
- * react-markdown now that markdown is approved. Kept because a preview must not
- * pull the markdown renderer into a tooltip.
- */
-export function splitParagraphs(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0);
-}
-
-/**
  * The checkpoint rail's icon for an exchange comes from the first `tool_start`
  * in it (canvas artboard 6). A turn that called no tool gets `null`.
  */

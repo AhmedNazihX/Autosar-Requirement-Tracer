@@ -9,7 +9,7 @@
  * eventually put the dots out of step with the turns they point at.
  */
 
-import { firstToolOf, splitParagraphs } from "./event-reducer";
+import { firstToolOf } from "./event-reducer";
 import type { ToolName } from "./events";
 import { targetForEvents, type SourceTarget } from "./source-target";
 import type { StoredMessage } from "./threads";
@@ -25,8 +25,6 @@ export interface Exchange {
   tool: ToolName | null;
   /** What the source pane showed for this turn, for the rail's tooltip. */
   target: SourceTarget | null;
-  /** One line of the answer, for the rail's tooltip. */
-  preview: string;
 }
 
 export function toExchanges(messages: readonly StoredMessage[]): Exchange[] {
@@ -45,7 +43,6 @@ export function toExchanges(messages: readonly StoredMessage[]): Exchange[] {
         assistant: message.role === "assistant" ? message : null,
         tool: firstToolOf(message.events),
         target: targetForEvents(message.events),
-        preview: previewOf(message),
       });
       continue;
     }
@@ -53,13 +50,7 @@ export function toExchanges(messages: readonly StoredMessage[]): Exchange[] {
     last.assistant = message;
     last.tool = firstToolOf(message.events);
     last.target = targetForEvents(message.events);
-    last.preview = previewOf(message);
   }
 
   return exchanges;
-}
-
-function previewOf(message: StoredMessage): string {
-  if (message.role !== "assistant") return "";
-  return splitParagraphs(message.content)[0] ?? "";
 }
