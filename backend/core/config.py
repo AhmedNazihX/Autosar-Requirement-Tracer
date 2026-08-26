@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = None
     max_report_cost_usd: float = 2.0
 
+    #: Which corpus this backend serves. A path, not a project name, because
+    #: every corpus-specific value (model IDs, globs, the pinned SHA) lives in
+    #: that manifest — see ``core/manifest.py``. Relative to ``backend/``,
+    #: which is where the server is started from.
+    project_manifest: str = "../projects/autosar-can/project.yaml"
+
 
 @lru_cache
 def get_settings() -> Settings:
