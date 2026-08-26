@@ -62,6 +62,25 @@ def test_the_report_names_and_justifies_every_unmatched_opener():
     assert "not applicable to this specification" in report, "the miss needs quoted context"
 
 
+def test_the_report_discloses_the_caption_strip_and_what_it_recovered():
+    """A loss the report does not state is a loss nobody can audit."""
+    fused = (
+        "Figure 7.1: Layered Software Architecture from the Can point of view.\n"
+        "The Can module provides services for initiating transmissions and calls the "
+        "callback functions of the CanIf module for notifying events, independently of "
+        "whether notification is by interrupt or by polling.\n"
+    )
+    document = document_from_blocks(["1\nIntroduction\n", fused])
+    report = render_extraction_report(MANIFEST, [ingestion_for(document)])
+
+    assert "figure/table captions stripped: 1 residues" in report
+    assert "left text after the caption" in report
+    assert "chunked as ordinary prose rather than discarded with the caption" in report
+    # And the units are labeled apart from the block-level counters.
+    assert "Counted in prose residues, not blocks" in report
+    assert "dropped, heading blocks" in report and "blocks" in report
+
+
 def test_a_clean_document_says_so_explicitly():
     document = document_from_blocks(["[SWS_Can_00001] ⌈A real requirement.⌋()\n"])
     report = render_extraction_report(MANIFEST, [ingestion_for(document)])

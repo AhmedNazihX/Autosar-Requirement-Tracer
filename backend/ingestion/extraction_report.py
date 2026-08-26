@@ -181,11 +181,18 @@ def _document_section(manifest: ProjectManifest, ingestion: DocumentIngestion) -
             f"figures and tables): {stats.blocks_front_matter} blocks",
             f"- dropped, heading blocks (re-indexed as chunk metadata instead): "
             f"{stats.blocks_headings} blocks",
-            f"- dropped, figure/table captions: {stats.blocks_captions} blocks",
             f"- dropped, excluded sections: {stats.blocks_excluded_sections_total} blocks "
             f"({stats.blocks_excluded_sections or 'none'})",
             f"- blocks a requirement span cut into: {stats.blocks_touching_requirements}",
+            "",
+            "Counted in prose residues, not blocks — one block can yield several "
+            "residues once requirement spans are subtracted:",
+            "",
             f"- prose residues considered: {stats.residues_considered}",
+            f"- figure/table captions stripped: {stats.caption_residues_stripped} residues; "
+            f"of those, {stats.caption_remainders_kept} left text after the caption "
+            f"({stats.caption_remainder_chars} characters) which is chunked as ordinary "
+            f"prose rather than discarded with the caption",
             f"- dropped, below {MIN_CHUNK_CHARS} characters: {stats.chunks_dropped_short} chunks",
             "",
         ]
@@ -264,6 +271,10 @@ def render_extraction_report(
             "paragraph (PyMuPDF block) boundaries, never mid-sentence",
             "- requirement blocks (`[id] title ⌈body⌋(refs)`) are subtracted before "
             "chunking, so no character is indexed twice",
+            "- a figure/table caption is stripped from its residue rather than the "
+            "residue being discarded, so prose following a caption in the same block "
+            "survives; the remainder is then subject to the minimum-length rule like "
+            "any other prose",
             "- excluded sections, by heading title (with all descendants): "
             + ", ".join(f"{name} = `{p.pattern}`" for name, p in EXCLUDED_SECTION_RULES.items()),
             "",

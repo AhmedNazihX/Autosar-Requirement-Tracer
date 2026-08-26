@@ -14,6 +14,7 @@ from core.manifest import load_manifest
 from ingestion.context_chunker import (
     MAX_CHUNK_CHARS,
     MIN_CHUNK_CHARS,
+    caption_extent,
     excluded_section_roots,
     extract_context_chunks,
     is_excluded_section,
@@ -129,7 +130,8 @@ def test_figure_and_table_captions_are_excluded():
     document = document_from_blocks(["1\nIntroduction\n", LONG_PROSE + "\n", caption + "\n"])
     _, chunks, stats = chunk_for(document)
 
-    assert stats.blocks_captions == 1
+    assert stats.caption_residues_stripped == 1
+    assert stats.caption_remainders_kept == 0, "a caption-only residue leaves nothing behind"
     assert all("configuration overview" not in chunk.text for chunk in chunks)
     assert any("Can module provides services" in chunk.text for chunk in chunks)
 
@@ -142,8 +144,74 @@ def test_table_captions_are_excluded_too():
     )
     document = document_from_blocks(["1\nIntroduction\n", caption + "\n", LONG_PROSE + "\n"])
     _, chunks, stats = chunk_for(document)
-    assert stats.blocks_captions == 1
+    assert stats.caption_residues_stripped == 1
     assert all("Development errors of the Can module" not in chunk.text for chunk in chunks)
+
+
+def test_a_multi_line_multi_sentence_caption_is_removed_whole():
+    """The real shape: a caption that wraps and runs to three sentences.
+
+    Verbatim from CAN Driver page 36, line breaks included. Stripping only the
+    *first line* would leave 'numbering of HTHs and HRHs are implementation
+    specific.' — a mid-caption fragment — indexed as prose.
+    """
+    caption = (
+        "Figure 7.3: Example of assignment of HTHs and HRHs to the Hardware Objects. The\n"
+        "numbering of HTHs and HRHs are implementation specific. The chosen numbering is\n"
+        "only an example.\n"
+    )
+    document = document_from_blocks(["1\nIntroduction\n", LONG_PROSE + "\n", caption])
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.caption_residues_stripped == 1
+    assert stats.caption_remainders_kept == 0
+    assert all("numbering of HTHs" not in chunk.text for chunk in chunks)
+    assert all("only an example" not in chunk.text for chunk in chunks)
+
+
+def test_prose_fused_onto_a_caption_survives_the_caption_strip():
+    """The regression this rule was rewritten for.
+
+    When PyMuPDF fuses a caption with the paragraph that follows it — the same
+    block-fusion failure mode the p035 fixture exists to capture — the old rule
+    discarded the whole residue and the paragraph vanished with no record. Only
+    the caption may be removed.
+    """
+    fused = (
+        "Figure 7.1: Layered Software Architecture from the Can point of view.\n"
+        + LONG_PROSE
+        + "\n"
+    )
+    document = document_from_blocks(["1\nIntroduction\n", fused])
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.caption_residues_stripped == 1
+    assert stats.caption_remainders_kept == 1
+    assert stats.caption_remainder_chars >= MIN_CHUNK_CHARS
+    assert chunks, "the fused paragraph must survive as a chunk"
+    assert any("Can module provides services" in chunk.text for chunk in chunks), (
+        "the paragraph fused onto the caption was silently deleted"
+    )
+    assert all("Layered Software Architecture" not in chunk.text for chunk in chunks), (
+        "the caption itself must still be removed"
+    )
+    # The surviving chunk starts at the prose, not mid-caption.
+    survivor = next(chunk for chunk in chunks if "Can module provides" in chunk.text)
+    assert survivor.text.startswith("The Can module provides services")
+
+
+def test_caption_extent_measures_the_caption_not_the_first_line():
+    single = "Figure 10.1: Overview about CAN Interface configuration containers\n"
+    assert caption_extent(single) == len(single), "no terminator: the caption is the whole residue"
+
+    wrapped = (
+        "Figure 7.5: Example of assignment of same HRHs to multiple Objects The\n"
+        "chosen numbering is only an example.\n"
+    )
+    assert caption_extent(wrapped) == len(wrapped)
+
+    fused = "Figure 7.1: Layered Software Architecture.\nThe Can module provides services.\n"
+    assert caption_extent(fused) == len("Figure 7.1: Layered Software Architecture.\n")
 
 
 def test_front_matter_before_the_first_heading_is_excluded():

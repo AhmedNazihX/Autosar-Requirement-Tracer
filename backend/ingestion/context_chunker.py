@@ -30,7 +30,10 @@ What is deliberately dropped, and why (all counted in
 * **headings** — the heading text becomes chunk metadata (``title``,
   ``section_path``), so re-indexing it as prose would be duplication.
 * **figure and table captions** — ``Figure 7.4: …``, ``Table 3: …``. Pure
-  page furniture for retrieval purposes.
+  page furniture for retrieval purposes. Only the caption itself is removed
+  (:func:`caption_extent`); text following it in the same residue is chunked
+  as ordinary prose, so a caption PyMuPDF has fused with the paragraph after
+  it cannot take that paragraph down with it.
 * **bibliography and change-history sections** — see
   :data:`EXCLUDED_SECTION_RULES`.
 * **short residue** — anything below :data:`MIN_CHUNK_CHARS` after all of the
@@ -73,6 +76,11 @@ MAX_CHUNK_CHARS = 800
 #: Figure and table captions. ``Figure 10.8: CanTpNTa … overview``.
 CAPTION_PATTERN = re.compile(r"\A(?:Figure|Table)\s+[A-Za-z0-9.\-]+\s*:", re.I)
 
+#: A line that completes a sentence, and so ends a caption. Used by
+#: :func:`caption_extent` — captions in this corpus wrap across several
+#: physical lines, so the caption is not "the first line".
+CAPTION_LINE_END_PATTERN = re.compile(r"[.!?]['\"’”)]?\s*\Z")
+
 #: Sentence-ish boundaries used when a single paragraph exceeds the ceiling.
 SENTENCE_BOUNDARY_PATTERN = re.compile(r"(?<=[.;:!?])\s+")
 
@@ -92,16 +100,28 @@ UNSECTIONED = "NA"
 
 @dataclass
 class ChunkingStats:
-    """Why prose did not become a chunk. Every field is reported."""
+    """Why prose did not become a chunk. Every field is reported.
+
+    The ``blocks_*`` fields count **blocks**; the ``residues_*``/``caption_*``
+    fields count **prose residues**, of which one block can yield several once
+    requirement spans are subtracted. The two are not interchangeable, so they
+    are named apart and the report labels them apart.
+    """
 
     blocks_total: int = 0
     blocks_front_matter: int = 0
     blocks_headings: int = 0
     blocks_excluded_sections: dict[str, int] = field(default_factory=dict)
-    blocks_captions: int = 0
     #: Blocks that a requirement span cut into, wholly or partly.
     blocks_touching_requirements: int = 0
     residues_considered: int = 0
+    #: Residues whose leading caption was stripped (see :func:`caption_extent`).
+    caption_residues_stripped: int = 0
+    #: Of those, how many left text behind after the caption, and how many
+    #: characters that text came to. The remainder is ordinary prose from then
+    #: on — still subject to the minimum-length rule, not dropped by fiat.
+    caption_remainders_kept: int = 0
+    caption_remainder_chars: int = 0
     chunks_emitted: int = 0
     chunks_dropped_short: int = 0
 
@@ -173,6 +193,39 @@ def subtract_spans(
     if cursor < end:
         residues.append((cursor, end))
     return residues
+
+
+def caption_extent(slice_text: str) -> int:
+    """How many characters of ``slice_text`` the leading caption occupies.
+
+    Captions in this corpus wrap across physical lines and often run to
+    several sentences (``"Figure 7.3: Example of assignment of HTHs and HRHs
+    to the Hardware Objects. The numbering … is only an example."`` is one
+    three-line block), so the caption is *not* simply the first line. The
+    extent is the leading run of lines up to and including the first line that
+    completes a sentence; a caption with no sentence terminator anywhere — the
+    common single-line ``"Figure 10.1: Overview about …"`` shape — consumes the
+    whole residue.
+
+    This exists so the caption rule can be **non-destructive**: only the
+    caption is removed, and anything after it is chunked as ordinary prose. The
+    previous behaviour discarded the entire residue, which would have silently
+    deleted a paragraph whenever PyMuPDF fused a caption with the text
+    following it. Measured over the four-document corpus, 101 of 102 caption
+    residues are caption-only and the remaining one leaves 40 characters that
+    are themselves the caption's closing sentence — so nothing is lost today,
+    but nothing is discarded unmeasured any more either.
+
+    The heuristic's known limit: for a *fused* block whose caption has no
+    terminating period, the first line of the following paragraph is consumed
+    as part of the caption. No such block occurs in this corpus.
+    """
+    consumed = 0
+    for line in slice_text.splitlines(keepends=True):
+        consumed += len(line)
+        if CAPTION_LINE_END_PATTERN.search(line):
+            break
+    return consumed
 
 
 def _split_to_ceiling(text: str, base: int) -> list[tuple[int, int]]:
@@ -311,10 +364,20 @@ def _collect_units(
                 flush()
                 continue
             stats.residues_considered += 1
+
             if CAPTION_PATTERN.match(normalize(slice_text)):
-                stats.blocks_captions += 1
+                # A caption is a boundary and is not prose — but whatever
+                # follows it in the same residue is, so strip the caption
+                # rather than discarding the residue.
                 flush()
-                continue
+                stats.caption_residues_stripped += 1
+                residue_start += caption_extent(slice_text)
+                slice_text = cleaned.text[residue_start:residue_end]
+                if not slice_text.strip():
+                    continue
+                stats.caption_remainders_kept += 1
+                stats.caption_remainder_chars += len(normalize(slice_text))
+
             if pending and residue_start != pending[-1].cleaned_end:
                 flush()
             if pending_heading is None:
