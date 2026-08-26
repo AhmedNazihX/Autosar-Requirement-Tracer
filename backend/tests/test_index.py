@@ -433,7 +433,7 @@ def populated(tmp_path: Path):
 
 def test_load_records_produces_the_same_ids_the_vector_store_uses(populated):
     _, conn = populated
-    records = bm25.load_records(conn, PROJECT)
+    records = bm25.load_records(conn, MANIFEST)
     ids = {record.id for record in records}
     assert requirement_chunk_id(requirement("SWS_Can_00011")) in ids
     assert code_chunk_id(code_unit()) in ids
@@ -442,14 +442,14 @@ def test_load_records_produces_the_same_ids_the_vector_store_uses(populated):
 
 def test_load_records_is_ordered_deterministically(populated):
     _, conn = populated
-    first = [record.id for record in bm25.load_records(conn, PROJECT)]
-    second = [record.id for record in bm25.load_records(conn, PROJECT)]
+    first = [record.id for record in bm25.load_records(conn, MANIFEST)]
+    second = [record.id for record in bm25.load_records(conn, MANIFEST)]
     assert first == second == sorted(first[:2]) + first[2:]
 
 
 def test_the_index_built_from_sqlite_finds_a_known_chunk(populated):
     _, conn = populated
-    index = bm25.build_from_sqlite(conn, PROJECT)
+    index = bm25.build_from_sqlite(conn, MANIFEST)
     hits = bm25.search(index, "Can_Write", limit=5)
     assert hits, "the smoke query must return something"
     assert {hit.record.doc_type for hit in hits} <= {"requirement", "context", CODE_DOC_TYPE}

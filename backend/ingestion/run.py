@@ -891,7 +891,7 @@ def _index_check(
 ) -> IndexCheck:
     """Build the BM25 index the way the API does, time it, and query it."""
     started = time.perf_counter()
-    index = bm25.build_from_sqlite(conn, manifest.project_id)
+    index = bm25.build_from_sqlite(conn, manifest)
     elapsed = time.perf_counter() - started
     query, hits = _smoke_query(index, results)
     report.line(

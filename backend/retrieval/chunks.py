@@ -100,6 +100,18 @@ def module_names(manifest: ProjectManifest) -> list[str]:
     ]
 
 
+def module_by_document(manifest: ProjectManifest) -> dict[str, str]:
+    """``source_doc`` → module, from the manifest's own document entries.
+
+    A requirement's module is not a column in SQLite: it is a property of the
+    document it came from, and ``documents[*].module`` is where that lives.
+    Both indexes derive it through this one function so a requirement chunk and
+    a code chunk from the same module cannot end up tagged differently — which
+    would make a metadata filter (story S2.4.1) match one and not the other.
+    """
+    return {document.key: document.module for document in manifest.documents}
+
+
 def module_for_path(repo_path: str, modules: Iterable[str]) -> str | None:
     """The module a repo path belongs to, using names taken from the manifest.
 
