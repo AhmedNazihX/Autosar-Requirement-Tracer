@@ -65,6 +65,37 @@ MARKER_REPLACEMENT = " "
 TITLE_PLACEHOLDER = "{title}"
 
 
+class NormalizationError(ValueError):
+    """Raised when normalization is asked to do something meaningless.
+
+    Subclasses :class:`ValueError` so a caller that only guards against bad
+    arguments in general still catches it.
+    """
+
+
+def expand_footer_pattern(pattern: str, document_title: str) -> str:
+    """Substitute ``document_title`` into ``pattern``'s ``{title}`` placeholder.
+
+    The title is ``re.escape``-d, so a title containing regex metacharacters
+    is matched literally.
+
+    A pattern that *needs* a title but is handed an empty or whitespace-only
+    one is an error, not a degradation: silently expanding
+    ``'\\n{title}\\nAUTOSAR CP R23-11\\n'`` to
+    ``'\\n\\nAUTOSAR CP R23-11\\n'`` still matches on some pages, so the
+    caller would get a partially-stripped document and no signal at all.
+    """
+    if TITLE_PLACEHOLDER not in pattern:
+        return pattern
+    if not document_title.strip():
+        raise NormalizationError(
+            f"footer pattern {pattern!r} contains {TITLE_PLACEHOLDER} but document_title is "
+            f"{document_title!r} — pass the owning document's title from the manifest "
+            "(documents[].title)"
+        )
+    return pattern.replace(TITLE_PLACEHOLDER, re.escape(document_title))
+
+
 def strip_page_furniture(
     text: str, footer_patterns: Iterable[str], document_title: str
 ) -> str:
@@ -72,10 +103,11 @@ def strip_page_furniture(
 
     ``document_title`` is substituted into the ``{title}`` placeholder and
     regex-escaped, so a title containing regex metacharacters is matched
-    literally.
+    literally. Raises :class:`NormalizationError` if a pattern needs a title
+    and none was given.
     """
     for pattern in footer_patterns:
-        expanded = pattern.replace(TITLE_PLACEHOLDER, re.escape(document_title))
+        expanded = expand_footer_pattern(pattern, document_title)
         text = re.sub(expanded, FURNITURE_REPLACEMENT, text)
     return text
 
@@ -109,7 +141,9 @@ def normalize_requirement_text(
     Pass ``manifest.extraction.footer_patterns`` and
     ``manifest.extraction.drop_markers`` together with the owning document's
     ``title``. Rule 1 is a no-op when ``footer_patterns`` is empty, which is
-    the right behaviour for a span known to contain no page break.
+    the right behaviour for a span known to contain no page break — but a
+    non-empty ``footer_patterns`` containing ``{title}`` with no
+    ``document_title`` raises :class:`NormalizationError`.
     """
     text = strip_page_furniture(text, footer_patterns, document_title)
     text = replace_markers(text, drop_markers)
@@ -126,12 +160,17 @@ def extract_named_symbols(text: str, symbol_pattern: str) -> list[str]:
     fixtures' ``named_symbols`` lists were labeled under, and
     ``test_golden_fixtures.py`` asserts the labels equal this function's
     output exactly, so an omission fails the suite.
+
+    The symbol taken from a match is the first *participating* capturing
+    group, falling back to the whole match when the pattern has no groups (or
+    none of them participated). Indexing ``group(1)`` unconditionally would
+    return ``None`` for a pattern whose first group is optional and did not
+    take part, and ``None`` would then land in the returned list.
     """
     compiled = re.compile(symbol_pattern)
     seen: list[str] = []
     for match in compiled.finditer(text):
-        # group(1) when the pattern brackets the symbol, else the whole match.
-        symbol = match.group(1) if match.groups() else match.group(0)
-        if symbol not in seen:
+        symbol = next((group for group in match.groups() if group is not None), match.group(0))
+        if symbol and symbol not in seen:
             seen.append(symbol)
     return seen
