@@ -17,6 +17,20 @@ documents:
     module: CanIf
     req_id_pattern: 'SWS_CANIF(?:_CONSTR)?_\d+'
     expected_requirements: 398
+  - key: can_transport
+    title: Specification of CAN Transport Layer
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANTransportLayer.pdf
+    filename: AUTOSAR_CP_SWS_CANTransportLayer.pdf
+    module: CanTp
+    req_id_pattern: 'SWS_CanTp(?:_CONSTR)?_\d+'
+    expected_requirements: 175
+  - key: can_statemanager
+    title: Specification of CAN State Manager
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANStateManager.pdf
+    filename: AUTOSAR_CP_SWS_CANStateManager.pdf
+    module: CanSM
+    req_id_pattern: 'SWS_CanSM(?:_CONSTR)?_\d+'
+    expected_requirements: 241
 
 extraction:
   req_id_pattern: 'SWS_[A-Za-z]+(?:_CONSTR)?_\d+'
