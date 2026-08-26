@@ -11,23 +11,23 @@ miss list is.
 
 Written on every ingestion run, under ``data/`` (gitignored).
 
-Running it directly is a stopgap until the ingestion CLI (story S1.3.6) lands
-and calls :func:`write_extraction_report` as one stage of the pipeline::
-
-    cd backend
-    uv run python -m ingestion.extraction_report ../projects/autosar-can/project.yaml
+There is no CLI here: ``python -m ingestion.run`` is the single documented
+entry point and calls :func:`ingest_document` and
+:func:`write_extraction_report` as its third stage. Under ruling R26 it then
+exits non-zero on any warning this report names — the report is written first
+so the evidence survives the failure.
 """
 
 from __future__ import annotations
 
 import re
-import sys
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from core.manifest import DocumentEntry, ProjectManifest, load_manifest
+from core import paths
+from core.manifest import DocumentEntry, ProjectManifest
 from core.models import Requirement
 from ingestion.context_chunker import (
     EXCLUDED_SECTION_RULES,
@@ -64,7 +64,7 @@ def ingest_document(
     if not pdf_path.is_file():
         raise ExtractionReportError(
             f"{pdf_path} is missing — run "
-            "'uv run python -m ingestion.fetcher ../projects/autosar-can/project.yaml' first"
+            "'uv run python -m ingestion.run ../projects/autosar-can/project.yaml' to fetch it"
         )
     document = parse_pdf(pdf_path)
     extraction = extract_requirements(document, manifest, entry)
@@ -73,14 +73,16 @@ def ingest_document(
 
 
 def data_dir(manifest: ProjectManifest) -> Path:
-    """The repo's ``data/`` directory, resolved from the manifest's location."""
-    root = manifest.project_root
-    if root is None:
-        raise ExtractionReportError(
-            "manifest has no project_root (constructed directly instead of via "
-            "load_manifest?) — pass an explicit output path"
-        )
-    return root / "data"
+    """The repo's ``data/`` directory, resolved from the manifest's location.
+
+    Delegates to :func:`core.paths.data_dir`, which is the one place that
+    answer lives, and re-raises as :class:`ExtractionReportError` so callers of
+    this module keep seeing one exception type.
+    """
+    try:
+        return paths.data_dir(manifest)
+    except paths.PathError as exc:
+        raise ExtractionReportError(str(exc)) from exc
 
 
 def _pct(count: int, total: int) -> str:
@@ -293,39 +295,7 @@ def write_extraction_report(
     manifest: ProjectManifest, results: list[DocumentIngestion], path: Path | None = None
 ) -> Path:
     """Render the report and write it to ``data/extraction_report.md``."""
-    destination = path or (data_dir(manifest) / "extraction_report.md")
+    destination = path or (data_dir(manifest) / paths.EXTRACTION_REPORT_FILENAME)
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(render_extraction_report(manifest, results), encoding="utf-8")
     return destination
-
-
-def main(argv: list[str]) -> int:
-    if len(argv) != 1:
-        print(
-            "usage: python -m ingestion.extraction_report <path/to/project.yaml>",
-            file=sys.stderr,
-        )
-        return 2
-
-    manifest = load_manifest(argv[0])
-    pdf_dir = data_dir(manifest) / "docs"
-    results = [
-        ingest_document(manifest, entry, pdf_dir / entry.filename)
-        for entry in manifest.documents
-    ]
-    for result in results:
-        print(
-            f"{result.entry.key:18s} {len(result.extraction.requirements):5d} requirements "
-            f"(expected {result.entry.expected_requirements}), "
-            f"{len(result.context_chunks):5d} context chunks, "
-            f"{len(result.extraction.misses)} miss(es)"
-        )
-        for warning in result.extraction.warnings:
-            print(f"  WARNING: {warning}", file=sys.stderr)
-    destination = write_extraction_report(manifest, results)
-    print(f"wrote {destination}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(sys.argv[1:]))

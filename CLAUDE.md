@@ -30,7 +30,7 @@ Implementation has not started yet. The repo currently contains the brief and th
 
 - `make dev` — boot backend (uvicorn :8000) + frontend (next dev) together
 - `cd backend && uv run pytest` — backend tests; single test: `uv run pytest tests/test_x.py::test_name`
-- `cd backend && uv run python -m ingestion.run ../projects/autosar-can/project.yaml` — fetch + parse + index the corpus (idempotent; writes `data/extraction_report.md`)
+- `cd backend && uv run python -m ingestion.run ../projects/autosar-can/project.yaml` — the **only** ingestion entry point: fetch + parse + index + embed the corpus (idempotent — a second run downloads nothing and embeds nothing; writes `data/extraction_report.md` and `data/spot_check.md`). Useful flags: `--skip-embeddings` (no API key needed), `--force`, `--stop-after {docs,extract,code,store,embed}`, `--quiet`.
 - `cd frontend && npm run dev` / `npm run build`
 - Requires `OPENROUTER_API_KEY` in `backend/.env` (see `.env.example`)
 

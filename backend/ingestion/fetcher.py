@@ -29,6 +29,9 @@ Behaviour that matters downstream:
 
 The network call is isolated behind the ``downloader`` parameter so tests can
 substitute a fake and *prove* the second run never calls it.
+
+There is no CLI here: ``python -m ingestion.run`` is the single documented
+entry point and calls :func:`fetch_documents` as its second stage.
 """
 
 from __future__ import annotations
@@ -410,44 +413,3 @@ def fetch_documents(
         )
         for document in manifest.documents
     ]
-
-
-def main(argv: list[str] | None = None) -> int:
-    """CLI: ``uv run python -m ingestion.fetcher <manifest.yaml> [--force]``."""
-    import argparse
-
-    from core.manifest import load_manifest
-
-    parser = argparse.ArgumentParser(description="Fetch corpus PDFs named by a project manifest.")
-    parser.add_argument("manifest", help="path to projects/<name>/project.yaml")
-    parser.add_argument("--dest", default=None, help="override the destination directory")
-    parser.add_argument("--force", action="store_true", help="re-download even if present")
-    parser.add_argument("--quiet", action="store_true", help="suppress progress lines")
-    args = parser.parse_args(argv)
-
-    manifest = load_manifest(args.manifest)
-    dest = Path(args.dest).resolve() if args.dest else docs_dir(manifest)
-    print(f"destination: {dest}")
-
-    seen: set[str] = set()
-
-    def progress(filename: str, done: int, total: int | None) -> None:
-        if args.quiet:
-            return
-        if filename not in seen:
-            seen.add(filename)
-            print(f"  downloading {filename} ...")
-
-    results = fetch_documents(manifest, dest, on_progress=progress, force=args.force)
-    for result in results:
-        print(
-            f"{result.action:<13} {result.filename:<44} "
-            f"{result.bytes:>9,} bytes  sha256={result.sha256[:16]}..."
-        )
-    downloads = sum(1 for r in results if r.action != "skipped")
-    print(f"{len(results)} document(s): {downloads} fetched, {len(results) - downloads} skipped")
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
-    raise SystemExit(main())

@@ -34,6 +34,9 @@ the selected-file count being non-empty.
 
 ``git`` is invoked through the injected ``runner`` parameter so tests can
 substitute a fake and *prove* the second run never calls it.
+
+There is no CLI here: ``python -m ingestion.run`` is the single documented
+entry point and calls :func:`fetch_repo` as its fourth stage.
 """
 
 from __future__ import annotations
@@ -366,37 +369,3 @@ def fetch_repo(
             "incomplete."
         )
     return RepoFetchResult(action=action, sha=actual, file_count=len(files), path=dest)
-
-
-def main(argv: list[str] | None = None) -> int:
-    """CLI: ``uv run python -m ingestion.code_fetcher <manifest.yaml> [--force]``."""
-    import argparse
-
-    from core.manifest import load_manifest
-
-    parser = argparse.ArgumentParser(
-        description="Fetch the permitted C repository at the manifest's pinned SHA."
-    )
-    parser.add_argument("manifest", help="path to projects/<name>/project.yaml")
-    parser.add_argument("--dest", default=None, help="override the destination directory")
-    parser.add_argument("--force", action="store_true", help="re-fetch even if present")
-    parser.add_argument("--quiet", action="store_true", help="suppress progress lines")
-    args = parser.parse_args(argv)
-
-    manifest = load_manifest(args.manifest)
-    dest = Path(args.dest).resolve() if args.dest else repo_dir(manifest)
-    print(f"destination: {dest}")
-    print(f"repository:  {manifest.code.repo_url}")
-    print(f"pinned sha:  {manifest.code.git_sha}  (license {manifest.code.license})")
-
-    def progress(step: str, done: int, total: int | None) -> None:
-        if not args.quiet:
-            print(f"  [{done}/{total}] {step} ...")
-
-    result = fetch_repo(manifest, dest, on_progress=progress, force=args.force)
-    print(f"{result.action:<14} sha={result.sha}  {result.file_count} file(s) in scope")
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - CLI entry point
-    raise SystemExit(main())
