@@ -13,7 +13,11 @@ install:
 test:
 	cd backend && uv run pytest
 
-lint:
+# deps-check runs here on purpose. The instruction to regenerate
+# dependencies.txt was already written down in CLAUDE.md and was still missed
+# for two whole work packages, so remembering is evidently not enough — this
+# makes the drift fail a command that actually gets run.
+lint: deps-check
 	cd backend && uv run ruff check .
 	cd frontend && npm run lint
 

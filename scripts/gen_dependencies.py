@@ -71,6 +71,8 @@ PY_PROVENANCE = {
     "pymupdf": "PDF parsing: text, pages, bboxes (spec §3)",
     "certifi": "TLS trust store for the corpus fetcher",
     "openai": "OpenAI-compatible SDK pointed at OpenRouter (spec §3)",
+    "langchain": "the locked agent framework (spec §3); create_agent runs the tool-calling loop",
+    "langchain-openai": "ChatOpenAI pointed at OpenRouter — the one chat client (WP2/WP3)",
     "chromadb": "vector store, one collection per project (spec §3)",
     "rank-bm25": "in-memory BM25, built at API startup (spec §3, §4)",
     "httpx": "test client / HTTP",
