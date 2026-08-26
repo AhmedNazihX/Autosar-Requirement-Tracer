@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# Fetched corpus artifacts (PDFs, cloned repo, indexes) — never commit
+data/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
