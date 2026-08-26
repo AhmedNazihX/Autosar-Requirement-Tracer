@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { CircleIcon, HistoryIcon } from "lucide-react";
 
 import { clockTime } from "@/lib/format";
@@ -15,6 +14,11 @@ import { Cap } from "@/components/reqtrace/text";
 
 import { TOOL_ICON } from "./chat/tool-chip";
 
+/** Rail padding above the first dot and below the last; dot diameter. Kept in
+ *  step with the `size-[22px]`/`left-[11px]` classes on the dot itself. */
+const PAD = 6;
+const DOT = 22;
+
 /**
  * The checkpoint rail — 44 px, one dot per user request, iconed by the first
  * `tool_start` of that exchange (spec §11, canvas artboard 6).
@@ -25,82 +29,61 @@ import { TOOL_ICON } from "./chat/tool-chip";
  * bookmark: no rollback, no branching, no re-run, and no affordance hinting at
  * any of them.
  *
- * Dot positions are proportional to where the exchange sits in the WHOLE thread,
- * not to where it sits in the visible viewport. That is a deliberate departure
- * from the canvas, which draws the dots aligned one-to-one with the turns beside
- * them: the canvas mock compresses a turn to 86 px, whereas a real exchange with
- * chips, citations and a cost line is 300–450 px tall. Mapped to the viewport,
- * two dots would be visible at a time and the other four would be unclickable —
- * which breaks the one behaviour spec §11 asks of the rail, "clicking scrolls to
- * that exchange". Proportional positions keep every turn reachable and still
- * read as a timeline.
+ * Dots are spread EVENLY from the first turn to the last — `index / (n - 1)` —
+ * not aligned one-to-one with the turns beside them as the canvas draws them.
+ * The canvas mock compresses a turn to 86 px, whereas a real exchange with
+ * chips, citations and a cost line is 300–450 px tall. Mapped literally, two
+ * dots would be on screen at a time and the rest unclickable, which breaks the
+ * one behaviour spec §11 asks of the rail: "clicking scrolls to that exchange".
+ * The controller ruled the deviation stands (fix round 1, Important 1).
+ *
+ * Even spacing rather than proportional-by-measurement is also deliberate. With
+ * roughly equal turn heights the two are the same line, so measuring bought a
+ * `ResizeObserver` plus a `requestAnimationFrame` loop plus a `revision` prop to
+ * force remeasurement, and still let two short adjacent turns render as
+ * overlapping 22 px circles. Even spacing has a guaranteed minimum gap by
+ * construction and needs no measurement at all: the offset is a `calc()` against
+ * the rail's own height, so the browser does the layout.
  */
 export function CheckpointRail({
   exchanges,
-  transcriptRef,
-  revision,
   activeExchangeId,
   streamingExchangeId,
   onSelect,
 }: {
   exchanges: readonly Exchange[];
-  transcriptRef: React.RefObject<HTMLDivElement | null>;
-  /** Bumped whenever transcript content changes, to force a re-measure. */
-  revision: number;
   activeExchangeId: string | null;
   streamingExchangeId: string | null;
   onSelect: (exchange: Exchange) => void;
 }) {
-  const railRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState(0);
-  const fractions = useExchangeFractions(
-    transcriptRef,
-    revision,
-    exchanges.length,
-  );
-
-  useEffect(() => {
-    const rail = railRef.current;
-    if (!rail) return;
-    // ResizeObserver fires once on observe, so the initial height arrives
-    // through the callback rather than from a synchronous write here.
-    const observer = new ResizeObserver(() => setHeight(rail.clientHeight));
-    observer.observe(rail);
-    return () => observer.disconnect();
-  }, []);
-
-  const PAD = 6;
-  const span = Math.max(height - 22 - 2 * PAD, 0);
-
   return (
     <div className="flex w-11 flex-none flex-col border-r">
       <div className="flex h-[34px] flex-none items-center justify-center text-muted-foreground">
         <HistoryIcon className="size-3.5" />
       </div>
-      <div ref={railRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <span
           aria-hidden
           className="absolute top-2 bottom-2 left-[21.5px] w-px bg-border"
         />
-        {height === 0
-          ? null
-          : exchanges.map((exchange, index) => {
-              // Before the first measurement, fall back to even spacing so the
-              // rail is never briefly empty on a fresh thread.
-              const fraction =
-                fractions[exchange.id] ??
-                (exchanges.length > 1 ? index / (exchanges.length - 1) : 0);
-              return (
-                <Dot
-                  key={exchange.id}
-                  exchange={exchange}
-                  top={Math.round(PAD + fraction * span)}
-                  current={exchange.id === activeExchangeId}
-                  running={exchange.id === streamingExchangeId}
-                  onSelect={onSelect}
-                />
-              );
-            })}
+        {exchanges.map((exchange, index) => {
+          // A single-turn thread has no span to spread across, so its one dot
+          // belongs at the top rather than at 0/0.
+          const fraction =
+            exchanges.length > 1 ? index / (exchanges.length - 1) : 0;
+          return (
+            <Dot
+              key={exchange.id}
+              exchange={exchange}
+              // PAD 6 above and below, DOT 22 tall: fraction 1 lands the last
+              // dot's bottom edge 6 px off the rail's bottom.
+              top={`calc(${PAD}px + ${fraction} * (100% - ${DOT + 2 * PAD}px))`}
+              current={exchange.id === activeExchangeId}
+              running={exchange.id === streamingExchangeId}
+              onSelect={onSelect}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -114,7 +97,7 @@ function Dot({
   onSelect,
 }: {
   exchange: Exchange;
-  top: number;
+  top: string;
   current: boolean;
   running: boolean;
   onSelect: (exchange: Exchange) => void;
@@ -204,61 +187,4 @@ function describeTarget(exchange: Exchange): string {
   }
   const path = target.citation.repo_path;
   return `Code · ${path.slice(path.lastIndexOf("/") + 1)} L${target.citation.line_span[0]}–${target.citation.line_span[1]}`;
-}
-
-/**
- * Each exchange's position as a 0..1 fraction of the transcript's total scroll
- * height — a property of the thread, not of the scroll position, so scrolling
- * does not move the dots. Re-measured when the transcript's content changes.
- */
-function useExchangeFractions(
-  transcriptRef: React.RefObject<HTMLDivElement | null>,
-  revision: number,
-  count: number,
-): Record<string, number> {
-  const [fractions, setFractions] = useState<Record<string, number>>({});
-
-  useEffect(() => {
-    const container = transcriptRef.current;
-    if (!container) return;
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const base = container.getBoundingClientRect().top - container.scrollTop;
-      const elements = [
-        ...container.querySelectorAll<HTMLElement>("[data-exchange-id]"),
-      ];
-      const offsets = elements.map(
-        (element) => element.getBoundingClientRect().top - base,
-      );
-      // The rail spans first turn to last turn, so turn 1 is always at the top
-      // and the newest is always at the bottom. A thread with one turn has no
-      // span at all, and its single dot belongs at the top rather than nowhere.
-      const first = offsets[0] ?? 0;
-      const span = (offsets.at(-1) ?? 0) - first;
-      const next: Record<string, number> = {};
-      elements.forEach((element, index) => {
-        const id = element.dataset.exchangeId;
-        if (!id) return;
-        const fraction = span > 0 ? (offsets[index] - first) / span : 0;
-        next[id] = Math.min(Math.max(fraction, 0), 1);
-      });
-      setFractions(next);
-    };
-    const schedule = () => {
-      if (frame === 0) frame = requestAnimationFrame(measure);
-    };
-
-    // The observer's first callback is the initial measurement, so nothing is
-    // written to state synchronously from this effect.
-    const observer = new ResizeObserver(schedule);
-    observer.observe(container);
-    return () => {
-      if (frame !== 0) cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [transcriptRef, revision, count]);
-
-  return fractions;
 }

@@ -367,10 +367,6 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
           {showRail ? (
             <CheckpointRail
               exchanges={exchanges}
-              transcriptRef={transcriptRef}
-              revision={
-                (thread?.messages.length ?? 0) * 1000 + liveEvents.length
-              }
               activeExchangeId={lastExchangeId}
               streamingExchangeId={isStreaming ? lastExchangeId : null}
               onSelect={(exchange) => scrollToExchange(exchange.id)}
