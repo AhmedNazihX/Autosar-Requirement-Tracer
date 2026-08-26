@@ -172,24 +172,30 @@ def _code_unit(**overrides) -> CodeUnit:
     return CodeUnit(**fields)
 
 
+def _get(conn, unit: CodeUnit) -> CodeUnit | None:
+    """Fetch a unit back by its full identity key (matches its own fields)."""
+    return db.get_code_unit(
+        conn, unit.project_id, unit.repo_path, unit.kind, unit.symbol, unit.line_span
+    )
+
+
 def test_code_unit_upsert_and_get_round_trip(conn):
     unit = _code_unit()
     db.upsert_code_unit(conn, unit)
 
-    fetched = db.get_code_unit(
-        conn, "autosar-can", "communication/CanIf/src/CanIf.c", "CanIf_Transmit"
-    )
-    assert fetched == unit
+    assert _get(conn, unit) == unit
 
 
 def test_code_unit_preserves_annotation_polarity(conn):
     unit = _code_unit()
     db.upsert_code_unit(conn, unit)
 
-    fetched = db.get_code_unit(
-        conn, "autosar-can", "communication/CanIf/src/CanIf.c", "CanIf_Transmit"
-    )
-    assert fetched.claimed_implemented_ids == ["SWS_CANIF_00023"]
+    assert _get(conn, unit).claimed_implemented_ids == ["SWS_CANIF_00023"]
+
+
+def test_get_code_unit_missing_returns_none(conn):
+    unit = _code_unit()
+    assert _get(conn, unit) is None
 
 
 def test_list_code_units_by_symbol(conn):
@@ -200,6 +206,179 @@ def test_list_code_units_by_symbol(conn):
 
     results = db.list_code_units_by_symbol(conn, "autosar-can", "CanIf_Transmit")
     assert {u.repo_path for u in results} == {unit_a.repo_path, unit_b.repo_path}
+
+
+# --------------------------------------------------------------------------
+# code_units — same-symbol collisions within one file (fix round 1 regression)
+# --------------------------------------------------------------------------
+#
+# Symbol names are not unique within a single C file: tree-sitter-c emits
+# distinct AST nodes that legitimately share a symbol string, e.g. a struct
+# definition and the typedef that names it. The primary key must include
+# `kind` and `line_span` so these do not silently overwrite each other.
+
+
+def test_same_symbol_different_kind_and_line_span_both_persist(conn):
+    """The core regression test: two units, same file + symbol, different
+    kind/line_span. Both must survive the upserts and be independently
+    retrievable — previously the second upsert silently clobbered the first.
+    """
+    struct_unit = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_PduType",
+        kind="struct",
+        line_span=(10, 12),
+        text="struct { uint8 a; } Can_PduType;",
+        req_annotations=[],
+    )
+    typedef_unit = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_PduType",
+        kind="typedef",
+        line_span=(10, 12),
+        text="typedef struct { uint8 a; } Can_PduType;",
+        req_annotations=[],
+    )
+
+    db.upsert_code_unit(conn, struct_unit)
+    db.upsert_code_unit(conn, typedef_unit)
+
+    assert _get(conn, struct_unit) == struct_unit
+    assert _get(conn, typedef_unit) == typedef_unit
+
+    results = db.list_code_units_by_symbol(conn, "autosar-can", "Can_PduType")
+    assert {u.kind for u in results} == {"struct", "typedef"}
+
+
+def test_canif_global_three_way_collision_survives(conn):
+    """Regression fixture modeled on the real shape the reviewer verified
+    with tree-sitter-c against CanIf.c: `struct CanIf_Global {...};`
+    followed by `typedef struct CanIf_Global CanIf_GlobalType;` emits
+    three AST nodes that can carry the symbol `CanIf_Global` — the struct
+    definition, the typedef, and the typedef's inner struct-tag reference.
+    All three must persist as distinct rows.
+    """
+    outer_struct = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="CanIf_Global",
+        kind="struct",
+        line_span=(1, 5),
+        text="struct CanIf_Global { ... };",
+        req_annotations=[
+            ReqAnnotation(
+                canonical_id="SWS_CANIF_00100",
+                raw="4.0.3/CANIF100",
+                marker="@",
+                claim="claimed_implemented",
+                line=1,
+            )
+        ],
+    )
+    typedef_unit = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="CanIf_Global",
+        kind="typedef",
+        line_span=(6, 6),
+        text="typedef struct CanIf_Global CanIf_GlobalType;",
+        req_annotations=[
+            ReqAnnotation(
+                canonical_id="SWS_CANIF_00101",
+                raw="4.0.3/CANIF101",
+                marker="@",
+                claim="claimed_implemented",
+                line=6,
+            )
+        ],
+    )
+    inner_struct_ref = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="CanIf_Global",
+        kind="struct",
+        line_span=(6, 6),
+        text="struct CanIf_Global",
+        req_annotations=[],
+    )
+
+    for unit in (outer_struct, typedef_unit, inner_struct_ref):
+        db.upsert_code_unit(conn, unit)
+
+    assert _get(conn, outer_struct) == outer_struct
+    assert _get(conn, typedef_unit) == typedef_unit
+    assert _get(conn, inner_struct_ref) == inner_struct_ref
+
+    results = db.list_code_units_by_symbol(conn, "autosar-can", "CanIf_Global")
+    assert len(results) == 3
+
+
+def test_colliding_units_do_not_clobber_each_others_annotations(conn):
+    """Round-tripping either of two same-symbol units must preserve its own
+    req_annotations — proving neither upsert overwrote the other's evidence.
+    """
+    unit_a = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_ReturnType",
+        kind="typedef",
+        line_span=(20, 20),
+        req_annotations=[
+            ReqAnnotation(
+                canonical_id="SWS_CANIF_00050",
+                raw="4.0.3/CANIF050",
+                marker="@",
+                claim="claimed_implemented",
+                line=20,
+            )
+        ],
+    )
+    unit_b = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_ReturnType",
+        kind="enum",
+        line_span=(21, 24),
+        req_annotations=[
+            ReqAnnotation(
+                canonical_id="SWS_CANIF_00051",
+                raw="4.0.3/CANIF051",
+                marker="!",
+                claim="claimed_not_implemented",
+                line=22,
+            )
+        ],
+    )
+
+    db.upsert_code_unit(conn, unit_a)
+    db.upsert_code_unit(conn, unit_b)
+
+    fetched_a = _get(conn, unit_a)
+    fetched_b = _get(conn, unit_b)
+    assert fetched_a.claimed_implemented_ids == ["SWS_CANIF_00050"]
+    assert fetched_b.claimed_implemented_ids == []
+    assert [a.canonical_id for a in fetched_b.req_annotations] == ["SWS_CANIF_00051"]
+
+
+def test_reupserting_same_colliding_units_is_idempotent(conn):
+    """Re-running the same ingestion (same commit) must not duplicate rows."""
+    struct_unit = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_PduType",
+        kind="struct",
+        line_span=(10, 12),
+    )
+    typedef_unit = _code_unit(
+        repo_path="communication/CanIf/src/CanIf.c",
+        symbol="Can_PduType",
+        kind="typedef",
+        line_span=(10, 12),
+    )
+
+    for _ in range(2):
+        db.upsert_code_unit(conn, struct_unit)
+        db.upsert_code_unit(conn, typedef_unit)
+
+    count = conn.execute(
+        "SELECT COUNT(*) AS n FROM code_units WHERE project_id = ? AND symbol = ?",
+        ("autosar-can", "Can_PduType"),
+    ).fetchone()["n"]
+    assert count == 2
 
 
 # --------------------------------------------------------------------------

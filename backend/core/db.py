@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS code_units (
     text TEXT NOT NULL,
     req_annotations TEXT NOT NULL DEFAULT '[]',
     git_sha TEXT NOT NULL,
-    PRIMARY KEY (project_id, repo_path, symbol)
+    PRIMARY KEY (project_id, repo_path, kind, symbol, line_span_start, line_span_end)
 );
 CREATE INDEX IF NOT EXISTS idx_code_units_symbol
     ON code_units (project_id, symbol);
@@ -157,11 +157,8 @@ INSERT INTO code_units (
     :project_id, :repo_path, :symbol, :language, :kind,
     :line_span_start, :line_span_end, :text, :req_annotations, :git_sha
 )
-ON CONFLICT (project_id, repo_path, symbol) DO UPDATE SET
+ON CONFLICT (project_id, repo_path, kind, symbol, line_span_start, line_span_end) DO UPDATE SET
     language = excluded.language,
-    kind = excluded.kind,
-    line_span_start = excluded.line_span_start,
-    line_span_end = excluded.line_span_end,
     text = excluded.text,
     req_annotations = excluded.req_annotations,
     git_sha = excluded.git_sha
@@ -298,11 +295,27 @@ def upsert_code_unit(conn: sqlite3.Connection, unit: CodeUnit) -> None:
 
 
 def get_code_unit(
-    conn: sqlite3.Connection, project_id: str, repo_path: str, symbol: str
+    conn: sqlite3.Connection,
+    project_id: str,
+    repo_path: str,
+    kind: str,
+    symbol: str,
+    line_span: tuple[int, int],
 ) -> CodeUnit | None:
+    """Exact lookup by the full identity key.
+
+    ``symbol`` is **not** unique within a file (e.g. a struct and the
+    typedef that names it can share a symbol string at different AST
+    nodes), so the full key — ``kind`` + ``line_span`` alongside
+    ``repo_path``/``symbol`` — is required to identify one row. To find
+    all candidate units for a bare symbol name (e.g. tier-2 anchor
+    retrieval), use :func:`list_code_units_by_symbol` instead.
+    """
     row = conn.execute(
-        "SELECT * FROM code_units WHERE project_id = ? AND repo_path = ? AND symbol = ?",
-        (project_id, repo_path, symbol),
+        "SELECT * FROM code_units "
+        "WHERE project_id = ? AND repo_path = ? AND kind = ? AND symbol = ? "
+        "AND line_span_start = ? AND line_span_end = ?",
+        (project_id, repo_path, kind, symbol, line_span[0], line_span[1]),
     ).fetchone()
     return _row_to_code_unit(row) if row is not None else None
 
