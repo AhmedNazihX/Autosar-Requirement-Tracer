@@ -172,9 +172,12 @@ export function reduceEvents(
 }
 
 /**
- * The paragraph split used by the chat pane. Assistant text is rendered as
- * plain text with paragraph breaks — no markdown renderer is in the dependency
- * budget yet, and hand-rolling a parser would be worse than waiting.
+ * Paragraph split for the places that need one line of an answer rather than
+ * the whole thing — the checkpoint rail's tooltip preview, and thread titles.
+ *
+ * The chat pane itself no longer uses this: assistant text renders through
+ * react-markdown now that markdown is approved. Kept because a preview must not
+ * pull the markdown renderer into a tooltip.
  */
 export function splitParagraphs(text: string): string[] {
   return text

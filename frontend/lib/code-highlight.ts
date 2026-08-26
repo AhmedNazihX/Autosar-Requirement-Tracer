@@ -81,14 +81,20 @@ export async function highlightCodeFixture(): Promise<HighlightedFile> {
     lines: tokens.map((lineTokens, index) => ({
       number: CANIF_FIXTURE_FIRST_LINE + index,
       annotation: annotationOf(rawLines[index] ?? ""),
-      tokens: lineTokens.map((token) => ({
-        content: token.content,
-        color: token.color,
-        // Shiki's FontStyle is a bitmask (Italic 1, Bold 2, Underline 4),
-        // so combinations like italic+underline must be masked, not compared.
-        italic: ((token.fontStyle ?? 0) & 1) !== 0,
-        bold: ((token.fontStyle ?? 0) & 2) !== 0,
-      })),
+      tokens: lineTokens.map((token) => {
+        // Shiki's FontStyle is a bitmask (Italic 1, Bold 2, Underline 4,
+        // Strikethrough 8), so combinations must be masked, not compared.
+        // `NotSet` is -1 and every mask matches it, so negatives are floored to
+        // 0 rather than read as "italic and bold and underlined".
+        const style =
+          token.fontStyle && token.fontStyle > 0 ? token.fontStyle : 0;
+        return {
+          content: token.content,
+          color: token.color,
+          italic: (style & 1) !== 0,
+          bold: (style & 2) !== 0,
+        };
+      }),
     })),
   };
 

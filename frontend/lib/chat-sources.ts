@@ -122,11 +122,7 @@ export function sseSource(): ChatSource {
       yield {
         type: "error",
         data: {
-          message:
-            response.status === 404
-              ? "The chat endpoint is not available on this backend yet " +
-                "(POST /chat is a WP3 story). Nothing was sent to a model."
-              : `The backend refused the request (HTTP ${response.status}).`,
+          message: describeHttpFailure(response.status),
           code: `http_${response.status}`,
           retryable: response.status >= 500,
         },
@@ -172,6 +168,32 @@ export function sseSource(): ChatSource {
       reader.releaseLock();
     }
   };
+}
+
+/**
+ * One user-readable sentence per failure mode, and no status code without an
+ * explanation beside it.
+ *
+ * The 5xx wording covers both cases on purpose: the Next.js `rewrites()` proxy
+ * cannot forward to a backend that is not listening, so it answers 500 itself.
+ * From the browser, "the backend is not running" and "the backend threw" are the
+ * same response, and claiming to know which one it was would be a guess.
+ */
+function describeHttpFailure(status: number): string {
+  if (status === 404) {
+    return (
+      "The chat endpoint is not available on this backend yet " +
+      "(POST /chat is a WP3 story). Nothing was sent to a model."
+    );
+  }
+  if (status >= 500) {
+    return (
+      `The backend did not answer (HTTP ${status}). Either it is not running — ` +
+      "start it with `make dev` — or it failed while handling the request. " +
+      "Your question is saved in the thread."
+    );
+  }
+  return `The backend refused the request (HTTP ${status}).`;
 }
 
 function parseFrame(frame: string): ChatEvent | null {

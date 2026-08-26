@@ -44,12 +44,17 @@ export function useChatStream({
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Kept in a ref so `send` does not have to be re-created every render, which
-  // would restart nothing but would churn every memo below it.
+  // Kept in refs so `send` does not have to be re-created every render, which
+  // would restart nothing but would churn every memo below it. Written in an
+  // effect rather than during render: a ref is not render output, and React's
+  // lint rules are right to say so.
   const sourceRef = useRef(source);
-  sourceRef.current = source;
   const settledRef = useRef(onSettled);
-  settledRef.current = onSettled;
+
+  useEffect(() => {
+    sourceRef.current = source;
+    settledRef.current = onSettled;
+  });
 
   useEffect(() => {
     return () => abortRef.current?.abort();
