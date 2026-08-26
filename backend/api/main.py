@@ -7,28 +7,35 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from api import chat, deps, documents, setup, threads
 from core.config import get_settings
-from retrieval.startup import load_indexes_from_settings
 
 __version__ = "0.1.0"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Build the in-memory BM25 index from SQLite before serving (spec §3).
+    """Load the corpus before serving (spec §3).
 
-    Never fatal, and that is enforced in :mod:`retrieval.startup` rather than
-    promised here. A fresh clone has no ``data/`` yet; a database that is
+    Never fatal, and that is enforced in :func:`api.deps.load_state` rather
+    than promised here. A fresh clone has no ``data/`` yet; a database that is
     corrupt or WAL-locked (``make dev`` while ingestion runs) is just as
-    survivable. Either way the index comes up empty with ``indexes.error``
-    explaining what to do — the first-run setup screen (story S3.6.1) needs
-    the server up in order to say so.
+    survivable. Either way the API comes up with ``state.error`` explaining
+    what to do — ``GET /setup/status`` needs the server alive in order to say
+    so, and a process that died cannot.
     """
-    app.state.indexes = load_indexes_from_settings(get_settings().project_manifest)
-    yield
+    app.state.reqtrace = deps.load_state(get_settings().project_manifest)
+    try:
+        yield
+    finally:
+        app.state.reqtrace.close()
 
 
 app = FastAPI(title="ReqTrace API", version=__version__, lifespan=lifespan)
+app.include_router(chat.router)
+app.include_router(documents.router)
+app.include_router(threads.router)
+app.include_router(setup.router)
 
 
 @app.get("/health")

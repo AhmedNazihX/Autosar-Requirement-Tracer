@@ -791,6 +791,14 @@ def run_ingestion(
         for result in results:
             db.bulk_insert_requirements(conn, result.extraction.requirements)
             db.bulk_insert_requirements(conn, result.context_chunks)
+            # Measurable only while the PDF is open, needed by every citation
+            # long afterwards (spec §6's `page_count`).
+            db.put_document_meta(
+                conn,
+                manifest.project_id,
+                result.entry.key,
+                page_count=result.page_count,
+            )
         for position, unit in enumerate(index.units, start=1):
             db.upsert_code_unit(conn, unit)
             if position % 250 == 0 or position == len(index.units):

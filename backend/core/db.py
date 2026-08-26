@@ -24,6 +24,7 @@ import array
 import json
 import sqlite3
 import sys
+import threading
 import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
@@ -36,7 +37,7 @@ from core.models import CodeUnit, ReqAnnotation, Requirement
 #:     text array. No DDL changed (TEXT affinity stores a BLOB as-is); the
 #:     migration exists only to discard rows written under version 1, which
 #:     are then recomputed. See :func:`_discard_legacy_embeddings`.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -99,7 +100,12 @@ CREATE TABLE IF NOT EXISTS messages (
     role TEXT NOT NULL,
     parent_message_id TEXT REFERENCES messages (id) ON DELETE SET NULL,
     created_at TEXT NOT NULL,
-    events TEXT NOT NULL DEFAULT '[]'
+    events TEXT NOT NULL DEFAULT '[]',
+    -- The message's text. Derivable from `events` for an assistant message by
+    -- joining its `token` deltas, but NOT for a user message, which has no
+    -- events at all — so it is stored rather than computed. Matches
+    -- `StoredMessage.content` in frontend/lib/threads.ts.
+    content TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages (thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_parent_message_id
@@ -127,6 +133,20 @@ CREATE TABLE IF NOT EXISTS verdict_cache (
     verdict TEXT NOT NULL,
     created_at TEXT NOT NULL,
     PRIMARY KEY (req_id, git_sha, model_id)
+);
+
+-- Per-document facts that are neither in the manifest nor derivable at
+-- request time. `page_count` is the only one so far and it exists because
+-- `RequirementCitation.page_count` (frontend/lib/events.ts) is a required
+-- number: it cannot be read from a PDF that ingestion has since deleted, and
+-- the manifest should not carry a figure derived from the file it names.
+-- Ingestion knows it while the document is open, so ingestion records it.
+CREATE TABLE IF NOT EXISTS documents (
+    project_id TEXT NOT NULL,
+    doc_key TEXT NOT NULL,
+    page_count INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, doc_key)
 );
 
 -- ``embedding`` holds a float32 BLOB (schema version 2). The declared type
@@ -186,6 +206,94 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+class ConnectionPool:
+    """One SQLite connection per thread, all onto the same file.
+
+    Needed because the agent is multi-threaded *within* a single request:
+    LangGraph runs tool nodes on a thread pool, so a tool reading SQLite is
+    already on a different thread from the request that opened the connection.
+    A plain connection raises ``ProgrammingError: SQLite objects created in a
+    thread can only be used in that same thread``.
+
+    **Why not ``check_same_thread=False``.** ``sqlite3.threadsafety`` is 3
+    ("serialized") on this build, which reads like permission to share one
+    connection. Measured: 8 threads × 40 reads on a shared connection gave 6
+    errors — ``InterfaceError: bad parameter or other API misuse`` — and one
+    read returned the wrong row. ``Connection.execute`` allocates an implicit
+    cursor and concurrent implicit-cursor use races. The wrong-row case is the
+    dangerous one: an occasional mystery rather than a crash.
+    ``tests/test_db_threads.py`` pins that down so the pool cannot be
+    "simplified" away.
+
+    Quacks like a connection for the handful of methods this codebase uses, so
+    every ``db.<function>(conn, ...)`` call site works unchanged.
+    """
+
+    def __init__(self, db_path: str | Path) -> None:
+        self.path = str(db_path)
+        self._local = threading.local()
+        self._all: list[sqlite3.Connection] = []
+        self._lock = threading.Lock()
+
+    def connection(self) -> sqlite3.Connection:
+        """This thread's connection, opening it on first use."""
+        existing = getattr(self._local, "conn", None)
+        if existing is None:
+            existing = connect(self.path)
+            self._local.conn = existing
+            # Tracked so close_all() can release them; the list is only ever
+            # appended to and drained, and both are under the lock.
+            with self._lock:
+                self._all.append(existing)
+        return existing
+
+    # -- the connection surface this codebase actually uses ----------------
+
+    def execute(self, *args, **kwargs):
+        return self.connection().execute(*args, **kwargs)
+
+    def executemany(self, *args, **kwargs):
+        return self.connection().executemany(*args, **kwargs)
+
+    def executescript(self, *args, **kwargs):
+        return self.connection().executescript(*args, **kwargs)
+
+    def commit(self) -> None:
+        self.connection().commit()
+
+    def rollback(self) -> None:
+        self.connection().rollback()
+
+    def cursor(self):
+        return self.connection().cursor()
+
+    @property
+    def row_factory(self):
+        return self.connection().row_factory
+
+    def close_all(self) -> None:
+        """Close every connection this pool opened, on any thread.
+
+        Closing another thread's connection is allowed — it is the *use* of one
+        that is thread-bound, not the close.
+        """
+        with self._lock:
+            connections, self._all = self._all, []
+        for conn in connections:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                # Already closed, or its thread died holding it. Nothing useful
+                # to do at shutdown.
+                pass
+        self._local = threading.local()
+
+
+def pooled(db_path: str | Path) -> ConnectionPool:
+    """A :class:`ConnectionPool` for ``db_path``. Safe to share across threads."""
+    return ConnectionPool(db_path)
+
+
 def connect(db_path: str | Path) -> sqlite3.Connection:
     """Open a connection with the project-wide pragmas set.
 
@@ -222,8 +330,29 @@ def migrate(conn: sqlite3.Connection) -> None:
         return
     if from_version < 2:
         _discard_legacy_embeddings(conn)
+    if from_version < 3:
+        # `CREATE TABLE IF NOT EXISTS` above already added `documents`, but it
+        # cannot add a column to a table that already exists.
+        _add_column_if_missing(conn, "messages", "content", "TEXT NOT NULL DEFAULT ''")
     conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
     conn.commit()
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, definition: str
+) -> bool:
+    """``ALTER TABLE ... ADD COLUMN`` unless the column is already there.
+
+    SQLite has no ``ADD COLUMN IF NOT EXISTS``, and ``migrate`` must stay
+    idempotent, so the column list is checked first. Table and column names are
+    interpolated because SQLite does not parameterise identifiers; both are
+    module-level literals, never caller input.
+    """
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column in existing:
+        return False
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    return True
 
 
 def _discard_legacy_embeddings(conn: sqlite3.Connection) -> int:
@@ -404,9 +533,42 @@ def create_thread(conn: sqlite3.Connection, project_id: str, title: str | None =
     return thread_id
 
 
+def create_thread_with_id(
+    conn: sqlite3.Connection,
+    thread_id: str,
+    project_id: str,
+    title: str | None = None,
+) -> str:
+    """Create a thread using a caller-supplied id.
+
+    The frontend mints thread ids client-side so a new conversation can be
+    opened without a round trip (``frontend/lib/threads.ts``), and ``POST
+    /chat`` then creates the row on first use. ``INSERT OR IGNORE`` keeps that
+    idempotent: two messages racing on a new thread must not fail one of them.
+    """
+    now = _now_iso()
+    conn.execute(
+        "INSERT OR IGNORE INTO threads (id, project_id, title, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (thread_id, project_id, title, now, now),
+    )
+    conn.commit()
+    return thread_id
+
+
 def list_threads(conn: sqlite3.Connection, project_id: str) -> list[dict]:
+    """Threads for ``project_id``, most recently updated first, with counts.
+
+    ``message_count`` is counted in the same query rather than by a follow-up
+    per thread: the sidebar shows every thread at once, so the alternative is
+    N+1 queries to render one list.
+    """
     rows = conn.execute(
-        "SELECT * FROM threads WHERE project_id = ? ORDER BY updated_at DESC",
+        "SELECT t.*, COUNT(m.id) AS message_count "
+        "FROM threads AS t LEFT JOIN messages AS m ON m.thread_id = t.id "
+        "WHERE t.project_id = ? "
+        "GROUP BY t.id "
+        "ORDER BY t.updated_at DESC, t.created_at DESC",
         (project_id,),
     ).fetchall()
     return [dict(row) for row in rows]
@@ -437,18 +599,35 @@ def create_message(
     role: str,
     events: list[dict] | None = None,
     parent_message_id: str | None = None,
+    content: str = "",
 ) -> str:
     """Create a message. ``events`` is the message's full SSE event stream (spec §11).
+
+    ``content`` is the message's text. For an assistant message it is
+    reconstructable from the ``token`` events, but for a *user* message there
+    are no events to reconstruct from, so it is stored either way — matching
+    ``StoredMessage.content`` in ``frontend/lib/threads.ts``. The events remain
+    the render source; ``content`` is for exports and auto-titles.
 
     ``parent_message_id`` is nullable and unused by v1 features — it exists
     so a future rollback/branching feature does not require a migration.
     """
     message_id = uuid.uuid4().hex
     conn.execute(
-        "INSERT INTO messages (id, thread_id, role, parent_message_id, created_at, events) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (message_id, thread_id, role, parent_message_id, _now_iso(), json.dumps(events or [])),
+        "INSERT INTO messages "
+        "(id, thread_id, role, parent_message_id, created_at, events, content) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            message_id,
+            thread_id,
+            role,
+            parent_message_id,
+            _now_iso(),
+            json.dumps(events or []),
+            content,
+        ),
     )
+    conn.execute("UPDATE threads SET updated_at = ? WHERE id = ?", (_now_iso(), thread_id))
     conn.commit()
     return message_id
 
@@ -470,6 +649,48 @@ def list_messages(conn: sqlite3.Connection, thread_id: str) -> list[dict]:
 def get_message(conn: sqlite3.Connection, message_id: str) -> dict | None:
     row = conn.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
     return _row_to_message(row) if row is not None else None
+
+
+# --------------------------------------------------------------------------
+# documents — per-document facts ingestion measured
+# --------------------------------------------------------------------------
+
+
+def put_document_meta(
+    conn: sqlite3.Connection, project_id: str, doc_key: str, *, page_count: int
+) -> None:
+    """Record ``doc_key``'s page count. Idempotent, so a re-ingest is safe."""
+    conn.execute(
+        "INSERT INTO documents (project_id, doc_key, page_count, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT (project_id, doc_key) DO UPDATE SET "
+        "page_count = excluded.page_count, updated_at = excluded.updated_at",
+        (project_id, doc_key, int(page_count), _now_iso()),
+    )
+    conn.commit()
+
+
+def get_document_meta(conn: sqlite3.Connection, project_id: str, doc_key: str) -> int | None:
+    """``doc_key``'s page count, or ``None`` if ingestion never recorded one."""
+    row = conn.execute(
+        "SELECT page_count FROM documents WHERE project_id = ? AND doc_key = ?",
+        (project_id, doc_key),
+    ).fetchone()
+    return int(row["page_count"]) if row is not None else None
+
+
+def page_counts(conn: sqlite3.Connection, project_id: str) -> dict[str, int]:
+    """Every recorded page count for ``project_id``, keyed by document key.
+
+    Read once per request rather than per citation — four rows, and a citation
+    should not cost a query.
+    """
+    return {
+        row["doc_key"]: int(row["page_count"])
+        for row in conn.execute(
+            "SELECT doc_key, page_count FROM documents WHERE project_id = ?", (project_id,)
+        )
+    }
 
 
 # --------------------------------------------------------------------------
