@@ -84,8 +84,10 @@ export async function highlightCodeFixture(): Promise<HighlightedFile> {
       tokens: lineTokens.map((token) => ({
         content: token.content,
         color: token.color,
-        italic: token.fontStyle === 1 || token.fontStyle === 3,
-        bold: token.fontStyle === 2 || token.fontStyle === 3,
+        // Shiki's FontStyle is a bitmask (Italic 1, Bold 2, Underline 4),
+        // so combinations like italic+underline must be masked, not compared.
+        italic: ((token.fontStyle ?? 0) & 1) !== 0,
+        bold: ((token.fontStyle ?? 0) & 2) !== 0,
       })),
     })),
   };
