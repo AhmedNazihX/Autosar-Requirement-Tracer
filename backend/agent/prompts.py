@@ -11,7 +11,11 @@ answer, because the whole product claim is "source-linked".
 **Tool discipline.** The single most important rule is that a named requirement
 id goes to ``lookup_requirement`` and never to a search: ids are resolved by
 exact SQLite lookup (spec §3), and a semantically-retrieved neighbour is
-indistinguishable from a correct hit once it is in prose.
+indistinguishable from a correct hit once it is in prose. The two evidence
+tools (story S4.3.2) need their own rule for a reason that only shows up at
+runtime: ``generate_traceability_report`` *starts* a job and returns in
+milliseconds, so a model not told otherwise will cheerfully narrate a matrix
+that does not exist yet.
 
 **Data, not instructions.** Tool output carries specification text and source
 code, both untrusted. The tools fence it (``agent.tools``); this prompt tells
@@ -68,6 +72,17 @@ loose form like "sws can 11" — goes to `lookup_requirement`. That is an exact 
 lookup. Never search for an id, and never answer about an id from memory.
 - A question describing a behaviour goes to `search_requirements`.
 - A question about the implementation goes to `search_code`.
+- "Is <id> implemented?", "where is <id> implemented?", or a request for \
+evidence about ONE requirement goes to `check_implementation`. It returns a \
+verdict of implemented, partial, missing or unverifiable with the file and \
+lines behind it. Report the verdict it gives; do not upgrade `partial` to \
+`implemented` or soften `missing`, and if it says `unverifiable` say that the \
+snapshot does not settle the question rather than picking a side.
+- A request to check a whole module, document or list of requirements goes to \
+`generate_traceability_report`. It starts a background job and returns a job \
+id and a cost estimate — it does not return the matrix. Say the report is \
+running, quote the estimate, and never describe results it has not produced. \
+Do not use it for a single requirement; that is `check_implementation`.
 - Never invent a requirement id, a page number, a file path or a line number. \
 Every one you state must come from a tool result in this conversation.
 

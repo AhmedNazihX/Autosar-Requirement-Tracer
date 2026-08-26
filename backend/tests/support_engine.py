@@ -19,11 +19,13 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import chromadb.api.shared_system_client
+
 from core import db
 from core.embeddings import EmbeddingBatch, EmbeddingClient
 from core.llm import chat_model
 from core.manifest import load_manifest
-from core.models import CodeUnit, Requirement
+from core.models import CodeUnit, ReqAnnotation, Requirement
 from retrieval import bm25, pipeline, vector_store
 from retrieval.chunks import code_document, requirement_document
 from tests.support_llm import FakeOpenRouter
@@ -170,6 +172,46 @@ CODE_UNITS = [
 ]
 
 
+#: ``req_id -> the C symbols its text names``. Ingestion derives these with the
+#: manifest's ``symbol_pattern``; here they are stated, so a test can rely on
+#: which requirement anchors onto which unit (WP4 tier-2, story S4.1.2).
+#:
+#: ``SWS_Can_00011`` names ``Can_Write`` deliberately: no such unit exists in
+#: this fixture, exactly as no CAN Driver implementation exists in the real
+#: permitted repository (finding A1). It is the "names a symbol, finds nothing"
+#: case, which is the corpus' most common one and must not be an error.
+NAMED_SYMBOLS: dict[str, list[str]] = {
+    "SWS_Can_00272": ["CanIf_ControllerBusOff"],
+    "SWS_Can_00011": ["Can_Write"],
+    "SWS_Can_00110": ["Can_MainFunction_Write"],
+    "SWS_Can_00255": ["Can_SetBaudrate"],
+    "SWS_CANIF_00023": ["CanIf_MainFunction"],
+}
+
+#: ``(repo_path, symbol, kind) -> [(canonical_id, marker, line)]`` — the
+#: ``@req``/``!req`` annotations the C sources carry (finding A2). Both
+#: polarities appear, because tier-1 evidence must be able to find a
+#: requirement the developers marked explicitly *not* implemented.
+#:
+#: ``SWS_CANIF_00023`` is annotated on both the definition and the header
+#: prototype: a prototype is not an implementation, so the evidence engine has
+#: to rank the definition first rather than treat the two as equal.
+ANNOTATIONS: dict[tuple[str, str, str], list[tuple[str, str, int]]] = {
+    ("communication/CanIf/src/CanIf.c", "CanIf_ControllerBusOff", "function"): [
+        ("SWS_Can_00272", "@", 302),
+    ],
+    ("communication/CanIf/src/CanIf.c", "CanIf_Transmit", "function"): [
+        ("SWS_CANIF_00023", "@", 122),
+        ("SWS_CANIF_00329", "!", 124),
+    ],
+    ("communication/CanIf/inc/CanIf.h", "CanIf_Transmit", "prototype"): [
+        ("SWS_CANIF_00023", "@", 77),
+    ],
+}
+
+_CLAIMS = {"@": "claimed_implemented", "!": "claimed_not_implemented"}
+
+
 def _requirement(req_id, source_doc, section, doc_type, text) -> Requirement:
     return Requirement(
         id=req_id,
@@ -179,7 +221,7 @@ def _requirement(req_id, source_doc, section, doc_type, text) -> Requirement:
         page=42,
         bbox=(10.0, 20.0, 100.0, 40.0),
         source_doc=source_doc,
-        named_symbols=[],
+        named_symbols=NAMED_SYMBOLS.get(req_id, []),
         version=MANIFEST.version,
         project_id=PROJECT,
         doc_type=doc_type,
@@ -194,10 +236,37 @@ def _code_unit(repo_path, symbol, kind, line_span, text) -> CodeUnit:
         kind=kind,
         line_span=line_span,
         text=text,
-        req_annotations=[],
+        req_annotations=[
+            ReqAnnotation(
+                canonical_id=canonical_id,
+                raw=f"{marker}req 4.0.3/{canonical_id}",
+                marker=marker,
+                claim=_CLAIMS[marker],
+                line=line,
+            )
+            for canonical_id, marker, line in ANNOTATIONS.get((repo_path, symbol, kind), [])
+        ],
         git_sha=SHA,
         project_id=PROJECT,
     )
+
+
+def close_index(parts: dict) -> None:
+    """Release everything :func:`build_index` opened.
+
+    Both halves matter, and the second was learned the expensive way. Closing
+    only the SQLite pool leaves the Chroma client behind, and ``chromadb``
+    keeps every ``PersistentClient`` alive in a process-wide cache keyed by
+    path — so a suite with a fixture per test accumulates one live store per
+    test until the process runs out of file descriptors and Chroma fails with
+    ``InternalError: error communicating with database: Resource temporarily
+    unavailable (os error 35)``. That surfaced as an intermittently *hanging*
+    test run, which is a long way from "a fixture forgot to clean up".
+    """
+    pool = parts.get("conn")
+    if pool is not None:
+        pool.close_all()
+    chromadb.api.shared_system_client.SharedSystemClient.clear_system_cache()
 
 
 def build_index(tmp_path: Path) -> dict:

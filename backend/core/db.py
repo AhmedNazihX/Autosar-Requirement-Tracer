@@ -29,6 +29,7 @@ import uuid
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from core.models import CodeUnit, ReqAnnotation, Requirement
 
@@ -444,6 +445,41 @@ def get_requirement(conn: sqlite3.Connection, project_id: str, req_id: str) -> R
 # --------------------------------------------------------------------------
 
 
+def list_requirements(
+    conn: sqlite3.Connection,
+    project_id: str,
+    *,
+    source_docs: Sequence[str] | None = None,
+    doc_type: str | None = "requirement",
+) -> list[Requirement]:
+    """Requirements in scope, in the order they appear in their documents.
+
+    Used to resolve a traceability report's scope (story S4.2.1). ``doc_type``
+    defaults to ``"requirement"`` because a report is about normative
+    requirements — context prose has a synthetic id (``CTX_can_driver_6_14``)
+    and nothing to trace — and ``None`` lifts the filter.
+
+    Ordered by document, page and then id so a report's matrix reads in
+    document order rather than in whatever order SQLite happened to store.
+    """
+    conditions = ["project_id = ?"]
+    params: list[Any] = [project_id]
+    if doc_type is not None:
+        conditions.append("doc_type = ?")
+        params.append(doc_type)
+    if source_docs is not None:
+        if not source_docs:
+            return []
+        conditions.append(f"source_doc IN ({', '.join('?' * len(source_docs))})")
+        params.extend(source_docs)
+    rows = conn.execute(
+        f"SELECT * FROM requirements WHERE {' AND '.join(conditions)} "
+        "ORDER BY source_doc, page, id",
+        params,
+    ).fetchall()
+    return [_row_to_requirement(row) for row in rows]
+
+
 def _code_unit_params(unit: CodeUnit) -> dict:
     return {
         "project_id": unit.project_id,
@@ -514,6 +550,65 @@ def list_code_units_by_symbol(
         (project_id, symbol),
     ).fetchall()
     return [_row_to_code_unit(row) for row in rows]
+
+
+def list_code_units_by_annotation(
+    conn: sqlite3.Connection, project_id: str, canonical_id: str
+) -> list[CodeUnit]:
+    """Tier-1 evidence: every code unit whose annotations name ``canonical_id``.
+
+    **Both claim polarities are returned.** A ``!req`` is a developer's
+    explicit statement that a requirement is *not* implemented (finding A2),
+    which is evidence about that requirement just as much as an ``@req`` is —
+    so the filtering belongs to the caller, which knows what it is asking.
+    :attr:`~core.models.CodeUnit.claimed_implemented_ids` is the narrower view.
+
+    The match is over ``req_annotations``, a JSON array, via SQLite's JSON1
+    ``json_each``. Two details are load-bearing:
+
+    * **Case-insensitive.** Annotation ids come from the manifest's
+      ``annotation_id_template`` and keep its casing (``SWS_Can_00272``),
+      while the ``requirements`` table stores an upper-cased ``canonical_id``.
+      A caller holding either spelling must reach the same rows.
+    * **``DISTINCT``.** ``json_each`` produces one row per annotation, so a
+      unit whose comment block names the same id twice would otherwise be
+      counted as two pieces of evidence.
+    """
+    rows = conn.execute(
+        """
+        SELECT DISTINCT c.* FROM code_units c, json_each(c.req_annotations) a
+        WHERE c.project_id = ?
+          AND UPPER(json_extract(a.value, '$.canonical_id')) = UPPER(?)
+        ORDER BY c.repo_path, c.line_span_start, c.kind, c.symbol
+        """,
+        (project_id, canonical_id),
+    ).fetchall()
+    return [_row_to_code_unit(row) for row in rows]
+
+
+def annotated_ids(conn: sqlite3.Connection, project_id: str) -> dict[str, set[str]]:
+    """``canonical_id -> the set of claims made about it anywhere in the code``.
+
+    The corpus-wide view of the annotations, used to build the judge's
+    evaluation set (story S4.4.1): an id mapping to ``{"claimed_implemented"}``
+    is a positive, one mapping to ``{"claimed_not_implemented"}`` is a
+    negative, and one mapping to *both* is neither — the code contradicts
+    itself about it, so §S4.4.1 excludes and counts those rather than guessing.
+
+    Keys are upper-cased so they join against ``requirements.canonical_id``.
+    """
+    claims: dict[str, set[str]] = {}
+    for row in conn.execute(
+        """
+        SELECT UPPER(json_extract(a.value, '$.canonical_id')) AS canonical_id,
+               json_extract(a.value, '$.claim') AS claim
+        FROM code_units c, json_each(c.req_annotations) a
+        WHERE c.project_id = ?
+        """,
+        (project_id,),
+    ):
+        claims.setdefault(row["canonical_id"], set()).add(row["claim"])
+    return claims
 
 
 # --------------------------------------------------------------------------
@@ -691,6 +786,86 @@ def page_counts(conn: sqlite3.Connection, project_id: str) -> dict[str, int]:
             "SELECT doc_key, page_count FROM documents WHERE project_id = ?", (project_id,)
         )
     }
+
+
+# --------------------------------------------------------------------------
+# report_runs — one row per traceability report (story S4.2.1)
+#
+# The in-process registry (``api/reports.py``) owns a *running* job; this table
+# owns the record of one. The split is deliberate: a run's live progress is
+# per-process state that means nothing after a restart, while its result is a
+# document someone will export next week. Writing progress here would put a
+# SQLite write between every judged requirement and the browser, for a number
+# nobody reads afterwards.
+# --------------------------------------------------------------------------
+
+
+def create_report_run(
+    conn: sqlite3.Connection,
+    project_id: str,
+    scope: dict,
+    *,
+    est_cost_usd: float | None = None,
+    run_id: str | None = None,
+) -> str:
+    identifier = run_id or uuid.uuid4().hex
+    conn.execute(
+        "INSERT INTO report_runs (id, project_id, scope, status, created_at, est_cost_usd) "
+        "VALUES (?, ?, ?, 'running', ?, ?)",
+        (identifier, project_id, json.dumps(scope), _now_iso(), est_cost_usd),
+    )
+    conn.commit()
+    return identifier
+
+
+def finish_report_run(
+    conn: sqlite3.Connection,
+    run_id: str,
+    *,
+    status: str,
+    actual_cost_usd: float | None = None,
+    result: dict | None = None,
+) -> None:
+    conn.execute(
+        "UPDATE report_runs SET status = ?, completed_at = ?, actual_cost_usd = ?, "
+        "result = ? WHERE id = ?",
+        (
+            status,
+            _now_iso(),
+            actual_cost_usd,
+            json.dumps(result) if result is not None else None,
+            run_id,
+        ),
+    )
+    conn.commit()
+
+
+def _row_to_report_run(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "scope": json.loads(row["scope"]),
+        "status": row["status"],
+        "created_at": row["created_at"],
+        "completed_at": row["completed_at"],
+        "est_cost_usd": row["est_cost_usd"],
+        "actual_cost_usd": row["actual_cost_usd"],
+        "result": json.loads(row["result"]) if row["result"] else None,
+    }
+
+
+def get_report_run(conn: sqlite3.Connection, run_id: str) -> dict | None:
+    row = conn.execute("SELECT * FROM report_runs WHERE id = ?", (run_id,)).fetchone()
+    return _row_to_report_run(row) if row is not None else None
+
+
+def list_report_runs(conn: sqlite3.Connection, project_id: str) -> list[dict]:
+    """Newest first, without the (potentially large) stored result."""
+    rows = conn.execute(
+        "SELECT * FROM report_runs WHERE project_id = ? ORDER BY created_at DESC, id DESC",
+        (project_id,),
+    ).fetchall()
+    return [{**_row_to_report_run(row), "result": None} for row in rows]
 
 
 # --------------------------------------------------------------------------

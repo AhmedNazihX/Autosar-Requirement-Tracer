@@ -29,7 +29,7 @@ from fastapi.testclient import TestClient
 from api import chat as chat_module
 from api import deps
 from core import db
-from tests.support_engine import MANIFEST, build_index
+from tests.support_engine import MANIFEST, build_index, close_index
 from tests.support_llm import FakeOpenRouter
 
 THREAD = "thr_test_0001"
@@ -179,7 +179,7 @@ def wired(tmp_path: Path, monkeypatch):
         monkeypatch.setattr(chat_module.deps, "build_turn", build_turn)
 
     yield {"state": state, "script": script, "scripted": scripted, "parts": parts}
-    parts["conn"].close_all()
+    close_index(parts)
 
 
 def post(state: deps.AppState, message: str, thread_id: str = THREAD) -> httpx.Response:

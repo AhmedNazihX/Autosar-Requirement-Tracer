@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agent.runner import run_turn
 from agent.tools import SideChannel, ToolContext
 from api import deps
+from api import reports as api_reports
 from api import threads as api_threads
 from api.chat_events import ChatEvent, ChatEventEnvelope, ErrorEvent, sse_frame
 from core import db
@@ -106,7 +107,15 @@ def _turn(state: deps.AppState, body: ChatRequest) -> Iterator[str]:
 
     try:
         turn = deps.build_turn(state)
-        context = ToolContext.build(turn.engine, side=SideChannel())
+        context = ToolContext.build(
+            turn.engine,
+            side=SideChannel(),
+            judge_llm=turn.judge,
+            # The report tool starts a thread rather than a BackgroundTask:
+            # a task runs after the response, and this response is a stream
+            # that is still open when the tool is called.
+            launch_report=lambda scope: api_reports.launch_in_thread(state, scope),
+        )
         history = _history(state, body.thread_id)
     except Exception as exc:  # noqa: BLE001 - setup failures must reach the user
         failure = ErrorEvent(

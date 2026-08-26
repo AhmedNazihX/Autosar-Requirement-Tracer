@@ -1,0 +1,115 @@
+{
+  "set": {
+    "positives": 408,
+    "negatives": 73,
+    "both_markers": 0,
+    "unresolved": 786
+  },
+  "limit_per_class": 73,
+  "results": [
+    {
+      "mode": "sighted",
+      "judge_model_id": "openai/gpt-4o-mini",
+      "git_sha": "09433770bebb8f27a7b480d7c96d814c68ffed3e",
+      "corpus_version": "R23-11",
+      "positive": {
+        "label": "positive",
+        "judged": 73,
+        "counts": {
+          "implemented": 34,
+          "partial": 26,
+          "missing": 10,
+          "unverifiable": 3
+        },
+        "mean_confidence": {
+          "implemented": 0.9558823529411765,
+          "partial": 0.7923076923076924,
+          "missing": 0.97,
+          "unverifiable": 0.7666666666666666
+        },
+        "correct_pct": 82.1917808219178,
+        "wrong_pct": 13.698630136986301,
+        "unscored_pct": 4.109589041095891,
+        "unverifiable_pct": 4.109589041095891
+      },
+      "negative": {
+        "label": "negative",
+        "judged": 73,
+        "counts": {
+          "implemented": 0,
+          "partial": 0,
+          "missing": 73,
+          "unverifiable": 0
+        },
+        "mean_confidence": {
+          "implemented": null,
+          "partial": null,
+          "missing": 0.9986301369863014,
+          "unverifiable": null
+        },
+        "correct_pct": 100.0,
+        "wrong_pct": 0.0,
+        "unscored_pct": 0.0,
+        "unverifiable_pct": 0.0
+      },
+      "precision_implemented": 1.0,
+      "recall_implemented": 0.4657534246575342,
+      "false_positive_rate_pct": 0.0,
+      "cost_usd": 0.06659899999999998,
+      "aborted": false,
+      "abort_reason": null
+    },
+    {
+      "mode": "blind",
+      "judge_model_id": "openai/gpt-4o-mini",
+      "git_sha": "09433770bebb8f27a7b480d7c96d814c68ffed3e",
+      "corpus_version": "R23-11",
+      "positive": {
+        "label": "positive",
+        "judged": 73,
+        "counts": {
+          "implemented": 29,
+          "partial": 30,
+          "missing": 8,
+          "unverifiable": 6
+        },
+        "mean_confidence": {
+          "implemented": 0.9655172413793104,
+          "partial": 0.8,
+          "missing": 0.9625,
+          "unverifiable": 0.45
+        },
+        "correct_pct": 80.82191780821918,
+        "wrong_pct": 10.95890410958904,
+        "unscored_pct": 8.219178082191782,
+        "unverifiable_pct": 8.219178082191782
+      },
+      "negative": {
+        "label": "negative",
+        "judged": 73,
+        "counts": {
+          "implemented": 6,
+          "partial": 18,
+          "missing": 35,
+          "unverifiable": 14
+        },
+        "mean_confidence": {
+          "implemented": 0.9333333333333332,
+          "partial": 0.8,
+          "missing": 0.9685714285714285,
+          "unverifiable": 0.7785714285714286
+        },
+        "correct_pct": 67.12328767123287,
+        "wrong_pct": 8.219178082191782,
+        "unscored_pct": 24.65753424657534,
+        "unverifiable_pct": 19.17808219178082
+      },
+      "precision_implemented": 0.8285714285714286,
+      "recall_implemented": 0.3972602739726027,
+      "false_positive_rate_pct": 8.219178082191782,
+      "cost_usd": 0.06259770000000003,
+      "aborted": false,
+      "abort_reason": null
+    }
+  ]
+}

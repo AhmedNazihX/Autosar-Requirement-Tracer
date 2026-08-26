@@ -802,3 +802,70 @@ def test_migrating_a_version_2_database_adds_the_new_columns(tmp_path):
     assert db.get_document_meta(upgraded, "autosar-can", "can_driver") == 203
     upgraded.close()
     del sqlite3
+
+
+# --------------------------------------------------------------------------
+# code_units — lookup by annotation (WP4 tier-1 evidence, story S4.1.1)
+# --------------------------------------------------------------------------
+
+
+def test_list_code_units_by_annotation_finds_both_claim_polarities(conn):
+    """Tier-1 evidence needs `!req` as well as `@req`.
+
+    A requirement the developers explicitly marked *not* implemented is
+    evidence about that requirement (finding A2/A3), so the query returns
+    both and the caller decides what each claim means.
+    """
+    db.upsert_code_unit(conn, _code_unit())
+
+    claimed = db.list_code_units_by_annotation(conn, "autosar-can", "SWS_CANIF_00023")
+    denied = db.list_code_units_by_annotation(conn, "autosar-can", "SWS_CANIF_00316")
+
+    assert [u.symbol for u in claimed] == ["CanIf_Transmit"]
+    assert [u.symbol for u in denied] == ["CanIf_Transmit"]
+
+
+def test_list_code_units_by_annotation_is_scoped_to_the_project(conn):
+    db.upsert_code_unit(conn, _code_unit(project_id="other-project"))
+
+    assert db.list_code_units_by_annotation(conn, "autosar-can", "SWS_CANIF_00023") == []
+
+
+def test_list_code_units_by_annotation_returns_each_unit_once(conn):
+    """A unit annotating the same id twice is one piece of evidence, not two."""
+    db.upsert_code_unit(
+        conn,
+        _code_unit(
+            req_annotations=[
+                ReqAnnotation(
+                    canonical_id="SWS_CANIF_00023",
+                    raw="4.0.3/CANIF023",
+                    marker="@",
+                    claim="claimed_implemented",
+                    line=line,
+                )
+                for line in (110, 137)
+            ]
+        ),
+    )
+
+    found = db.list_code_units_by_annotation(conn, "autosar-can", "SWS_CANIF_00023")
+    assert len(found) == 1
+
+
+def test_list_code_units_by_annotation_matches_case_insensitively(conn):
+    """Ids are stored as the canonicalizer wrote them; a caller may pass any casing."""
+    db.upsert_code_unit(conn, _code_unit())
+
+    assert db.list_code_units_by_annotation(conn, "autosar-can", "sws_canif_00023")
+
+
+def test_annotated_ids_reports_both_claims_per_id(conn):
+    """The eval set (story S4.4.1) is built from this: which ids are claimed
+    implemented, which are claimed not, and which carry both markers."""
+    db.upsert_code_unit(conn, _code_unit())
+
+    claims = db.annotated_ids(conn, "autosar-can")
+
+    assert claims["SWS_CANIF_00023"] == {"claimed_implemented"}
+    assert claims["SWS_CANIF_00316"] == {"claimed_not_implemented"}

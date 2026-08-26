@@ -183,7 +183,16 @@ Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-finding
 
 **F3.6 Setup & status API (backend for first-run)** — S3.6.1 `GET /setup/status` (index present, API key valid, counts); S3.6.2 `POST /setup/ingest` running the F1.5 ingestion pipeline as a background job + `GET /setup/ingest/events` SSE progress. *Accept: fresh `data/` dir → status reports missing → ingest job streams progress → status reports ready.*
 
-### WP4 — Evidence & Traceability (~4h)
+### WP4 — Evidence & Traceability (~4h) — **DONE 2026-08-27**
+
+*(Completed. Live results: the CanIf report judged 398 requirements —
+98 implemented / 59 partial / 177 missing / 64 unverifiable — for $0.1371,
+and re-running it cost $0.00. The judge evaluation ran over all 73 `!req`
+negatives and a matched 73 positives, in two modes; the blind mode was added
+beyond the plan because a code unit's span includes its comment block, so the
+sighted judge can read the very label it is scored against — sighted reports
+a fabricated 0.0% false-positive rate where blind reports 8.2%. Findings A7,
+C13, D5 and D6 record what the runs measured.)*
 
 **F4.1 Evidence engine**
 - S4.1.1 T1 annotation scan (claimed evidence w/ file:line). *Accept: fixture annotation found.*
