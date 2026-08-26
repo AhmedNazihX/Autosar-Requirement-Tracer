@@ -30,8 +30,14 @@ import { Cap, Meta } from "@/components/reqtrace/text";
  * with its AUTOSAR `⌈ ⌋` body brackets. That is real, and it is useful now.
  *
  * The treatment is the canvas's pane-B treatment: a muted info line with an info
- * icon, never the destructive tint. A missing page image is an absent feature,
+ * icon, never the destructive tint. An unrendered page is an absent feature,
  * not an error.
+ *
+ * Wording note: nothing here is an "image". The backend never rasterises a
+ * page — `GET /documents/{doc}/view` returns page and bbox *coordinates* only
+ * (spec §6), and pdf.js renders the actual PDF client-side with the bbox drawn
+ * over it as a highlight. Calling the placeholder a "page image" invited
+ * exactly the wrong conclusion about what the backend serves.
  */
 export function DocumentTab({
   citation,
@@ -89,15 +95,16 @@ export function DocumentTab({
         <InfoIcon className="mt-px size-3.5 flex-none text-muted-foreground" />
         <p className="flex-1 text-[11.5px] leading-4 text-muted-foreground">
           <span className="font-medium text-foreground">
-            The page image is not rendered yet.
+            The PDF page is not rendered here yet.
           </span>{" "}
-          pdf.js renders it from{" "}
+          pdf.js will render the document itself and draw the highlight from the
+          coordinates{" "}
           <span className="font-mono">
             GET /documents/{citation.doc}/view?highlight={citation.req_id}
-          </span>
-          , which the backend already serves (story S3.3.2); this pane fetching
-          and rendering it is story S5.3.1. The requirement text below is what
-          ingestion extracted for this citation.
+          </span>{" "}
+          returns — the backend already serves those (story S3.3.2); this pane
+          fetching them and rendering the page is story S5.3.1. The requirement
+          text below is what ingestion extracted for this citation.
           {citation.bbox === null ? (
             <>
               {" "}
@@ -145,10 +152,11 @@ export function DocumentTab({
           </div>
 
           <div className="flex flex-col gap-2 pt-1">
-            <Cap>Page image</Cap>
+            <Cap>PDF page</Cap>
             <Skeleton className="h-40 w-full rounded-[3px]" />
             <Meta>
-              Reserved for the rendered page and its highlight overlay.
+              Reserved for the pdf.js-rendered page, with the bbox drawn over it
+              as a highlight.
             </Meta>
           </div>
         </div>
