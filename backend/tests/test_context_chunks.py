@@ -1,0 +1,320 @@
+"""Tests for context-prose chunking (story S1.3.5).
+
+The acceptance criterion is :func:`test_a_fixture_page_yields_both_chunk_types`
+— a real fixture page must produce both ``doc_type="requirement"`` and
+``doc_type="context"`` records, because the self-query ``doc_type`` filter in
+the retrieval pipeline (S2.4.1) is worthless if one of the two never exists.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from core.manifest import load_manifest
+from ingestion.context_chunker import (
+    MAX_CHUNK_CHARS,
+    MIN_CHUNK_CHARS,
+    excluded_section_roots,
+    extract_context_chunks,
+    is_excluded_section,
+    subtract_spans,
+)
+from ingestion.req_extractor import Heading, extract_requirements
+from tests.support_extraction import document_from_blocks, document_from_golden
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MANIFEST = load_manifest(REPO_ROOT / "projects" / "autosar-can" / "project.yaml")
+DOCUMENTS = {doc.key: doc for doc in MANIFEST.documents}
+CAN_DRIVER = DOCUMENTS["can_driver"]
+
+#: A paragraph long enough to clear MIN_CHUNK_CHARS on its own.
+LONG_PROSE = (
+    "The Can module provides services for initiating transmissions and calls the "
+    "callback functions of the CanIf module for notifying events, independently from "
+    "the notification method (interrupt or polling). Several CAN controllers can be "
+    "controlled by a single Can module as long as they belong to the same CAN "
+    "Hardware Unit."
+)
+MORE_PROSE = (
+    "For a closer description of the CAN controller and the CAN Hardware Unit, see "
+    "the chapter on acronyms and abbreviations. The Can module offers a hardware "
+    "abstraction so that upper layers never touch a register directly, which is what "
+    "makes the driver portable across microcontroller families."
+)
+
+
+def chunk_for(document, entry=CAN_DRIVER):
+    extraction = extract_requirements(document, MANIFEST, entry)
+    chunks, stats = extract_context_chunks(document, MANIFEST, entry, extraction)
+    return extraction, chunks, stats
+
+
+# --------------------------------------------------------------------------
+# the acceptance criterion
+# --------------------------------------------------------------------------
+
+
+def test_a_fixture_page_yields_both_chunk_types():
+    """CAN Driver page 32 carries nine requirements and prose between them."""
+    extraction, chunks, _ = chunk_for(document_from_golden("can_driver_p032"))
+
+    assert extraction.requirements, "the page defines requirements"
+    assert chunks, "the page also carries prose that must become context chunks"
+    assert {req.doc_type for req in extraction.requirements} == {"requirement"}
+    assert {chunk.doc_type for chunk in chunks} == {"context"}
+
+
+def test_context_chunk_ids_are_stable_across_runs():
+    """Unstable ids mean the embedding cache never hits on re-ingest."""
+    first = [chunk.id for chunk in chunk_for(document_from_golden("can_driver_p032"))[1]]
+    second = [chunk.id for chunk in chunk_for(document_from_golden("can_driver_p032"))[1]]
+    assert first == second
+    assert first, "there is nothing to compare if no chunk was produced"
+    assert len(first) == len(set(first)), f"duplicate context chunk ids: {first}"
+    assert all(chunk_id.startswith("CTX_can_driver_") for chunk_id in first)
+
+
+def test_no_chunk_is_shorter_than_the_minimum_or_longer_than_the_cap():
+    for fixture in ("can_driver_p032", "can_driver_p035", "can_interface_p034"):
+        entry = CAN_DRIVER if fixture.startswith("can_driver") else DOCUMENTS["can_interface"]
+        _, chunks, _ = chunk_for(document_from_golden(fixture), entry)
+        for chunk in chunks:
+            assert MIN_CHUNK_CHARS <= len(chunk.text) <= MAX_CHUNK_CHARS, (
+                f"{fixture}/{chunk.id}: {len(chunk.text)} characters is outside "
+                f"{MIN_CHUNK_CHARS}–{MAX_CHUNK_CHARS}"
+            )
+
+
+def test_no_character_of_a_requirement_body_appears_in_a_context_chunk():
+    """The two pools must partition the document, not overlap it."""
+    for fixture in ("can_driver_p032", "can_driver_p035", "can_driver_p043"):
+        document = document_from_golden(fixture)
+        extraction, chunks, _ = chunk_for(document)
+        requirement_spans = [req.char_span for req in extraction.requirements]
+
+        for chunk in chunks:
+            start, end = chunk.char_span
+            for req_start, req_end in requirement_spans:
+                assert not (start < req_end and end > req_start), (
+                    f"{fixture}/{chunk.id} span {chunk.char_span} overlaps requirement span "
+                    f"{(req_start, req_end)}"
+                )
+        # And no body sentence leaks in verbatim either.
+        bodies = [req.text for req in extraction.requirements]
+        for chunk in chunks:
+            for body in bodies:
+                assert body not in chunk.text, f"{fixture}/{chunk.id} repeats a requirement body"
+
+
+def test_a_chunk_never_splits_mid_sentence_at_a_paragraph_boundary():
+    document = document_from_blocks([LONG_PROSE + "\n", MORE_PROSE + "\n"])
+    _, chunks, _ = chunk_for(document)
+    assert chunks
+    for chunk in chunks:
+        assert chunk.text[-1] in ".!?:;)", f"{chunk.id} ends mid-sentence: {chunk.text[-60:]!r}"
+
+
+# --------------------------------------------------------------------------
+# the skip rules
+# --------------------------------------------------------------------------
+
+
+def test_figure_and_table_captions_are_excluded():
+    caption = (
+        "Figure 7.4: CanTpNTa, CanTpNSa and CanTpNAe configuration overview showing the "
+        "relationship between the addressing formats and the configuration containers, "
+        "reproduced here at length so that the caption is comfortably longer than the "
+        "minimum chunk size and cannot be dropped merely for being short."
+    )
+    document = document_from_blocks(["1\nIntroduction\n", LONG_PROSE + "\n", caption + "\n"])
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.blocks_captions == 1
+    assert all("configuration overview" not in chunk.text for chunk in chunks)
+    assert any("Can module provides services" in chunk.text for chunk in chunks)
+
+
+def test_table_captions_are_excluded_too():
+    caption = (
+        "Table 3: Development errors of the Can module, listing every error code together "
+        "with the API service that raises it, given here at length so the caption clears "
+        "the minimum chunk length and can only be removed by the caption rule itself."
+    )
+    document = document_from_blocks(["1\nIntroduction\n", caption + "\n", LONG_PROSE + "\n"])
+    _, chunks, stats = chunk_for(document)
+    assert stats.blocks_captions == 1
+    assert all("Development errors of the Can module" not in chunk.text for chunk in chunks)
+
+
+def test_front_matter_before_the_first_heading_is_excluded():
+    """The table of contents, change-history table and disclaimer all live here."""
+    toc = (
+        "1 Introduction and functional Overview 13 2 Acronyms and Abbreviations 14 2.1 "
+        "Priority Inversion 15 2.2 CAN Hardware Unit 17 3 Related Documentation 18 3.1 "
+        "Related specification 18 4 Constraints and assumptions 19 4.1 Limitations 19"
+    )
+    history = (
+        "Document Change History Date Release Changed by Description 2013-03-15 4.1.1 "
+        "AUTOSAR Administration Added support for Pretended Networking and corrected the "
+        "sequence for EcuM_SetWakeupEvent in section 7.7 of this specification."
+    )
+    document = document_from_blocks(
+        [toc + "\n", history + "\n", "1\nIntroduction\n", LONG_PROSE + "\n"]
+    )
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.blocks_front_matter == 2
+    assert all("Priority Inversion 15" not in chunk.text for chunk in chunks)
+    assert all("Document Change History" not in chunk.text for chunk in chunks)
+    assert any("Can module provides services" in chunk.text for chunk in chunks)
+
+
+def test_the_bibliography_section_and_its_subsections_are_excluded():
+    bibliography = (
+        "[1] Specification of CAN Driver AUTOSAR_CP_SWS_CANDriver [2] Specification of CAN "
+        "Transceiver Driver AUTOSAR_CP_SWS_CANTransceiverDriver [3] Requirements on CAN "
+        "AUTOSAR_CP_SRS_CAN [4] Specification of ECU Configuration AUTOSAR_CP_TPS_ECU"
+    )
+    document = document_from_blocks(
+        [
+            "1\nIntroduction\n",
+            LONG_PROSE + "\n",
+            "3\nRelated Documentation\n",
+            bibliography + "\n",
+            "3.1\nRelated specification\n",
+            bibliography + "\n",
+            "4\nConstraints and assumptions\n",
+            MORE_PROSE + "\n",
+        ]
+    )
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.blocks_excluded_sections == {"bibliography": 2}, (
+        "section 3 and its subsection 3.1 must both be excluded"
+    )
+    assert all("AUTOSAR_CP_SWS_CANDriver" not in chunk.text for chunk in chunks)
+    assert any("hardware abstraction" in chunk.text for chunk in chunks)
+
+
+def test_the_change_history_annex_and_its_subsections_are_excluded():
+    items = (
+        "Added Specification Items in R23-11 SWS_CANIF_00001 SWS_CANIF_00002 "
+        "SWS_CANIF_00003 SWS_CANIF_00004 SWS_CANIF_00005 SWS_CANIF_00006 SWS_CANIF_00007 "
+        "SWS_CANIF_00008 SWS_CANIF_00009 SWS_CANIF_00010 SWS_CANIF_00011 SWS_CANIF_00012"
+    )
+    document = document_from_blocks(
+        [
+            "1\nIntroduction\n",
+            LONG_PROSE + "\n",
+            "B\nChange History\n",
+            items + "\n",
+            "B.1.1\nAdded Specification Items in R23-11\n",
+            items + "\n",
+        ]
+    )
+    _, chunks, stats = chunk_for(document)
+    assert stats.blocks_excluded_sections == {"change_history": 2}
+    assert all("Added Specification Items" not in chunk.text for chunk in chunks)
+
+
+def test_isolated_short_residue_is_dropped_rather_than_indexed():
+    """A stray bullet or table cell with no neighbour to merge into is noise.
+
+    Note the deliberate asymmetry: a short residue that is *adjacent* to real
+    prose merges into it (nothing is lost). Only a residue standing alone —
+    here fenced off by requirement blocks on both sides — is dropped.
+    """
+    document = document_from_blocks(
+        [
+            "1\nIntroduction\n",
+            "[SWS_Can_00001] ⌈The Can module shall enter the STOPPED state.⌋()\n",
+            "• SLEEP -> STOPPED\n",
+            "[SWS_Can_00002] ⌈The Can module shall leave the SLEEP state.⌋()\n",
+            LONG_PROSE + "\n",
+        ]
+    )
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.chunks_dropped_short == 1
+    assert all(len(chunk.text) >= MIN_CHUNK_CHARS for chunk in chunks)
+    assert all("SLEEP -> STOPPED" not in chunk.text for chunk in chunks)
+    assert any("Can module provides services" in chunk.text for chunk in chunks)
+
+
+def test_a_heading_becomes_metadata_rather_than_prose():
+    document = document_from_blocks(["7.6\nL-PDU reception\n", LONG_PROSE + "\n"])
+    _, chunks, stats = chunk_for(document)
+
+    assert stats.blocks_headings == 1
+    assert chunks[0].section_path == "7.6 L-PDU reception"
+    assert chunks[0].title == "L-PDU reception"
+    assert not chunks[0].text.startswith("L-PDU reception")
+
+
+def test_context_chunks_carry_named_symbols_but_never_upstream_ids():
+    document = document_from_blocks(
+        [
+            "1\nIntroduction\n",
+            "The upper layer calls Can_Write and the Can module answers with "
+            "CanIf_TxConfirmation once the hardware has accepted the frame, which is the "
+            "notification path described in the rest of this chapter and repeated here at "
+            "length so that the paragraph clears the minimum chunk size.\n",
+        ]
+    )
+    _, chunks, _ = chunk_for(document)
+    assert chunks[0].named_symbols == ["Can_Write", "CanIf_TxConfirmation"]
+    assert chunks[0].upstream_ids == []
+
+
+def test_an_oversized_paragraph_is_split_at_a_sentence_boundary():
+    sentence = "The Can module shall notify the CanIf module about the completed transmission. "
+    document = document_from_blocks(["1\nIntroduction\n", sentence * 40 + "\n"])
+    _, chunks, _ = chunk_for(document)
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert len(chunk.text) <= MAX_CHUNK_CHARS
+        assert chunk.text.endswith("transmission.")
+
+
+def test_a_page_spanning_chunk_gets_no_bbox():
+    document = document_from_blocks([LONG_PROSE + "\n", MORE_PROSE + "\n"], pages=2)
+    _, chunks, _ = chunk_for(document)
+    assert chunks
+    for chunk in chunks:
+        pages = document.pages_for_span(*chunk.char_span)
+        if len(pages) > 1:
+            assert chunk.bbox is None
+        else:
+            assert chunk.bbox is not None
+
+
+# --------------------------------------------------------------------------
+# pure helpers
+# --------------------------------------------------------------------------
+
+
+def test_subtract_spans_leaves_the_gaps():
+    assert subtract_spans(0, 100, [(10, 20), (50, 60)]) == [(0, 10), (20, 50), (60, 100)]
+    assert subtract_spans(0, 100, [(0, 100)]) == []
+    assert subtract_spans(0, 100, []) == [(0, 100)]
+    assert subtract_spans(30, 40, [(0, 100)]) == []
+    assert subtract_spans(0, 50, [(40, 200)]) == [(0, 40)]
+
+
+def test_excluded_section_roots_and_descendants():
+    headings = [
+        Heading("1", "Introduction", 0, 1),
+        Heading("3", "Related documentation", 100, 2),
+        Heading("3.1", "Input documents & related standards and norms", 200, 2),
+        Heading("31", "Something else entirely", 300, 3),
+        Heading("B", "Change history of AUTOSAR traceable items", 400, 4),
+    ]
+    roots = excluded_section_roots(headings)
+    assert roots == {"3": "bibliography", "B": "change_history"}
+    assert is_excluded_section(headings[0], roots) is None
+    assert is_excluded_section(headings[1], roots) == "bibliography"
+    assert is_excluded_section(headings[2], roots) == "bibliography"
+    assert is_excluded_section(headings[3], roots) is None, "'31' is not a child of '3'"
+    assert is_excluded_section(headings[4], roots) == "change_history"
+    assert is_excluded_section(None, roots) is None
