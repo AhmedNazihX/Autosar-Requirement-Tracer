@@ -31,7 +31,7 @@ from agent.tools import (
 from api.chat_events import TOOL_NAMES, CodeCitation, RequirementCitation, UpstreamCitation
 from core.llm import chat_model
 from engines.report import ScopeError
-from tests.support_engine import MANIFEST, PAGE_COUNTS, build_engine, build_index
+from tests.support_engine import MANIFEST, PAGE_COUNTS, build_engine, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
 NO_FILTER = {"module": None, "doc_type": None, "section": None}
@@ -42,7 +42,7 @@ def context(tmp_path: Path):
     """A :class:`ToolContext` over the shared fixture index."""
     parts = build_index(tmp_path)
     yield parts
-    parts["conn"].close_all()
+    close_index(parts)
 
 
 def make(

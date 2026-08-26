@@ -17,7 +17,7 @@ from core.llm import chat_model
 from core.manifest import ProjectManifest
 from engines import evidence, report
 from engines.report import ReportScope, ScopeError
-from tests.support_engine import MANIFEST, build_engine, build_index
+from tests.support_engine import MANIFEST, build_engine, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
 PRICE = pricing.ModelPrice(model_id=MANIFEST.models.judge, prompt=1.5e-7, completion=6e-7)
@@ -25,7 +25,9 @@ PRICE = pricing.ModelPrice(model_id=MANIFEST.models.judge, prompt=1.5e-7, comple
 
 @pytest.fixture
 def parts(tmp_path):
-    return build_index(tmp_path)
+    built = build_index(tmp_path)
+    yield built
+    close_index(built)
 
 
 def verdict_body(status="implemented", *, confidence=0.8, evidence_items=(), **kwargs):
@@ -407,7 +409,7 @@ def test_coverage_counts_every_status_and_the_cache(parts):
     assert (coverage.implemented, coverage.missing) == (1, 1)
     assert coverage.judged == 2
     assert coverage.total == 2
-    assert coverage.with_claimed_evidence == 1
+    assert coverage.with_evidence == 1
     assert coverage.covered_pct == pytest.approx(50.0)
 
 

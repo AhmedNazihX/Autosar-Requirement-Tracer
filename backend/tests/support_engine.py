@@ -19,6 +19,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import chromadb.api.shared_system_client
+
 from core import db
 from core.embeddings import EmbeddingBatch, EmbeddingClient
 from core.llm import chat_model
@@ -247,6 +249,24 @@ def _code_unit(repo_path, symbol, kind, line_span, text) -> CodeUnit:
         git_sha=SHA,
         project_id=PROJECT,
     )
+
+
+def close_index(parts: dict) -> None:
+    """Release everything :func:`build_index` opened.
+
+    Both halves matter, and the second was learned the expensive way. Closing
+    only the SQLite pool leaves the Chroma client behind, and ``chromadb``
+    keeps every ``PersistentClient`` alive in a process-wide cache keyed by
+    path — so a suite with a fixture per test accumulates one live store per
+    test until the process runs out of file descriptors and Chroma fails with
+    ``InternalError: error communicating with database: Resource temporarily
+    unavailable (os error 35)``. That surfaced as an intermittently *hanging*
+    test run, which is a long way from "a fixture forgot to clean up".
+    """
+    pool = parts.get("conn")
+    if pool is not None:
+        pool.close_all()
+    chromadb.api.shared_system_client.SharedSystemClient.clear_system_cache()
 
 
 def build_index(tmp_path: Path) -> dict:

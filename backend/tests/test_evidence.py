@@ -14,13 +14,15 @@ from core import db
 from core.llm import chat_model
 from core.models import Requirement
 from engines import evidence
-from tests.support_engine import MANIFEST, PROJECT, SHA, build_engine, build_index
+from tests.support_engine import MANIFEST, PROJECT, SHA, build_engine, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body, openrouter_body
 
 
 @pytest.fixture
 def parts(tmp_path):
-    return build_index(tmp_path)
+    built = build_index(tmp_path)
+    yield built
+    close_index(built)
 
 
 def make_judge(*replies):

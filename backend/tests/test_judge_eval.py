@@ -15,13 +15,15 @@ import pytest
 from core.llm import chat_model
 from evaluation import judge_eval
 from evaluation.judge_eval import NEGATIVE, POSITIVE, EvalSet
-from tests.support_engine import MANIFEST, build_engine, build_index
+from tests.support_engine import MANIFEST, build_engine, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
 
 @pytest.fixture
 def parts(tmp_path):
-    return build_index(tmp_path)
+    built = build_index(tmp_path)
+    yield built
+    close_index(built)
 
 
 def verdict(status, *, confidence=0.8, cost_usd=0.0):

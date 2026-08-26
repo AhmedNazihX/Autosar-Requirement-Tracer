@@ -50,10 +50,25 @@ from engines.evidence import EvidenceItem, Verdict
 from retrieval.lookup import InvalidRequirementId, lookup
 from retrieval.pipeline import Engine
 
-#: Average characters per token. A rough industry figure, used only for the
-#: pre-launch *estimate* — actual cost always comes from OpenRouter's own
-#: reported figure (finding D1), so an error here never reaches the bill.
-CHARS_PER_TOKEN = 4.0
+#: Characters per token, **measured on this corpus** rather than taken from
+#: the usual "about four" rule of thumb.
+#:
+#: Four was the first value here and it under-quoted every run by about 45%:
+#: a 324-requirement CanIf report estimated at $0.0950 cost $0.1371 (1.44x),
+#: and the two judge-evaluation runs came in at 1.50x and 1.41x. Three
+#: independent runs agreeing that closely is a constant, not noise — C source
+#: is punctuation-dense and tokenises far below prose. 2.8 is 4.0 divided by
+#: the mean of those three ratios.
+#:
+#: It also absorbs two smaller things the estimate does not model separately,
+#: and deliberately so rather than growing a second fudge factor: a judge
+#: reply that needed a retry (``Llm.structured``) is paid for twice, and the
+#: tier-2 semantic pass embeds a query per requirement.
+#:
+#: Only the *estimate* depends on this. Actual cost always comes from
+#: OpenRouter's own reported figure (finding D1), so an error here shows up as
+#: a quote that was wrong, never as a bill that was.
+CHARS_PER_TOKEN = 2.8
 
 #: Completion tokens a verdict costs. Measured shape rather than measured
 #: corpus: the reply is one small JSON object — a status, a confidence, a
@@ -332,10 +347,13 @@ class Coverage(BaseModel):
     partial: int = 0
     missing: int = 0
     unverifiable: int = 0
-    #: Rows whose evidence includes at least one developer ``@req``/``!req``
-    #: claim. Reported because tier-1 coverage and judged coverage are
-    #: different numbers and conflating them overstates both (finding A5).
-    with_claimed_evidence: int = 0
+    #: Rows the judge backed with at least one cited code unit. Distinct from
+    #: ``covered``: a verdict is a judgement and this is what it pointed at,
+    #: so a row can be ``implemented`` with nothing cited (the judge was sure
+    #: but named nothing) and the gap between the two numbers is worth seeing.
+    #: It is **not** a count of developer ``@req`` annotations — those are an
+    #: input to the judge, not its output.
+    with_evidence: int = 0
 
     @property
     def covered(self) -> int:
@@ -479,7 +497,7 @@ def coverage_of(rows: Sequence[ReportRow], *, total: int) -> Coverage:
         total=total,
         judged=len(rows),
         from_cache=sum(1 for row in rows if row.cached),
-        with_claimed_evidence=sum(1 for row in rows if row.evidence),
+        with_evidence=sum(1 for row in rows if row.evidence),
         **counts,
     )
 

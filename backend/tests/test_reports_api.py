@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from api import deps, reports
 from core import db, llm, pricing
 from engines.report import ReportScope
-from tests.support_engine import MANIFEST, build_index
+from tests.support_engine import MANIFEST, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
 
@@ -106,7 +106,7 @@ def wired(tmp_path: Path, monkeypatch):
         scripted.extend(replies)
 
     yield TestClient(app), script, state, fakes
-    parts["conn"].close_all()
+    close_index(parts)
 
 
 # --------------------------------------------------------------------------

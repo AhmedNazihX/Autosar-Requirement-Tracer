@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from api import deps, documents
 from core import db
-from tests.support_engine import MANIFEST, build_index
+from tests.support_engine import MANIFEST, build_index, close_index
 
 INDEXED_FILE = "communication/CanIf/src/CanIf.c"
 
@@ -58,7 +58,7 @@ def client(tmp_path: Path, monkeypatch):
     app.state.reqtrace = state
 
     yield TestClient(app), state, tmp_path
-    parts["conn"].close_all()
+    close_index(parts)
 
 
 # --------------------------------------------------------------------------

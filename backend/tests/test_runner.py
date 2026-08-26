@@ -34,7 +34,7 @@ from agent.runner import run_turn
 from agent.tools import SideChannel, ToolContext
 from core.llm import chat_model
 from core.usage_sniffer import CostSink, sniffing_client
-from tests.support_engine import MANIFEST, build_engine, build_index
+from tests.support_engine import MANIFEST, build_engine, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
 NO_FILTER = {"module": None, "doc_type": None, "section": None}
@@ -123,7 +123,7 @@ def broken(status: int = 503) -> httpx.Response:
 def parts(tmp_path: Path):
     built = build_index(tmp_path)
     yield built
-    built["conn"].close_all()
+    close_index(built)
 
 
 def turn(
