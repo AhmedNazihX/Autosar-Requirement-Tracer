@@ -13,15 +13,15 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -52,8 +52,15 @@ jobs:
       - name: Backend tests
         run: cd backend && uv run pytest -q -rs
 
+      # `next typegen` first, and not as a nicety. next-env.d.ts references
+      # .next/types/routes.d.ts and root-params.d.ts, which Next generates —
+      # app/layout.tsx uses the generated `LayoutProps<"/">`. So a bare
+      # `tsc --noEmit` on a clean checkout fails with
+      # "Cannot find name 'LayoutProps'", and passes locally only because a
+      # previous build left the types behind. That is exactly the CI-only
+      # failure this workflow existed to catch, on its first run.
       - name: Frontend typecheck
-        run: cd frontend && npx tsc --noEmit
+        run: cd frontend && npx next typegen && npx tsc --noEmit
 
       - name: Frontend build
         run: cd frontend && npm run build
