@@ -105,6 +105,11 @@ const COMPONENTS: Components = {
   a({ children, href }) {
     // Links inside a model-written answer point outside the app. They open in a
     // new tab with no referrer, and they are never how a source is opened.
+    // `href` is already sanitised: overriding `a` does NOT bypass
+    // react-markdown's default `urlTransform`, which strips `javascript:` and
+    // other non-safe protocols before the prop reaches here. Do not pass
+    // `urlTransform={(url) => url}` — that default is the second security
+    // control in this file, and it is invisible.
     return (
       <a
         href={href}
