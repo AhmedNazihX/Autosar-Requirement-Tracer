@@ -235,7 +235,7 @@ def test_citation_event_wraps_a_requirement_from_the_engine():
 
 def test_the_meter_reports_one_usage_event_for_the_whole_turn():
     """The reducer keeps only the last usage event, so there must be one."""
-    meter = TurnMeter(model="anthropic/claude-sonnet-4.5")
+    meter = TurnMeter(model="test/chat-model")
     meter.add_llm(
         LlmUsage(purpose="chat", calls=1, prompt_tokens=100, completion_tokens=40, cost_usd=0.004)
     )
@@ -253,7 +253,7 @@ def test_the_meter_reports_one_usage_event_for_the_whole_turn():
 
     event = meter.usage_event(elapsed_ms=1234)
 
-    assert event.model == "anthropic/claude-sonnet-4.5", "the chat model names the turn"
+    assert event.model == "test/chat-model", "the chat model names the turn"
     assert event.prompt_tokens == 1240, "every purpose counted"
     assert event.completion_tokens == 120
     assert event.cost_usd == pytest.approx(0.004601)

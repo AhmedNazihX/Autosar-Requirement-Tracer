@@ -53,7 +53,7 @@ def _chunk(**choice) -> str:
                 "id": "gen-1",
                 "object": "chat.completion.chunk",
                 "created": 0,
-                "model": "anthropic/claude-sonnet-4.5",
+                "model": MANIFEST.models.chat,
                 "choices": [dict(index=0, **choice)],
             }
         )
@@ -69,7 +69,7 @@ def _usage_chunk(cost: float, prompt_tokens: int = 50, completion_tokens: int = 
                 "id": "gen-1",
                 "object": "chat.completion.chunk",
                 "created": 0,
-                "model": "anthropic/claude-sonnet-4.5",
+                "model": MANIFEST.models.chat,
                 "choices": [],
                 "usage": {
                     "prompt_tokens": prompt_tokens,

@@ -77,7 +77,7 @@ def keyless_settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
 @pytest.mark.parametrize(
     ("purpose", "expected"),
     [
-        ("chat", "anthropic/claude-sonnet-4.5"),
+        ("chat", "google/gemini-2.5-flash"),
         ("judge", "openai/gpt-4o-mini"),
         ("rerank", "openai/gpt-4o-mini"),
         ("translate", "openai/gpt-4o-mini"),

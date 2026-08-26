@@ -373,10 +373,38 @@ endpoint (extra round trip per turn, figure lags); subclassing `ChatOpenAI`
 policy"`. `openai/gpt-4o-mini` and the embedding model work, so the key is
 fine and only the Anthropic route is blocked.
 
-**To do (owner action):** allow the provider at
-<https://openrouter.ai/settings/privacy>, or re-pin `models.chat` in
-`project.yaml` to a reachable model. The agent was verified end-to-end on
-`openai/gpt-4o-mini` in the meantime; nothing in the code needs to change.
+**Resolved (WP3): re-pinned `models.chat` to `google/gemini-2.5-flash`.**
+
+The block is per-model, not per-account. Probed with a real streaming
+tool-calling request each (retry twice — a first pass without retries reported
+misleading "connection errors" that were transient, not policy):
+
+| model | reachable |
+|---|---|
+| `openai/gpt-4o-mini`, `openai/gpt-4o`, `openai/gpt-4.1-mini`, `google/gemini-2.5-flash` | yes, streams and calls tools |
+| all `anthropic/*`, `openai/gpt-4.1`, `google/gemini-2.5-pro`, `deepseek/deepseek-chat`, `meta-llama/llama-3.3-70b-instruct` | **blocked by data policy** |
+
+Measured on the real corpus, same two questions through the real agent:
+
+| model | id lookup | out-of-scope | latency |
+|---|---|---|---|
+| `openai/gpt-4o` | $0.005248 | $0.003132 | 3.2s |
+| `openai/gpt-4.1-mini` | $0.001062 | $0.000521 | 4.0s |
+| `google/gemini-2.5-flash` | $0.000999 | $0.000506 | 3.0s |
+
+All three called `lookup_requirement` rather than searching, cited the id, and
+refused the out-of-domain question with a scoped redirect. `gpt-4o` cost 5x for
+no quality gain on these questions.
+
+**Worth watching:** gemini reaches OpenRouter through a translation to the
+OpenAI shape and already chunks differently (5 stream chunks where the OpenAI
+models send 17). That is harmless but it is the kind of difference C9 and C12
+came from, so a streaming or tool-call surprise here should be suspected of
+being a translation artefact before it is assumed to be our bug.
+
+The owner can still allow Anthropic at
+<https://openrouter.ai/settings/privacy> and re-pin; nothing in the code
+depends on which model is chosen.
 
 ### D2. Ingestion is effectively free; the cost ceiling is about judging
 Extrapolating that rate, embedding the whole 1054-requirement corpus costs

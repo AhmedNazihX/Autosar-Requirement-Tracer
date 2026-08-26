@@ -37,7 +37,7 @@
 import type { ChatEvent, RagStage } from "../events";
 import type { Thread } from "../threads";
 
-const CHAT_MODEL = "anthropic/claude-sonnet-4.5";
+const CHAT_MODEL = "google/gemini-2.5-flash";
 
 // `doc` is the document's MANIFEST KEY, exactly as ingestion stores it in
 // `Requirement.source_doc` and exactly what `GET /documents/{doc}/view` will

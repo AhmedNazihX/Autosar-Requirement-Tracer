@@ -8,8 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Progress: WP1, WP2 and WP3 are done; WP4 (evidence & traceability) is next.** The corpus is ingested (4 SWS documents, 1054 requirements, 1253 code units); spec §4's five retrieval stages are assembled behind `retrieval/pipeline.py`; and the agent, chat SSE endpoint, read endpoints, threads and setup API are live. 3 of the 5 tools are registered — WP4's story S4.3.2 adds the other two to `agent/tools.py`'s `TOOL_BUILDERS`. Measured facts worth not re-deriving live in `docs/findings/2026-08-26-corpus-and-toolchain-findings.md`; C9–C12 and D3–D4 are WP3's.
 
-**Known blocker (owner action, not code):** this OpenRouter account cannot reach the pinned `models.chat` (`anthropic/claude-sonnet-4.5`) — see finding D4.
-
 ## Sources of truth (read before changing anything)
 
 1. `docs/specs/2026-08-26-reqtrace-design.md` — the approved design spec. All architectural decisions live here, including grill-session amendments (§11).

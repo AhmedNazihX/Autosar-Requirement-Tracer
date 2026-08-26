@@ -18,7 +18,7 @@ Sprint 2 course project (`125.md`): a domain-specialised chatbot with advanced R
 
 ## Decisions from grill session (2026-08-26, all user-approved)
 
-- **Models (in project.yaml):** chat = `anthropic/claude-sonnet-4.5`; judge/rerank = `openai/gpt-4o-mini`-class; embeddings = `openai/text-embedding-3-small`. Cost target ≤$0.50/scoped report run; hard stop `MAX_REPORT_COST_USD` (default $2).
+- **Models (in project.yaml):** chat = `google/gemini-2.5-flash` (re-pinned in WP3 from `anthropic/claude-sonnet-4.5`, which this account's OpenRouter data policy blocks — finding D4); judge/rerank/translate/title = `openai/gpt-4o-mini`; embeddings = `openai/text-embedding-3-small`. Cost target ≤$0.50/scoped report run; hard stop `MAX_REPORT_COST_USD` (default $2).
 - **SRS docs:** cite-only (not ingested); matrix UI renders SRS IDs as tooltipped chips ("upstream requirement, not ingested").
 - **Spec release:** R23-11. Fallback to an older release only if gap rate >80%.
 - **Threads (UX bar raised — "very good app"):** conversations persisted in SQLite. Each message stores its FULL SSE event stream (tool chips, citations, usage replay exactly on reload). Thread sidebar; LLM auto-titles (cheap model) with rename-on-click. Thread export as Markdown + JSON (banks the 2nd easy bonus).

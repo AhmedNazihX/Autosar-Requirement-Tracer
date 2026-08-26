@@ -196,7 +196,11 @@ The quality bar is an app with very good UX, not a homework demo:
   API key and walks through ingestion with progress — never a stack trace.
 - **Styling:** Tailwind + shadcn/ui (drawer, tabs, resizable split panes,
   data table, toasts, skeleton loaders).
-- **Models (pinned in project.yaml):** chat `anthropic/claude-sonnet-4.5`;
+- **Models (pinned in project.yaml):** chat `google/gemini-2.5-flash`
+  (amended 2026-08-26 during WP3 — the grill session chose
+  `anthropic/claude-sonnet-4.5`, but the account's OpenRouter data policy
+  blocks every Anthropic route; finding D4 records what is reachable and the
+  measurements behind the replacement);
   judge/rerank `openai/gpt-4o-mini`-class; embeddings
   `openai/text-embedding-3-small`. Cost target ≤$0.50 per scoped report run;
   hard stop `MAX_REPORT_COST_USD` (default $2).

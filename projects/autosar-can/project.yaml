@@ -77,7 +77,14 @@ code:
   annotation_id_template: 'SWS_{module}_{num:05d}'
 
 models:
-  chat: anthropic/claude-sonnet-4.5
+  # Re-pinned from anthropic/claude-sonnet-4.5 (the grill-session choice):
+  # this OpenRouter account's data policy blocks every Anthropic route, and
+  # also gpt-4.1, gemini-2.5-pro, deepseek-chat and llama-3.3-70b — see
+  # finding D4. Measured on the real corpus against the reachable set: this
+  # model answers an id lookup for $0.001 in 3.0s, calls lookup_requirement
+  # rather than searching, and refuses out-of-domain questions cleanly.
+  # gpt-4o was 5x the cost with no quality gain on the same questions.
+  chat: google/gemini-2.5-flash
   judge: openai/gpt-4o-mini
   rerank: openai/gpt-4o-mini
   # Query rewriting and self-query filter extraction. Both are short,
