@@ -28,7 +28,11 @@ Real documents and real code — no synthesized corpus:
   IDs follow `[SWS_Can_00011]`; each requirement cites upstream `SRS_*` IDs,
   giving two-level traceability.
 - **Code:** `github.com/openAUTOSAR/classic-platform` (Arctic Core lineage,
-  C), scoped to `communication/` (`Can`, `CanIf`, `PduR`, `Com`). Source
+  C, GPL-2.0 — finding A6), scoped to `communication/`; the manifest's
+  `include_globs` are `CanIf`, `CanTp`, `CanSM`, `CanNm`, `PduR` and `Com`.
+  `Can` is deliberately absent — the repository has no CAN Driver
+  implementation (finding A1), which is why a traceability report scoped to
+  `Can` shows drift rather than a verdict mix. Source
   carries `/** @req ... */` annotations. The code targets an older AUTOSAR
   release than the R23-11 specs, so the traceability report surfaces *real*
   gaps and drift — which is the tool's purpose.

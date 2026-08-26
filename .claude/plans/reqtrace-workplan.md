@@ -8,7 +8,7 @@ Sprint 2 course project (`125.md`): a domain-specialised chatbot with advanced R
 
 **Corpus (real, not synthesized — decided during brainstorming):**
 - Requirements: AUTOSAR SWS **CAN Driver** + **CAN Interface** PDFs, fetched directly from autosar.org (no registration), e.g. `https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANDriver.pdf`. Requirement IDs `[SWS_Can_00011]`, each citing upstream `SRS_*` IDs → two-level traceability SRS → SWS → code.
-- Code: `github.com/openAUTOSAR/classic-platform` (Arctic Core, Apache-style OSS, C), scoped to `communication/` (`Can`, `CanIf`, `PduR`, `Com`). Code carries `/** @req ... */` annotations. Code is older than R23-11 specs → real gaps/drift for the report to surface (a feature, not a bug — say so in README).
+- Code: `github.com/openAUTOSAR/classic-platform` (Arctic Core, **GPL-2.0** — finding A6; the "Apache-style" in the original plan was wrong, C), scoped to `communication/` — the manifest's `include_globs` are `CanIf`, `CanTp`, `CanSM`, `CanNm`, `PduR`, `Com`. **`Can` is deliberately absent: there is no CAN Driver implementation in the repository (finding A1).** Code carries `/** @req ... */` annotations. Code is older than R23-11 specs → real gaps/drift for the report to surface (a feature, not a bug — say so in README).
 - **Corpus is abstracted**: everything downstream depends only on `Requirement` and `CodeUnit` records + a per-project `project.yaml` manifest (doc globs, ID regexes, repo URL + pinned SHA, language, include/exclude globs). Swapping corpora later = new manifest + possibly one loader function. NOT a plugin framework — a dict of loader functions is the ceiling of abstraction.
 - Do NOT commit the PDFs or the cloned repo; ingestion fetches them (`data/` is gitignored).
 
@@ -195,7 +195,17 @@ Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-finding
 - S4.2.2 Cost estimate before launch + `MAX_REPORT_COST_USD` hard stop mid-run. *Accept: unit test aborts at ceiling.*
 
 **F4.3 Report API & agent integration**
-- S4.3.1 `POST /reports`→`{job_id, est_cost}`; SSE `{done,total,current}`; result matrix (SRS→SWS→verdict→evidence, coverage stats); export MD/CSV/JSON. *Accept: scoped run over `Can` completes; all three of implemented/partial/missing present (expected w/ version drift).*
+- S4.3.1 `POST /reports`→`{job_id, est_cost}`; SSE `{done,total,current}`; result matrix (SRS→SWS→verdict→evidence, coverage stats); export MD/CSV/JSON. *Accept: scoped run over **`CanIf`** completes; all three of implemented/partial/missing present (expected w/ version drift).*
+  *(Amended 2026-08-27, before WP4 started: this criterion originally scoped the
+  run to `Can`, which cannot satisfy it. Finding A1 measured that the permitted
+  repository contains no CAN Driver implementation at all, and the manifest's
+  `include_globs` therefore never fetch one — so a `Can`-scoped report can only
+  return `missing`, never three verdict classes. Measured per module:
+  `Can` 240 requirements / **0** code units; `CanIf` 398 / 217; `CanSM` 241 /
+  136; `CanTp` 175 / 140. `CanIf` also carries the most claimed evidence for
+  tier 1 to find — 377 `@req` annotations — so it is the only scope where the
+  criterion is achievable. `Can` remains the right scope for demonstrating
+  release drift, which is a different and also worthwhile report.)*
 - S4.3.2 Register `check_implementation` + `generate_traceability_report` as agent tools in the F3.2 registry (agent now has all 5). *Accept: scripted conversation triggers an evidence check and launches a report (recorded LLM).*
 
 **F4.4 Judge evaluation against annotation ground truth (~1h)**
@@ -276,6 +286,6 @@ allowing.
 
 - After phase 1: hand-check 5 extracted requirements against PDF pages; `pytest backend/tests/test_ingestion*`.
 - After phase 3: `curl -N localhost:8000/chat` shows tool_start/citation/usage events for "What does SWS_Can_00011 require?" and "How does the driver report bus-off?"
-- After phase 5: scoped report over `Can` module completes; matrix contains all three verdict classes (implemented/partial/missing) — expected given version drift.
+- After phase 5: scoped report over the `CanIf` module completes; matrix contains all three verdict classes (implemented/partial/missing) — expected given version drift. (Was `Can`; see the amendment under S4.3.1 — `Can` has no implementation in the permitted repository, so it can only produce `missing`.)
 - After phase 6: injection pytest suite green.
 - Full E2E: smoke script + manual demo of the three headline flows (ID lookup w/ PDF highlight; evidence check w/ code pane; full report w/ progress + export).
