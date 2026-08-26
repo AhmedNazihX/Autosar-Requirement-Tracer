@@ -12,6 +12,7 @@ from pathlib import Path
 
 from core.manifest import load_manifest
 from ingestion.context_chunker import (
+    CAPTION_LINE_END_PATTERN,
     MAX_CAPTION_CHARS,
     MAX_CHUNK_CHARS,
     MIN_CHUNK_CHARS,
@@ -209,22 +210,34 @@ def test_prose_fused_onto_a_caption_survives_the_caption_strip():
 
 
 def test_a_caption_without_a_period_fused_onto_prose_keeps_the_prose():
-    """The round-1 fix's own blind spot, one level deeper.
+    """The round-1 fix's own blind spot, one level deeper — case 3.
 
-    Every earlier test used a caption whose first line ends in a period, which
-    takes the unambiguous path. Here the caption line has **no** terminator and
-    the fused paragraph's first sentence spans three physical lines, so the
-    old line-walking extent consumed the caption *and the whole paragraph* and
-    dropped both — with `caption_remainders_kept` staying 0, so the counters
-    showed nothing wrong. The residue must now be kept whole as prose.
+    Every round-1 test used a caption whose first line ends in a period, which
+    takes the unambiguous case-1 path. Here the caption line has **no**
+    terminator and the fused paragraph's first sentence spans three physical
+    lines, so the old line-walking extent consumed the caption *and the whole
+    paragraph* and dropped both — with ``caption_remainders_kept`` staying 0,
+    so the counters showed nothing wrong.
+
+    This residue must stay **under** ``MAX_CAPTION_CHARS``, or the bound alone
+    returns 0 and the test passes without the case-3 branch ever running. That
+    is asserted below rather than left to inspection: an earlier version of
+    this test padded the residue to 256 characters and passed vacuously.
     """
     fused = (
         "Figure 9.2: Message routing\n"
         "The module forwards frames between the two configured\n"
         "CAN channels without modification, as specified in the safety\n"
-        "manual, section 4, which is reproduced at length here so the residue "
-        "comfortably clears the minimum chunk size.\n"
+        "manual, section 4.\n"
     )
+    # The point of the test: case 3 must be what rejects this, not the bound.
+    assert len(fused) < MAX_CAPTION_CHARS, "the bound would short-circuit case 3"
+    assert len(fused.splitlines()[0]) < MAX_CAPTION_CHARS
+    assert not CAPTION_LINE_END_PATTERN.search(fused.splitlines(keepends=True)[0]), (
+        "the caption line must have no terminator, or this is case 1"
+    )
+    assert caption_extent(fused) == 0
+
     document = document_from_blocks(["1\nIntroduction\n", fused])
     _, chunks, stats = chunk_for(document)
 
@@ -233,6 +246,9 @@ def test_a_caption_without_a_period_fused_onto_prose_keeps_the_prose():
     assert chunks, "the paragraph must not be dropped"
     assert any("forwards frames between the two configured" in chunk.text for chunk in chunks), (
         "the paragraph fused onto a period-less caption was silently deleted"
+    )
+    assert any("manual, section 4." in chunk.text for chunk in chunks), (
+        "the paragraph's tail was truncated"
     )
     # Kept whole means the caption rides along as prose — noise, not loss.
     assert any("Message routing" in chunk.text for chunk in chunks)

@@ -84,10 +84,20 @@ CAPTION_PATTERN = re.compile(r"\A(?:Figure|Table)\s+[A-Za-z0-9.\-]+\s*:", re.I)
 #: physical lines, so the caption is not simply "the first line".
 CAPTION_LINE_END_PATTERN = re.compile(r"[.!?]['\"’”)]?\s*\Z")
 
-#: Upper bound on a stripped caption. The observed maximum over the four
-#: documents is 176 characters (median 43, p90 67), so this leaves headroom
-#: while still refusing to swallow a long block whose first line merely
-#: happens to look like a caption. See :func:`caption_extent`.
+#: Upper bound on a stripped caption, compared against the **raw** extent —
+#: the same quantity it is calibrated on, since that is what actually gets
+#: removed from the residue.
+#:
+#: Over the four documents, the largest raw extent that ever reaches this
+#: comparison is **166** characters (``Figure 7.4``, case 1); the next largest
+#: is 87, and the case-2 cluster runs 29–87. So 200 leaves 34 characters of
+#: headroom above the observed maximum and sits far above the bulk of the
+#: distribution. Longer than this and the residue is more likely a paragraph
+#: that merely starts like a caption, so it is kept as prose.
+#:
+#: Deliberately *not* calibrated on the 177-character ``Figure 7.3`` residue:
+#: that one is a case-3 keep, so the bound is never applied to it and it says
+#: nothing about the headroom here. See :func:`caption_extent`.
 MAX_CAPTION_CHARS = 200
 
 #: Sentence-ish boundaries used when a single paragraph exceeds the ceiling.
@@ -254,15 +264,38 @@ def caption_extent(slice_text: str) -> int:
     a line ends a sentence (cases 1 and 3)          3
     ============================================  =====
 
-    Extents run 28–176 characters, median 43, p90 67. :data:`MAX_CAPTION_CHARS`
-    is set above the observed maximum with headroom; a residue whose caption
-    would exceed it is kept as prose, which guards against a long block whose
-    first line merely happens to look like a caption.
+    Split by the case that decides them, in raw characters — the quantity
+    :data:`MAX_CAPTION_CHARS` is compared against:
 
-    Note that no *character* bound could have separated case 3 from the
-    adversarial fusion on its own — a real 176-character caption and a
-    150-character caption-plus-paragraph overlap — which is why case 3 is
-    resolved by policy rather than by a threshold.
+    ==========================================  ===  ==============
+    case                                          n  raw extent
+    ==========================================  ===  ==============
+    1 — first line terminates                     1  166
+    2 — no line terminates                       99  29–87
+    3 — a later line terminates (kept, so the     2  117 and 177
+    bound is never applied)
+    ==========================================  ===  ==============
+
+    So the largest extent this function ever compares against the bound is
+    **166**, with the next largest at 87.
+
+    No *character* bound could have separated case 3 from a fused paragraph in
+    any event: an adversarial fusion can be constructed at any length, so no
+    threshold discriminates. That is why case 3 is resolved by policy rather
+    than by a number, and why the bound's only job is the narrower one of
+    refusing a long block whose first line merely happens to look like a
+    caption.
+
+    **Known bounded limitation (accepted, not an oversight).** Case 2 can still
+    drop real prose in a constructible situation: a period-less caption fused
+    with prose whose sentence continues past the end of the residue — a page or
+    column break, so no terminator appears anywhere in it — is textually
+    indistinguishable from the 99 legitimate case-2 residues. The exposure is
+    bounded on both sides: at most :data:`MAX_CAPTION_CHARS` characters can be
+    lost, and anything under :data:`MIN_CHUNK_CHARS` would have been dropped by
+    the minimum-length rule regardless, so the window is roughly 120–200
+    characters. Making case 2 keep instead would render the whole rule inert
+    (it is 99 of 102 real captions), so the trade is deliberate.
     """
     lines = slice_text.splitlines(keepends=True)
     if not lines:
