@@ -757,3 +757,29 @@ def test_the_cli_returns_zero_on_a_clean_run(corpus, monkeypatch, capsys):
 
     assert code == 0
     assert "ingestion summary" in capsys.readouterr().out
+
+
+def test_the_run_records_each_documents_page_count(corpus):
+    """`RequirementCitation.page_count` (spec §6) has no other source.
+
+    It is measurable only while the PDF is open, and a citation needs it long
+    after ingestion has finished — possibly after the gitignored PDFs are gone.
+    """
+    manifest, _, source_pdf = corpus
+
+    run.run_ingestion(
+        manifest,
+        run.Options(),
+        reporter=run.Reporter(quiet=True),
+        downloader=FakeDownloader(source_pdf),
+        git_runner=FakeGit({"communication/Fix/Fix.c": FIXTURE_C}),
+        transport=FakeTransport(),
+    )
+
+    conn = db.connect(paths.db_path(manifest))
+    try:
+        recorded = db.page_counts(conn, manifest.project_id)
+        assert set(recorded) == {entry.key for entry in manifest.documents}
+        assert all(count > 0 for count in recorded.values())
+    finally:
+        conn.close()

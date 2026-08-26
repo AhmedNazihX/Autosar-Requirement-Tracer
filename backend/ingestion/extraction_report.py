@@ -55,6 +55,10 @@ class DocumentIngestion:
     extraction: DocumentExtraction
     context_chunks: list[Requirement]
     chunk_stats: ChunkingStats
+    #: Pages in the source PDF. Carried because it is measurable only while the
+    #: document is open, and ``RequirementCitation.page_count`` (spec §6) needs
+    #: it long after ingestion has finished — see ``db.put_document_meta``.
+    page_count: int = 0
 
 
 def ingest_document(
@@ -69,7 +73,7 @@ def ingest_document(
     document = parse_pdf(pdf_path)
     extraction = extract_requirements(document, manifest, entry)
     chunks, stats = extract_context_chunks(document, manifest, entry, extraction)
-    return DocumentIngestion(entry, extraction, chunks, stats)
+    return DocumentIngestion(entry, extraction, chunks, stats, document.page_count)
 
 
 def data_dir(manifest: ProjectManifest) -> Path:

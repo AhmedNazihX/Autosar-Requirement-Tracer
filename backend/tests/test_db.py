@@ -665,7 +665,7 @@ def test_a_legacy_json_row_is_a_cache_miss_not_a_garbage_vector(conn):
 
 
 def test_migrating_a_version_1_database_discards_its_json_vectors(tmp_path):
-    """The rows go; everything else stays and the version moves to 2."""
+    """The rows go; everything else stays and the version moves to current."""
     path = tmp_path / "legacy.sqlite3"
     connection = db.connect(path)
     db.migrate(connection)
@@ -677,7 +677,8 @@ def test_migrating_a_version_1_database_discards_its_json_vectors(tmp_path):
 
     db.migrate(connection)
 
-    assert connection.execute("SELECT version FROM schema_version").fetchone()["version"] == 2
+    stored = connection.execute("SELECT version FROM schema_version").fetchone()["version"]
+    assert stored == db.SCHEMA_VERSION
     remaining = connection.execute(
         "SELECT content_hash FROM embedding_cache"
     ).fetchall()
@@ -698,3 +699,106 @@ def test_a_truncated_blob_is_refused_rather_than_decoded(conn):
 
     with pytest.raises(ValueError, match="not a whole number of float32"):
         db.get_embedding(conn, "hash-truncated", MODEL)
+
+
+# --------------------------------------------------------------------------
+# schema version 3: document page counts, and message content
+# --------------------------------------------------------------------------
+
+
+def test_document_page_counts_round_trip(conn):
+    """`RequirementCitation.page_count` has no other source.
+
+    The frontend types it as a required number, so it cannot be derived at
+    request time from a PDF that may have been deleted. Ingestion knows it
+    while the document is open, so ingestion records it.
+    """
+    db.put_document_meta(conn, "autosar-can", "can_driver", page_count=203)
+    db.put_document_meta(conn, "autosar-can", "can_interface", page_count=430)
+
+    assert db.get_document_meta(conn, "autosar-can", "can_driver") == 203
+    assert db.page_counts(conn, "autosar-can") == {
+        "can_driver": 203,
+        "can_interface": 430,
+    }
+
+
+def test_an_unknown_document_has_no_page_count(conn):
+    assert db.get_document_meta(conn, "autosar-can", "nope") is None
+    assert db.page_counts(conn, "autosar-can") == {}
+
+
+def test_putting_a_page_count_twice_updates_it(conn):
+    """Ingestion is idempotent; a re-run must not duplicate or fail."""
+    db.put_document_meta(conn, "autosar-can", "can_driver", page_count=203)
+    db.put_document_meta(conn, "autosar-can", "can_driver", page_count=204)
+    assert db.get_document_meta(conn, "autosar-can", "can_driver") == 204
+
+
+def test_page_counts_are_scoped_to_the_project(conn):
+    db.put_document_meta(conn, "autosar-can", "can_driver", page_count=203)
+    assert db.page_counts(conn, "other-project") == {}
+
+
+def test_a_message_stores_its_own_content(conn):
+    """A *user* message has no token events to reconstruct text from.
+
+    `frontend/lib/threads.ts` stores `content` alongside `events` for exactly
+    that reason, so the column has to exist rather than being derived.
+    """
+    thread_id = db.create_thread(conn, "autosar-can")
+    message_id = db.create_message(
+        conn,
+        thread_id,
+        role="user",
+        content="What does SWS_Can_00011 require?",
+        events=[],
+    )
+
+    stored = db.get_message(conn, message_id)
+    assert stored["content"] == "What does SWS_Can_00011 require?"
+    assert stored["events"] == []
+
+
+def test_an_assistant_message_stores_content_and_its_event_stream(conn):
+    thread_id = db.create_thread(conn, "autosar-can")
+    events = [
+        {"type": "token", "data": {"text": "SWS_Can_00011 "}},
+        {"type": "token", "data": {"text": "requires E_OK."}},
+        {"type": "done", "data": {}},
+    ]
+    message_id = db.create_message(
+        conn,
+        thread_id,
+        role="assistant",
+        content="SWS_Can_00011 requires E_OK.",
+        events=events,
+    )
+
+    stored = db.get_message(conn, message_id)
+    assert stored["content"] == "SWS_Can_00011 requires E_OK."
+    assert stored["events"] == events, "the event stream is the message (spec §11)"
+
+
+def test_migrating_a_version_2_database_adds_the_new_columns(tmp_path):
+    """An existing ingested database must survive the upgrade in place."""
+    import sqlite3
+
+    path = tmp_path / "old.db"
+    old = db.connect(path)
+    db.migrate(old)
+    # Rewind to what a WP2-era database looked like.
+    old.execute("UPDATE schema_version SET version = 2")
+    old.execute("DROP TABLE documents")
+    old.commit()
+    old.close()
+
+    upgraded = db.connect(path)
+    db.migrate(upgraded)
+
+    version = upgraded.execute("SELECT MAX(version) AS v FROM schema_version").fetchone()["v"]
+    assert version == db.SCHEMA_VERSION
+    db.put_document_meta(upgraded, "autosar-can", "can_driver", page_count=203)
+    assert db.get_document_meta(upgraded, "autosar-can", "can_driver") == 203
+    upgraded.close()
+    del sqlite3
