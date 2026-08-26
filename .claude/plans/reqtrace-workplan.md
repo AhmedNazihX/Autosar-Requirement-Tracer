@@ -108,9 +108,16 @@ CodeUnit:    repo_path, language, symbol, kind, line_span, text,
 - E2E smoke script: boot both servers, 3 canned questions, one scoped report to completion.
 - **RAGAS (last):** ~25 golden Q&A from the SWS docs; metrics: faithfulness, answer relevancy, context precision/recall; report **naive top-k baseline vs full pipeline** table in README.
 
-## Work-package breakdown (~31h total; WP7.2 RAGAS is the slippable tail)
+## Work-package breakdown (~32h total; WP7.2 RAGAS is the slippable tail)
 
-Execution order: WP1 → WP2 → WP3 → WP4 → WP5 (F5.0 design canvas may run right after WP1) → WP6 → WP7. WP3 ships the agent with the 3 retrieval tools; the 2 evidence/report tools register in WP4 (S4.3.2). Each story lists its deliverable and acceptance criterion.
+Execution order: WP1 → WP2 → WP3 → WP4 → WP5 (F5.0 design canvas may run right after WP1) → WP6 → WP7.
+
+*(Amended 2026-08-26 during WP1, after measuring the real corpus: added F4.4,
+the judge evaluation against the `@req`/`!req` annotation ground truth, ~1h.
+The corpus also grew from 2 documents to 4 — CAN Driver, CAN Interface, CAN
+Transport Layer, CAN State Manager, 1054 requirements — and the code scope
+dropped `Can`, which has no implementation in the permitted repository.
+Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-findings.md`.)* WP3 ships the agent with the 3 retrieval tools; the 2 evidence/report tools register in WP4 (S4.3.2). Each story lists its deliverable and acceptance criterion.
 *(Audited 2026-08-26 by coverage-review agent: 2 gaps + 3 partials found and fixed — read endpoints S3.3.2, setup backend F3.6, error-handling S3.3.3/S5.2.5, context chunks S1.3.5, cache-invalidation acceptance S4.2.1.)*
 
 ### WP1 — Platform & Corpus Foundation (~6h)
@@ -191,6 +198,47 @@ Execution order: WP1 → WP2 → WP3 → WP4 → WP5 (F5.0 design canvas may run
 - S4.3.1 `POST /reports`→`{job_id, est_cost}`; SSE `{done,total,current}`; result matrix (SRS→SWS→verdict→evidence, coverage stats); export MD/CSV/JSON. *Accept: scoped run over `Can` completes; all three of implemented/partial/missing present (expected w/ version drift).*
 - S4.3.2 Register `check_implementation` + `generate_traceability_report` as agent tools in the F3.2 registry (agent now has all 5). *Accept: scripted conversation triggers an evidence check and launches a report (recorded LLM).*
 
+**F4.4 Judge evaluation against annotation ground truth (~1h)**
+
+The C sources carry two annotation markers meaning opposite things: `@req`
+claims a requirement **is** implemented, `!req` claims it explicitly is
+**not**. Measured across the scoped files: **914 `@req` vs 150 `!req`**.
+That is a developer-authored labelled set — positives and negatives — sitting
+in the corpus for free, and it is the only ground truth the T3 judge has.
+See `docs/findings/2026-08-26-corpus-and-toolchain-findings.md` §A2/A3.
+
+- S4.4.1 Build the eval set from the ingested corpus: requirements whose
+  canonical annotations resolve into the corpus, split into a **positive**
+  set (annotated `@req` only) and a **negative** set (annotated `!req` and
+  never `@req` anywhere). Persist it as a fixture so the eval is
+  reproducible and so a re-ingest cannot silently change the denominator.
+  Exclude requirements carrying both markers rather than guessing — count
+  and report them. *Accept: set built with both classes non-empty; counts
+  and the both-markers exclusion recorded.*
+- S4.4.2 Run `check_implementation` over the set and report a confusion
+  matrix over the four verdicts. Scoring rule, fixed in advance so it cannot
+  be chosen to flatter the result: on the negative set, `missing` or
+  `unverifiable` counts as correct and `implemented` as a false positive;
+  on the positive set, `implemented` or `partial` counts as correct and
+  `missing` as a false negative. Report precision and recall for
+  "implemented", the `unverifiable` rate per class, and mean confidence per
+  cell. Respect `MAX_REPORT_COST_USD` and cache verdicts by
+  `(req_id, git_sha, model_id)` like any other run — a re-run must cost
+  nothing. *Accept: matrix produced over a scoped subset; false-positive
+  rate on the negative set stated explicitly.*
+- S4.4.3 Write the result into the README as a table, with the honest
+  caveats: the annotations describe an **older AUTOSAR release** than the
+  ingested specs, so a `!req` may be stale rather than wrong; annotations
+  are claims by the original developers, not verified truth; and the sample
+  is one module family, not the whole standard. *Accept: table in README
+  with caveats stated, not buried.*
+
+Why this earns its hour: it converts the LLM judge from an unmeasured
+component into one with a reported error rate, which is the difference
+between claiming the traceability report is trustworthy and showing it.
+It also directly exercises the `unverifiable` verdict the design insisted on
+allowing.
+
 ### WP5 — Frontend Experience (~7h)
 
 **F5.0 Design canvas (gate for the rest of WP5)** — S5.0.1 /design mockups: main screen (sidebar+chat+split pane), PDF vs code source states, report flow (launch/progress/matrix), first-run + empty states, checkpoint rail. *Accept: user approves canvas; WP5 implements to it.*
@@ -219,7 +267,7 @@ Execution order: WP1 → WP2 → WP3 → WP4 → WP5 (F5.0 design canvas may run
 
 **F7.1 E2E smoke** — S7.1.1 script boots both servers, runs 3 canned questions + 1 scoped report to completion. *Accept: exits 0.*
 **F7.2 RAGAS eval (bonus: hard #2, cuttable)** — S7.2.1 ~25 golden Q&A authored from the SWS docs; S7.2.2 eval script: faithfulness, answer relevancy, context precision/recall; naive top-k baseline vs full pipeline. *Accept: README table with both columns.*
-**F7.3 Docs & delivery** — S7.3.1 README: architecture diagram, quickstart, bonus-task mapping, honest limitations (single language, version drift, judge fallibility, SRS cite-only). *Accept: fresh-eyes read-through; reviewer can run the app from README alone.*
+**F7.3 Docs & delivery** — S7.3.1 README: architecture diagram, quickstart, bonus-task mapping, honest limitations (single language, version drift, judge fallibility, SRS cite-only). Must also carry the two measured results that are evidence rather than assertion: F4.4's judge confusion matrix, and the release-drift figures from `docs/findings/2026-08-26-corpus-and-toolchain-findings.md` (§A1 the CAN Driver evidence gap, §A4 the 73% annotation join rate and what the other 27% actually is). State the code repository's licence correctly as **GPL-2.0** (§A6). *Accept: fresh-eyes read-through; reviewer can run the app from README alone.*
 
 ### Traceability: bonus tasks → stories
 - Hybrid search (hard) → F2.2; RAGAS (hard) → F7.2; prompt injection (medium) → WP6; token/cost display (medium) → F3.1 + S5.2.4; source citations (easy) → S3.3.1 + S5.2.3; conversation history & export (easy) → F3.5 + F5.7.
