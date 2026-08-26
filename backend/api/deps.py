@@ -112,11 +112,19 @@ def state_of(request: Request) -> AppState:
 
 @dataclass(frozen=True)
 class TurnDeps:
-    """Per-request objects for one chat turn."""
+    """Per-request objects for one chat turn.
+
+    ``titler`` is here rather than built where it is used so that the whole
+    turn — retrieval, chat, and the auto-title call — has exactly one seam a
+    test can substitute. Building it at the call site would have made the
+    auto-title the one part of a turn that reached the network during tests,
+    which is precisely what happened before it moved here.
+    """
 
     engine: Engine
     chat: llm.Llm
     cost_sink: CostSink
+    titler: llm.Llm | None = None
 
 
 def build_engine(state: AppState) -> Engine:
@@ -153,4 +161,9 @@ def build_turn(state: AppState) -> TurnDeps:
         "chat",
         http_client=sniffing_client(sink),
     )
-    return TurnDeps(engine=engine, chat=chat, cost_sink=sink)
+    return TurnDeps(
+        engine=engine,
+        chat=chat,
+        cost_sink=sink,
+        titler=llm.chat_model(state.manifest, "title"),
+    )

@@ -35,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agent.runner import run_turn
 from agent.tools import SideChannel, ToolContext
 from api import deps
+from api import threads as api_threads
 from api.chat_events import ChatEvent, ChatEventEnvelope, ErrorEvent, sse_frame
 from core import db
 
@@ -114,7 +115,7 @@ def _turn(state: deps.AppState, body: ChatRequest) -> Iterator[str]:
             retryable=False,
         )
         yield sse_frame(failure)
-        _persist(state, body.thread_id, message, [failure])
+        _persist(state, body.thread_id, message, [failure], titler=None)
         return
 
     try:
@@ -138,7 +139,7 @@ def _turn(state: deps.AppState, body: ChatRequest) -> Iterator[str]:
         events.append(failure)
         yield sse_frame(failure)
 
-    _persist(state, body.thread_id, message, events)
+    _persist(state, body.thread_id, message, events, titler=turn.titler)
 
 
 # --------------------------------------------------------------------------
@@ -172,7 +173,12 @@ def _history(state: deps.AppState, thread_id: str) -> list[BaseMessage]:
 
 
 def _persist(
-    state: deps.AppState, thread_id: str, message: str, events: list[ChatEvent]
+    state: deps.AppState,
+    thread_id: str,
+    message: str,
+    events: list[ChatEvent],
+    *,
+    titler,
 ) -> None:
     """Store the user message and the assistant's event stream.
 
@@ -199,6 +205,9 @@ def _persist(
         )
     except Exception:  # noqa: BLE001 - the answer was already delivered
         return
+    # Story S3.5.3: name the thread from its first message. Best-effort — a
+    # failure here leaves it untitled, which the sidebar already handles.
+    api_threads.autotitle(state, thread_id, message, titler)
 
 
 def _answer_text(events: list[ChatEvent]) -> str:

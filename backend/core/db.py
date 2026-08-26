@@ -557,8 +557,18 @@ def create_thread_with_id(
 
 
 def list_threads(conn: sqlite3.Connection, project_id: str) -> list[dict]:
+    """Threads for ``project_id``, most recently updated first, with counts.
+
+    ``message_count`` is counted in the same query rather than by a follow-up
+    per thread: the sidebar shows every thread at once, so the alternative is
+    N+1 queries to render one list.
+    """
     rows = conn.execute(
-        "SELECT * FROM threads WHERE project_id = ? ORDER BY updated_at DESC",
+        "SELECT t.*, COUNT(m.id) AS message_count "
+        "FROM threads AS t LEFT JOIN messages AS m ON m.thread_id = t.id "
+        "WHERE t.project_id = ? "
+        "GROUP BY t.id "
+        "ORDER BY t.updated_at DESC, t.created_at DESC",
         (project_id,),
     ).fetchall()
     return [dict(row) for row in rows]
