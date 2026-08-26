@@ -1,0 +1,9 @@
+{
+  "fixture": "can_driver_p023",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 23,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The false-positive guard. This is a page of the section 6 'Requirements Tracing' table: each row pairs an upstream [SRS_*] id with the [SWS_Can_*] ids that satisfy it, and there is not a single '⌈' on the page. 33 bracketed SWS_Can ids appear here and NONE of them is a requirement definition, so the expected list is deliberately empty. The page also carries the '△' and '▽' table-continuation markers that the cleaning pass drops.",
+  "requirements": []
+}

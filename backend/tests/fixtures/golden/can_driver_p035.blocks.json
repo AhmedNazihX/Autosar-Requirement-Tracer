@@ -1,0 +1,213 @@
+{
+  "fixture": "can_driver_p035",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 35,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 57799,
+  "char_end": 60252,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 57799,
+      "char_end": 57827,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 57827,
+      "char_end": 57845,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        88.3,
+        111.182,
+        524.409,
+        137.878
+      ],
+      "char_start": 57845,
+      "char_end": 57975,
+      "text": "• If the register can affect several hardware modules and if it is not an I/O register\nit shall be initialized by the MCU driver.\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        88.3,
+        148.043,
+        524.409,
+        174.74
+      ],
+      "char_start": 57975,
+      "char_end": 58096,
+      "text": "• One-time writable registers that require initialization directly after reset shall be\ninitialized by the startup code.\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        88.3,
+        184.905,
+        398.354,
+        197.156
+      ],
+      "char_start": 58096,
+      "char_end": 58160,
+      "text": "• All other registers shall be initialized by the startup code.\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        70.866,
+        207.321,
+        184.386,
+        219.572
+      ],
+      "char_start": 58160,
+      "char_end": 58178,
+      "text": "⌋(SRS_SPAL_12461)\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        70.866,
+        229.737,
+        524.415,
+        270.88
+      ],
+      "char_start": 58178,
+      "char_end": 58373,
+      "text": "[SWS_Can_00056] ⌈Post-Build configuration elements that are marked as ’multiple’\n(’M’ or ’x’) in chapter 10 can be selected by passing the pointer ’Config’ to the init\nfunction of the module.⌋()\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        70.866,
+        280.864,
+        524.415,
+        365.525
+      ],
+      "char_start": 58373,
+      "char_end": 58841,
+      "text": "[SWS_Can_00062] ⌈If Can_SetBaudrate determines that the aimed configuration\nchange requires a re-initialization and the CAN Controller is in STOPPED, the function\nCan_SetBaudrate shall re-initialize the CAN controller and the controller specific set-\ntings.⌋(SRS_Can_01139, SRS_Can_01042) If re-initialization is necessary, the CAN\nController has to be switched to STOPPED before Can_SetBaudrate() can be exe-\ncuted and the new baud rate configuration can be applied.\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        70.866,
+        375.509,
+        524.413,
+        402.387
+      ],
+      "char_start": 58841,
+      "char_end": 58988,
+      "text": "[SWS_Can_00255] ⌈The function Can_SetBaudrate shall only affect register areas\nthat contain specific configuration for a single CAN controller.⌋()\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        70.866,
+        412.551,
+        524.409,
+        453.694
+      ],
+      "char_start": 58988,
+      "char_end": 59169,
+      "text": "[SWS_Can_00021] ⌈The desired CAN controller configuration can be selected with the\nparameter Config.⌋(SRS_BSW_00344, SRS_BSW_00404, SRS_BSW_00405, SRS_-\nSPAL_12263, SRS_SPAL_12265)\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        70.866,
+        463.859,
+        524.41,
+        548.339
+      ],
+      "char_start": 59169,
+      "char_end": 59605,
+      "text": "[SWS_Can_00291] ⌈Config is a pointer into an array of implementation specific data\nstructure stored in ROM. The different controller configuration sets are located as data\nstructures in ROM.⌋(SRS_BSW_00438) The possible values for Config are provided\nby the configuration description (see chapter 10).\nThe Can module configuration defines the global CAN HW Unit settings and references\nto the default CAN controller configuration sets.\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        70.866,
+        584.368,
+        242.26,
+        598.715
+      ],
+      "char_start": 59605,
+      "char_end": 59628,
+      "text": "7.5\nL-PDU transmission\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        70.866,
+        614.591,
+        524.41,
+        640.992
+      ],
+      "char_start": 59628,
+      "char_end": 59789,
+      "text": "On L-PDU transmission, the Can module converts the L-PDU contents ID and Data\nLength to a hardware specific format (if necessary) and triggers the transmission.\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        70.866,
+        651.157,
+        524.411,
+        692.299
+      ],
+      "char_start": 59789,
+      "char_end": 60025,
+      "text": "[SWS_Can_00059] ⌈Data mapping by CAN to memory is defined in a way that the\nCAN data byte which is sent out first is array element 0, the CAN data byte which is\nsent out last is array element 7 or 63 in case of CAN FD.⌋(SRS_SPAL_12063)\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        70.866,
+        702.464,
+        524.411,
+        743.607
+      ],
+      "char_start": 60025,
+      "char_end": 60201,
+      "text": "[SWS_Can_00427] ⌈If the presentation inside the CAN Hardware buffer differs from\nAUTOSAR definition, the Can module must provide an adapted SDU-Buffer for the\nupper layers.⌋()\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 60201,
+      "char_end": 60252,
+      "text": "35 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}

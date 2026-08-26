@@ -1,0 +1,49 @@
+{
+  "project_id": "autosar-can",
+  "corpus_version": "R23-11",
+  "text_normalization": "furniture-stripped, dehyphenated, whitespace-collapsed (see README.md)",
+  "pages": [
+    {
+      "fixture": "can_driver_p032",
+      "document_key": "can_driver",
+      "page": 32,
+      "why": "9 plain [ID] ceiling-text-floor requirements, balanced ceilings/floors - the ordinary case, at density"
+    },
+    {
+      "fixture": "can_driver_p043",
+      "document_key": "can_driver",
+      "page": 43,
+      "why": "5 requirements of which 2 are titled (SWS_Can_91019, SWS_Can_91020); both titled bodies are tables, the awkward case for text extraction. Also carries hyphen-split upstream ids (SRS_BSW_-\\n00369)"
+    },
+    {
+      "fixture": "can_driver_p034",
+      "document_key": "can_driver",
+      "page": 34,
+      "why": "SWS_Can_00407 opens here and closes on page 35 - the page-break case (7 ceilings, 6 floors). Pairs with can_driver_p035; only meaningful together"
+    },
+    {
+      "fixture": "can_driver_p035",
+      "document_key": "can_driver",
+      "page": 35,
+      "why": "closes SWS_Can_00407 (7 ceilings, 8 floors). The page furniture between the two halves is exactly what the cleaning pass has to remove"
+    },
+    {
+      "fixture": "can_driver_p023",
+      "document_key": "can_driver",
+      "page": 23,
+      "why": "section 6 Requirements Tracing SRS->SWS table: must yield ZERO requirements. The false-positive guard"
+    },
+    {
+      "fixture": "can_interface_p034",
+      "document_key": "can_interface",
+      "page": 34,
+      "why": "7 plain requirements in the other ID casing (SWS_CANIF_* versus SWS_Can_*). Both documents must be represented or a casing bug passes every test"
+    },
+    {
+      "fixture": "can_driver_p094",
+      "document_key": "can_driver",
+      "page": 94,
+      "why": "SWS_Can_CONSTR_00509/00510/00511 - the _CONSTR_ infix. Omitting the infix from the id pattern silently drops ~20 requirements across the corpus and nothing else here would catch it"
+    }
+  ]
+}

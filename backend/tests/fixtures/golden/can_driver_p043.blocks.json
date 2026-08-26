@@ -1,0 +1,357 @@
+{
+  "fixture": "can_driver_p043",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 43,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 74398,
+  "char_end": 76150,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 74398,
+      "char_end": 74426,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 74426,
+      "char_end": 74444,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.488,
+        229.727,
+        123.443
+      ],
+      "char_start": 74444,
+      "char_end": 74470,
+      "text": "7.12.1\nDevelopment Errors\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        139.575,
+        453.571,
+        151.836
+      ],
+      "char_start": 74470,
+      "char_end": 74534,
+      "text": "[SWS_Can_91019] Definiton of development errors in module Can ⌈\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        77.342,
+        166.521,
+        500.28,
+        174.662
+      ],
+      "char_start": 74534,
+      "char_end": 74579,
+      "text": "Type of error\nRelated error code\nError value\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        77.342,
+        180.489,
+        475.796,
+        188.643
+      ],
+      "char_start": 74579,
+      "char_end": 74644,
+      "text": "API Service called with wrong parameter\nCAN_E_PARAM_POINTER\n0x01\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        77.342,
+        194.6,
+        475.796,
+        202.754
+      ],
+      "char_start": 74644,
+      "char_end": 74708,
+      "text": "API Service called with wrong parameter\nCAN_E_PARAM_HANDLE\n0x02\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        77.342,
+        208.711,
+        475.796,
+        216.865
+      ],
+      "char_start": 74708,
+      "char_end": 74777,
+      "text": "API Service called with wrong parameter\nCAN_E_PARAM_DATA_LENGTH\n0x03\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        222.822,
+        475.796,
+        230.976
+      ],
+      "char_start": 74777,
+      "char_end": 74845,
+      "text": "API Service called with wrong parameter\nCAN_E_PARAM_CONTROLLER\n0x04\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        77.342,
+        236.933,
+        475.796,
+        245.087
+      ],
+      "char_start": 74845,
+      "char_end": 74903,
+      "text": "API Service used without initialization\nCAN_E_UNINIT\n0x05\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        250.227,
+        475.796,
+        258.381
+      ],
+      "char_start": 74903,
+      "char_end": 74965,
+      "text": "Invalid transition for the current mode\nCAN_E_TRANSITION\n0x06\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        77.342,
+        263.522,
+        475.796,
+        271.675
+      ],
+      "char_start": 74965,
+      "char_end": 75031,
+      "text": "Parameter Baudrate has an invalid value\nCAN_E_PARAM_BAUDRATE\n0x07\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        77.342,
+        276.816,
+        475.796,
+        284.969
+      ],
+      "char_start": 75031,
+      "char_end": 75090,
+      "text": "Invalid configuration set selection\nCAN_E_INIT_FAILED\n0x09\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        77.342,
+        290.927,
+        476.681,
+        299.08
+      ],
+      "char_start": 75090,
+      "char_end": 75151,
+      "text": "API service called with invalid PDU ID\nCAN_E_PARAM_LPDU\n0x0A\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        70.866,
+        314.606,
+        84.142,
+        326.857
+      ],
+      "char_start": 75151,
+      "char_end": 75155,
+      "text": "⌋()\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        70.866,
+        361.239,
+        202.66,
+        373.194
+      ],
+      "char_start": 75155,
+      "char_end": 75177,
+      "text": "7.12.2\nRuntime Errors\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        389.326,
+        423.85,
+        401.587
+      ],
+      "char_start": 75177,
+      "char_end": 75237,
+      "text": "[SWS_Can_91020] Definiton of runtime errors in module Can ⌈\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        77.342,
+        416.272,
+        500.28,
+        424.413
+      ],
+      "char_start": 75237,
+      "char_end": 75282,
+      "text": "Type of error\nRelated error code\nError value\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        77.342,
+        430.24,
+        475.796,
+        438.394
+      ],
+      "char_start": 75282,
+      "char_end": 75331,
+      "text": "Received CAN message is lost\nCAN_E_DATALOST\n0x01\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        70.866,
+        454.737,
+        84.142,
+        466.988
+      ],
+      "char_start": 75331,
+      "char_end": 75335,
+      "text": "⌋()\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        70.866,
+        477.153,
+        524.411,
+        518.295
+      ],
+      "char_start": 75335,
+      "char_end": 75557,
+      "text": "[SWS_Can_00026] ⌈The Can module shall indicate errors that are caused by erro-\nneous usage of the Can module API. This covers API parameter checks and call se-\nquence errors.⌋(SRS_BSW_00337, SRS_BSW_00323, SRS_SPAL_00157)\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        70.866,
+        528.46,
+        524.414,
+        555.157
+      ],
+      "char_start": 75557,
+      "char_end": 75701,
+      "text": "[SWS_Can_00091] ⌈After return of the DET the Can module’s function that raised the\ndevelopment error shall return immediately.⌋(SRS_SPAL_12448)\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        70.866,
+        565.322,
+        524.411,
+        620.911
+      ],
+      "char_start": 75701,
+      "char_end": 75986,
+      "text": "[SWS_Can_00089] ⌈The Can module’s environment shall indicate development errors\nonly in the return values of a function of the Can module when DET is switched on and\nthe function provides a return value. The returned value is E_NOT_OK.⌋(SRS_BSW_-\n00369, SRS_BSW_00386, SRS_SPAL_12448)\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        70.866,
+        655.292,
+        207.203,
+        667.247
+      ],
+      "char_start": 75986,
+      "char_end": 76010,
+      "text": "7.12.3\nTransient Faults\n"
+    },
+    {
+      "block_no": 24,
+      "bbox": [
+        70.866,
+        683.675,
+        223.402,
+        695.63
+      ],
+      "char_start": 76010,
+      "char_end": 76041,
+      "text": "There are no transient faults.\n"
+    },
+    {
+      "block_no": 25,
+      "bbox": [
+        70.866,
+        730.012,
+        217.7,
+        741.967
+      ],
+      "char_start": 76041,
+      "char_end": 76066,
+      "text": "7.12.4\nProduction Errors\n"
+    },
+    {
+      "block_no": 26,
+      "bbox": [
+        70.866,
+        758.395,
+        242.112,
+        770.35
+      ],
+      "char_start": 76066,
+      "char_end": 76099,
+      "text": "There are no productions errors.\n"
+    },
+    {
+      "block_no": 27,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 76099,
+      "char_end": 76150,
+      "text": "43 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}

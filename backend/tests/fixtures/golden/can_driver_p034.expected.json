@@ -1,0 +1,73 @@
+{
+  "fixture": "can_driver_p034",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 34,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "First half of the page-break pair. 7 ceilings, 6 floors: SWS_Can_00407 opens in the last block before the footer and its floor is on page 35, so it is labeled HERE (the page its id appears on) with spans_page_break=true, and must NOT be labeled again in can_driver_p035. Its bbox must be None — no single block contains it — leaving char_span as the only usable locator. The page also names [SWS_Can_91011] and [SWS_Can_91012] in running prose with no ceiling: those are references, not requirements, and must not be extracted here.",
+  "requirements": [
+    {
+      "id": "SWS_Can_00272",
+      "title": null,
+      "text": "After bus-off detection, the CAN controller shall transition to the state STOPPED and the Can module shall ensure that the CAN controller doesn’t participate on the network anymore.",
+      "upstream_ids": ["SRS_Can_01060"],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00273",
+      "title": null,
+      "text": "After bus-off detection, the Can module shall cancel still pending messages.",
+      "upstream_ids": ["SRS_Can_01060"],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00274",
+      "title": null,
+      "text": "The Can module shall disable or suppress automatic bus-off recovery.",
+      "upstream_ids": ["SRS_Can_01060"],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_91010",
+      "title": null,
+      "text": "The function Can_DeInit shall set all CAN controllers in the state UNINIT",
+      "upstream_ids": ["SRS_Can_01166", "SRS_Can_01053"],
+      "named_symbols": ["Can_DeInit"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00250",
+      "title": null,
+      "text": "The function Can_Init shall initialize: static variables, including flags, Common setting for the complete CAN HW unit, CAN controller specific settings for each CAN controller",
+      "upstream_ids": ["SRS_BSW_00101"],
+      "named_symbols": ["Can_Init"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00053",
+      "title": null,
+      "text": "Can_Init shall not change registers of CAN controller Hardware resources that are not used.",
+      "upstream_ids": ["SRS_SPAL_12125"],
+      "named_symbols": ["Can_Init"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00407",
+      "title": null,
+      "text": "• If the hardware allows for only one usage of the register, the Can module implementing that functionality is responsible initializing the register. • If the register can affect several hardware modules and if it is an I/O register it shall be initialized by the PORT driver. • If the register can affect several hardware modules and if it is not an I/O register it shall be initialized by the MCU driver. • One-time writable registers that require initialization directly after reset shall be initialized by the startup code. • All other registers shall be initialized by the startup code.",
+      "upstream_ids": ["SRS_SPAL_12461"],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": true
+    }
+  ]
+}

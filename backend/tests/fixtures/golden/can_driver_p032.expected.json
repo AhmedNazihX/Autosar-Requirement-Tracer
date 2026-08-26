@@ -1,0 +1,91 @@
+{
+  "fixture": "can_driver_p032",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 32,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The ordinary case at density: 9 plain requirements, all with an empty upstream list (the document writes them as an empty '()'), none titled. Several bodies are justified so hard line breaks fall mid-identifier — 'partici-\\npating', 'Can_-\\nSetControllerMode', 'log-\\nical' — which the dehyphenation rule must rejoin.",
+  "requirements": [
+    {
+      "id": "SWS_Can_00409",
+      "title": null,
+      "text": "When the function Can_SetControllerMode (CAN_CS_STARTED) is entered and the CAN controller is not in state STOPPED it shall detect a invalid state transition (Compare to [SWS_Can_00200]).",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00263",
+      "title": null,
+      "text": "The function Can_SetControllerMode(CAN_CS_STOPPED) shall set the bits inside the CAN hardware such that the CAN controller stops participating on the network.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00264",
+      "title": null,
+      "text": "The function Can_SetControllerMode(CAN_CS_STOPPED) shall wait for a limited time until the CAN controller is really switched off. Compare to [SWS_Can_00398].",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00267",
+      "title": null,
+      "text": "If the CAN HW does not support a sleep mode, the transition from SLEEP to STOPPED shall return from the logical sleep mode, but have no effect to the CAN controller state (as the controller is already in stopped state).",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00268",
+      "title": null,
+      "text": "The function Can_SetControllerMode(CAN_CS_STOPPED) shall wait for a limited time until the CAN controller is in STOPPED state. Compare to [SWS_Can_00398].",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00282",
+      "title": null,
+      "text": "The function Can_SetControllerMode(CAN_CS_STOPPED) shall cancel pending messages.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00265",
+      "title": null,
+      "text": "The function Can_SetControllerMode(CAN_CS_SLEEP) shall set the controller into sleep mode.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00266",
+      "title": null,
+      "text": "If the CAN HW does support a sleep mode, the function Can_SetControllerMode(CAN_CS_SLEEP) shall wait for a limited time until the CAN controller is in SLEEP state and it is assured that the CAN hardware is wake able. Compare to [SWS_Can_00398].",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00290",
+      "title": null,
+      "text": "If the CAN HW does not support a sleep mode, the function Can_SetControllerMode(CAN_CS_SLEEP) shall set the CAN controller to the logical sleep mode.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetControllerMode"],
+      "page": 32,
+      "spans_page_break": false
+    }
+  ]
+}

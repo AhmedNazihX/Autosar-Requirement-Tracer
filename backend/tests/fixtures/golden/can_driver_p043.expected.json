@@ -1,0 +1,55 @@
+{
+  "fixture": "can_driver_p043",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 43,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The titled variant. SWS_Can_91019 and SWS_Can_91020 put a title between the ']' and the '⌈', and their bodies are tables — the ceiling sits alone at the end of the heading block and the floor alone in its own block, with the table rows in between. 'Definiton' is misspelled IN THE SOURCE DOCUMENT and is transcribed verbatim; do not correct it. SWS_Can_00089's upstream list is split across a line break as 'SRS_BSW_-\\n00369', so the dehyphenation rule has to run before the upstream ids are matched.",
+  "requirements": [
+    {
+      "id": "SWS_Can_91019",
+      "title": "Definiton of development errors in module Can",
+      "text": "Type of error Related error code Error value API Service called with wrong parameter CAN_E_PARAM_POINTER 0x01 API Service called with wrong parameter CAN_E_PARAM_HANDLE 0x02 API Service called with wrong parameter CAN_E_PARAM_DATA_LENGTH 0x03 API Service called with wrong parameter CAN_E_PARAM_CONTROLLER 0x04 API Service used without initialization CAN_E_UNINIT 0x05 Invalid transition for the current mode CAN_E_TRANSITION 0x06 Parameter Baudrate has an invalid value CAN_E_PARAM_BAUDRATE 0x07 Invalid configuration set selection CAN_E_INIT_FAILED 0x09 API service called with invalid PDU ID CAN_E_PARAM_LPDU 0x0A",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 43,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_91020",
+      "title": "Definiton of runtime errors in module Can",
+      "text": "Type of error Related error code Error value Received CAN message is lost CAN_E_DATALOST 0x01",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 43,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00026",
+      "title": null,
+      "text": "The Can module shall indicate errors that are caused by erroneous usage of the Can module API. This covers API parameter checks and call sequence errors.",
+      "upstream_ids": ["SRS_BSW_00337", "SRS_BSW_00323", "SRS_SPAL_00157"],
+      "named_symbols": [],
+      "page": 43,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00091",
+      "title": null,
+      "text": "After return of the DET the Can module’s function that raised the development error shall return immediately.",
+      "upstream_ids": ["SRS_SPAL_12448"],
+      "named_symbols": [],
+      "page": 43,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00089",
+      "title": null,
+      "text": "The Can module’s environment shall indicate development errors only in the return values of a function of the Can module when DET is switched on and the function provides a return value. The returned value is E_NOT_OK.",
+      "upstream_ids": ["SRS_BSW_00369", "SRS_BSW_00386", "SRS_SPAL_12448"],
+      "named_symbols": [],
+      "page": 43,
+      "spans_page_break": false
+    }
+  ]
+}

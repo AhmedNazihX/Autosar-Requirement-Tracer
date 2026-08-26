@@ -1,0 +1,561 @@
+{
+  "fixture": "can_driver_p023",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 23,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 32125,
+  "char_end": 34666,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 32125,
+      "char_end": 32153,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 32153,
+      "char_end": 32171,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        289.794,
+        110.717,
+        300.422,
+        122.672
+      ],
+      "char_start": 32171,
+      "char_end": 32173,
+      "text": "△\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        77.342,
+        128.303,
+        367.729,
+        136.273
+      ],
+      "char_start": 32173,
+      "char_end": 32210,
+      "text": "Requirement\nDescription\nSatisfied by\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        77.342,
+        142.342,
+        307.132,
+        159.817
+      ],
+      "char_start": 32210,
+      "char_end": 32301,
+      "text": "[SRS_BSW_00357]\nFor success/failure of an API call a\nstandard return type shall be defined\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        323.152,
+        142.383,
+        391.376,
+        150.353
+      ],
+      "char_start": 32301,
+      "char_end": 32317,
+      "text": "[SWS_Can_00506]\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        77.342,
+        165.921,
+        295.392,
+        192.861
+      ],
+      "char_start": 32317,
+      "char_end": 32429,
+      "text": "[SRS_BSW_00358]\nThe return type of init() functions\nimplemented by AUTOSAR Basic\nSoftware Modules shall be void\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        323.152,
+        165.962,
+        391.376,
+        173.932
+      ],
+      "char_start": 32429,
+      "char_end": 32445,
+      "text": "[SWS_Can_00223]\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        197.451,
+        306.04,
+        224.391
+      ],
+      "char_start": 32445,
+      "char_end": 32558,
+      "text": "[SRS_BSW_00369]\nAll AUTOSAR Basic Software\nModules shall not return specific\ndevelopment error codes via the API\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        323.152,
+        197.492,
+        461.816,
+        214.927
+      ],
+      "char_start": 32558,
+      "char_end": 32622,
+      "text": "[SWS_Can_00089] [SWS_Can_00506]\n[SWS_Can_91011] [SWS_Can_91012]\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        230.495,
+        310.033,
+        266.9
+      ],
+      "char_start": 32622,
+      "char_end": 32753,
+      "text": "[SRS_BSW_00373]\nThe main processing function of each\nAUTOSAR Basic Software Module\nshall be named according the defined\nconvention\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        323.152,
+        230.536,
+        391.376,
+        238.506
+      ],
+      "char_start": 32753,
+      "char_end": 32769,
+      "text": "[SWS_Can_00031]\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        77.342,
+        271.418,
+        304.892,
+        288.893
+      ],
+      "char_start": 32769,
+      "char_end": 32837,
+      "text": "[SRS_BSW_00375]\nBasic Software Modules shall report\nwake-up reasons\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        323.152,
+        271.458,
+        461.816,
+        279.428
+      ],
+      "char_start": 32837,
+      "char_end": 32869,
+      "text": "[SWS_Can_00271] [SWS_Can_00364]\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        77.342,
+        294.997,
+        304.781,
+        312.472
+      ],
+      "char_start": 32869,
+      "char_end": 32944,
+      "text": "[SRS_BSW_00377]\nA Basic Software Module can return\na module specific types\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        323.152,
+        295.038,
+        391.376,
+        303.008
+      ],
+      "char_start": 32944,
+      "char_end": 32960,
+      "text": "[SWS_Can_00239]\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        77.342,
+        318.577,
+        391.376,
+        326.587
+      ],
+      "char_start": 32960,
+      "char_end": 33026,
+      "text": "[SRS_BSW_00385]\nList possible error notifications\n[SWS_Can_00104]\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        77.342,
+        332.692,
+        288.243,
+        359.631
+      ],
+      "char_start": 33026,
+      "char_end": 33120,
+      "text": "[SRS_BSW_00386]\nThe BSW shall specify the\nconfiguration and conditions for\ndetecting an error\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        323.152,
+        332.732,
+        391.376,
+        340.702
+      ],
+      "char_start": 33120,
+      "char_end": 33136,
+      "text": "[SWS_Can_00089]\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        77.342,
+        365.831,
+        275.778,
+        383.307
+      ],
+      "char_start": 33136,
+      "char_end": 33203,
+      "text": "[SRS_BSW_00404]\nBSW Modules shall support\npost-build configuration\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        323.152,
+        365.872,
+        391.376,
+        373.842
+      ],
+      "char_start": 33203,
+      "char_end": 33219,
+      "text": "[SWS_Can_00021]\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        77.342,
+        389.507,
+        305.371,
+        406.982
+      ],
+      "char_start": 33219,
+      "char_end": 33289,
+      "text": "[SRS_BSW_00405]\nBSW Modules shall support multiple\nconfiguration sets\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        323.152,
+        389.547,
+        391.376,
+        397.517
+      ],
+      "char_start": 33289,
+      "char_end": 33305,
+      "text": "[SWS_Can_00021]\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        77.342,
+        413.182,
+        302.701,
+        449.586
+      ],
+      "char_start": 33305,
+      "char_end": 33464,
+      "text": "[SRS_BSW_00406]\nA static status variable denoting if a\nBSW module is initialized shall be\ninitialized with value 0 before any\nAPIs of the BSW module is called\n"
+    },
+    {
+      "block_no": 24,
+      "bbox": [
+        323.152,
+        413.223,
+        461.816,
+        440.122
+      ],
+      "char_start": 33464,
+      "char_end": 33544,
+      "text": "[SWS_Can_00103] [SWS_Can_00512]\n[SWS_Can_00517] [SWS_Can_91005]\n[SWS_Can_91016]\n"
+    },
+    {
+      "block_no": 25,
+      "bbox": [
+        77.342,
+        454.176,
+        308.79,
+        481.116
+      ],
+      "char_start": 33544,
+      "char_end": 33645,
+      "text": "[SRS_BSW_00414]\nInit functions shall have a pointer to a\nconfiguration structure as single\nparameter\n"
+    },
+    {
+      "block_no": 26,
+      "bbox": [
+        323.152,
+        454.217,
+        391.376,
+        462.187
+      ],
+      "char_start": 33645,
+      "char_end": 33661,
+      "text": "[SWS_Can_00223]\n"
+    },
+    {
+      "block_no": 27,
+      "bbox": [
+        77.342,
+        487.22,
+        289.215,
+        504.695
+      ],
+      "char_start": 33661,
+      "char_end": 33741,
+      "text": "[SRS_BSW_00416]\nThe sequence of modules to be\ninitialized shall be configurable\n"
+    },
+    {
+      "block_no": 28,
+      "bbox": [
+        323.152,
+        487.261,
+        461.816,
+        495.231
+      ],
+      "char_start": 33741,
+      "char_end": 33773,
+      "text": "[SWS_Can_91005] [SWS_Can_91016]\n"
+    },
+    {
+      "block_no": 29,
+      "bbox": [
+        77.342,
+        510.895,
+        305.578,
+        547.3
+      ],
+      "char_start": 33773,
+      "char_end": 33900,
+      "text": "[SRS_BSW_00428]\nA BSW module shall state if its main\nprocessing function(s) has to be\nexecuted in a specific order or\nsequence\n"
+    },
+    {
+      "block_no": 30,
+      "bbox": [
+        323.152,
+        510.936,
+        391.376,
+        518.906
+      ],
+      "char_start": 33900,
+      "char_end": 33916,
+      "text": "[SWS_Can_00110]\n"
+    },
+    {
+      "block_no": 31,
+      "bbox": [
+        77.342,
+        553.261,
+        307.602,
+        580.16
+      ],
+      "char_start": 33916,
+      "char_end": 34033,
+      "text": "[SRS_BSW_00432]\nModules should have separate main\nprocessing functions for read/receive\nand write/transmit data path\n"
+    },
+    {
+      "block_no": 32,
+      "bbox": [
+        323.152,
+        553.444,
+        461.816,
+        570.879
+      ],
+      "char_start": 34033,
+      "char_end": 34097,
+      "text": "[SWS_Can_00031] [SWS_Can_00108]\n[SWS_Can_00109] [SWS_Can_00112]\n"
+    },
+    {
+      "block_no": 33,
+      "bbox": [
+        77.342,
+        586.264,
+        309.069,
+        603.74
+      ],
+      "char_start": 34097,
+      "char_end": 34164,
+      "text": "[SRS_BSW_00438]\nConfiguration data shall be defined in\na structure\n"
+    },
+    {
+      "block_no": 34,
+      "bbox": [
+        323.152,
+        586.305,
+        391.376,
+        594.275
+      ],
+      "char_start": 34164,
+      "char_end": 34180,
+      "text": "[SWS_Can_00291]\n"
+    },
+    {
+      "block_no": 35,
+      "bbox": [
+        77.342,
+        608.258,
+        303.211,
+        635.198
+      ],
+      "char_start": 34180,
+      "char_end": 34280,
+      "text": "[SRS_BSW_00449]\nBSW Service APIs used by Autosar\nApplication Software shall return a\nStd_ReturnType\n"
+    },
+    {
+      "block_no": 36,
+      "bbox": [
+        323.152,
+        608.299,
+        391.376,
+        616.269
+      ],
+      "char_start": 34280,
+      "char_end": 34296,
+      "text": "[SWS_Can_00506]\n"
+    },
+    {
+      "block_no": 37,
+      "bbox": [
+        77.342,
+        641.302,
+        298.692,
+        668.242
+      ],
+      "char_start": 34296,
+      "char_end": 34385,
+      "text": "[SRS_Can_01005]\nThe CAN Interface shall perform a\ncheck for correct DLC of received\nPDUs\n"
+    },
+    {
+      "block_no": 38,
+      "bbox": [
+        323.152,
+        641.343,
+        391.376,
+        649.313
+      ],
+      "char_start": 34385,
+      "char_end": 34401,
+      "text": "[SWS_Can_00218]\n"
+    },
+    {
+      "block_no": 39,
+      "bbox": [
+        77.342,
+        672.832,
+        302.382,
+        690.307
+      ],
+      "char_start": 34401,
+      "char_end": 34480,
+      "text": "[SRS_Can_01041]\nThe CAN Driver shall implement an\ninterface for initialization\n"
+    },
+    {
+      "block_no": 40,
+      "bbox": [
+        323.152,
+        672.872,
+        461.816,
+        680.842
+      ],
+      "char_start": 34480,
+      "char_end": 34512,
+      "text": "[SWS_Can_00245] [SWS_Can_00246]\n"
+    },
+    {
+      "block_no": 41,
+      "bbox": [
+        77.342,
+        694.825,
+        297.536,
+        721.765
+      ],
+      "char_start": 34512,
+      "char_end": 34597,
+      "text": "[SRS_Can_01042]\nThe CAN Driver shall support\ndynamic selection of configuration\nsets\n"
+    },
+    {
+      "block_no": 42,
+      "bbox": [
+        323.152,
+        694.866,
+        391.376,
+        702.836
+      ],
+      "char_start": 34597,
+      "char_end": 34613,
+      "text": "[SWS_Can_00062]\n"
+    },
+    {
+      "block_no": 43,
+      "bbox": [
+        289.794,
+        722.313,
+        300.422,
+        734.268
+      ],
+      "char_start": 34613,
+      "char_end": 34615,
+      "text": "▽\n"
+    },
+    {
+      "block_no": 44,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 34615,
+      "char_end": 34666,
+      "text": "23 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}

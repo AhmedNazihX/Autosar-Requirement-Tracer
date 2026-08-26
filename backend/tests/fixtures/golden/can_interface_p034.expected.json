@@ -1,0 +1,73 @@
+{
+  "fixture": "can_interface_p034",
+  "document_key": "can_interface",
+  "source_document": "AUTOSAR_CP_SWS_CANInterface.pdf",
+  "page": 34,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The second document, and the second ID casing: every requirement here is SWS_CANIF_* (upper case) where the CAN Driver writes SWS_Can_*. A pattern or a lookup that folds case away passes every CAN Driver fixture and still breaks here. The page also names [SWS_CANIF_00189], [SWS_CANIF_00064], [SWS_CANIF_00085] and the cross-document [SWS_Can_00416] in running prose without a ceiling — references, not requirements.",
+  "requirements": [
+    {
+      "id": "SWS_CANIF_00844",
+      "title": null,
+      "text": "CanIf shall support dynamic L-PDUs, where the CanId or relevant parts of the CanId are placed in the MetaData of a L-SDU.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00188",
+      "title": null,
+      "text": "CanIf shall process the two most significant bits of the CanId (see [1, Specification of CAN Driver], definition of Can_IdType [SWS_Can_00416]) to determine which type of CanId is used and thus how the dynamic Transmit L-PDU shall be transmitted.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_IdType"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00673",
+      "title": null,
+      "text": "The CanIf shall guarantee data consistency of the CanId in case of running function CanIf_SetDynamicTxId(). This service may be interrupted by a pre-emptive call of CanIf_Transmit() affecting the same L-PDU, see [SWS_CANIF_00064].",
+      "upstream_ids": [],
+      "named_symbols": ["CanIf_SetDynamicTxId", "CanIf_Transmit"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00855",
+      "title": null,
+      "text": "If CanIfTxPduCanIdMask and CanIfTxPduCanId are omitted, the CanId is directly taken from the MetaData.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00856",
+      "title": null,
+      "text": "CanIfTxPduCanIdMask shall be ignored when meta data configuration does not contain CAN_ID_32 for this L-SDU.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00854",
+      "title": null,
+      "text": "If the MetaDataItem CAN_ID_32, CanIfTxPduCanIdMask and CanIfTxPduCanId are available, CanIfTxPduCanIdMask defines the bits in CanIfTxPduCanId and the bits of the Can_IdType derived from CanIfTxPduCanIdType that shall appear in the actual CanId, the other bits are taken from the MetaData.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_IdType"],
+      "page": 34,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CANIF_00857",
+      "title": null,
+      "text": "CanIf_Init() (see [SWS_CANIF_00085]) initializes the CanIds of the dynamic Transmit L-PDUs with CanIfTxPduType to the value configured via CanIfTxPduCanId.",
+      "upstream_ids": [],
+      "named_symbols": ["CanIf_Init"],
+      "page": 34,
+      "spans_page_break": false
+    }
+  ]
+}

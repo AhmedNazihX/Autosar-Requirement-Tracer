@@ -1,0 +1,37 @@
+{
+  "fixture": "can_driver_p094",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 94,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The _CONSTR_ infix guard. A requirement-id pattern written as SWS_Can_\\d+ matches none of these three, and nothing else in the fixture set would notice — the manifest's per-document req_id_pattern carries the '(?:_CONSTR)?' group for exactly this reason. The rest of the page is an ECUC configuration-parameter table ([ECUC_Can_00359]) with no ceilings, so it contributes nothing.",
+  "requirements": [
+    {
+      "id": "SWS_Can_CONSTR_00509",
+      "title": null,
+      "text": "The ECUC partitions referenced by CanControllerEcucPartitionRef shall be a subset of the ECUC partitions referenced by CanEcucPartitionRef.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 94,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_CONSTR_00510",
+      "title": null,
+      "text": "CanController and CanTrcvChannel of one communication channel shall all reference the same ECUC partition.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 94,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_CONSTR_00511",
+      "title": null,
+      "text": "If CanEcucPartitionRef references one or more ECUC partitions, CanControllerEcucPartitionRef shall have a multiplicity of one and reference one of these ECUC partitions as well.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 94,
+      "spans_page_break": false
+    }
+  ]
+}

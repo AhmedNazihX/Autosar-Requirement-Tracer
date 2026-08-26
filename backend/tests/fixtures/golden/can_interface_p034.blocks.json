@@ -1,0 +1,225 @@
+{
+  "fixture": "can_interface_p034",
+  "document_key": "can_interface",
+  "source_document": "AUTOSAR_CP_SWS_CANInterface.pdf",
+  "source_sha256": "d1feae24b9461f40aea9397a9ae5172acb51ba21adfbc3b0242a467857c7918e",
+  "corpus_version": "R23-11",
+  "page": 34,
+  "page_count": 228,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 59097,
+  "char_end": 61449,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        364.942,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 59097,
+      "char_end": 59128,
+      "text": "Specification of CAN Interface\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 59128,
+      "char_end": 59146,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.001,
+        524.409,
+        137.878
+      ],
+      "char_start": 59146,
+      "char_end": 59290,
+      "text": "[SWS_CANIF_00844] ⌈CanIf shall support dynamic L-PDUs, where the CanId or\nrelevant parts of the CanId are placed in the MetaData of a L-SDU.⌋()\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        172.26,
+        258.587,
+        184.215
+      ],
+      "char_start": 59290,
+      "char_end": 59320,
+      "text": "7.4.1\nDynamic Transmit L-PDUs\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        70.866,
+        200.166,
+        524.416,
+        241.49
+      ],
+      "char_start": 59320,
+      "char_end": 59513,
+      "text": "Definition of dynamic Transmit L-PDUs: L-PDUs which allow reconfiguration of the\nCanId during runtime (CanIfTxPduType) or where the ID or parts thereof are pro-\nvided as MetaData of the L-SDU.\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        70.866,
+        251.474,
+        524.409,
+        263.906
+      ],
+      "char_start": 59513,
+      "char_end": 59595,
+      "text": "The usage of all other L-PDU elements are equal to normal static Transmit L-PDUs:\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        88.3,
+        273.89,
+        524.41,
+        300.768
+      ],
+      "char_start": 59595,
+      "char_end": 59718,
+      "text": "• The transmit confirmation notification CanIfTxPduUserTxConfirmationUL\ncannot be reconfigured as it belongs to the L-PDU.\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        88.3,
+        310.933,
+        524.409,
+        337.629
+      ],
+      "char_start": 59718,
+      "char_end": 59846,
+      "text": "• The Data Length and the pointer to the data buffer are both determined by the\nupper layer module at call of CanIf_Transmit().\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        70.866,
+        347.613,
+        524.406,
+        374.491
+      ],
+      "char_start": 59846,
+      "char_end": 59969,
+      "text": "The function CanIf_SetDynamicTxId() (see [SWS_CANIF_00189]) reconfigures\nthe CanId of a dynamic L-PDU with CanIfTxPduType.\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        70.866,
+        384.475,
+        524.412,
+        440.245
+      ],
+      "char_start": 59969,
+      "char_end": 60238,
+      "text": "[SWS_CANIF_00188] ⌈CanIf shall process the two most significant bits of the CanId\n(see [1, Specification of CAN Driver], definition of Can_IdType [SWS_Can_00416]) to\ndetermine which type of CanId is used and thus how the dynamic Transmit L-PDU\nshall be transmitted.⌋()\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        70.866,
+        450.229,
+        524.414,
+        505.998
+      ],
+      "char_start": 60238,
+      "char_end": 60493,
+      "text": "[SWS_CANIF_00673] ⌈The CanIf shall guarantee data consistency of the CanId\nin case of running function CanIf_SetDynamicTxId().\nThis service may be in-\nterrupted by a pre-emptive call of CanIf_Transmit() affecting the same L-PDU,\nsee [SWS_CANIF_00064].⌋()\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        70.866,
+        515.982,
+        524.405,
+        542.86
+      ],
+      "char_start": 60493,
+      "char_end": 60620,
+      "text": "[SWS_CANIF_00855] ⌈If CanIfTxPduCanIdMask and CanIfTxPduCanId are omit-\nted, the CanId is directly taken from the MetaData.⌋()\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        70.866,
+        552.844,
+        524.415,
+        579.722
+      ],
+      "char_start": 60620,
+      "char_end": 60751,
+      "text": "[SWS_CANIF_00856] ⌈CanIfTxPduCanIdMask shall be ignored when meta data\nconfiguration does not contain CAN_ID_32 for this L-SDU.⌋()\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        70.866,
+        589.706,
+        524.415,
+        659.921
+      ],
+      "char_start": 60751,
+      "char_end": 61064,
+      "text": "[SWS_CANIF_00854] ⌈If the MetaDataItem CAN_ID_32, CanIfTxPduCanIdMask\nand CanIfTxPduCanId are available, CanIfTxPduCanIdMask defines the bits in\nCanIfTxPduCanId and the bits of the Can_IdType derived from CanIfTxPdu-\nCanIdType that shall appear in the actual CanId, the other bits are taken from the\nMetaData.⌋()\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        70.866,
+        669.905,
+        524.415,
+        696.783
+      ],
+      "char_start": 61064,
+      "char_end": 61215,
+      "text": "Note: The resulting ID could be calculated in the following way: (CanIfTxPduCanId &\nCanIfTxPduCanIdMask) | (<dynamic ID parts> & ∼CanIfTxPduCanIdMask)\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        70.866,
+        706.767,
+        524.405,
+        748.09
+      ],
+      "char_start": 61215,
+      "char_end": 61395,
+      "text": "[SWS_CANIF_00857] ⌈CanIf_Init() (see [SWS_CANIF_00085]) initializes the\nCanIds of the dynamic Transmit L-PDUs with CanIfTxPduType to the value con-\nfigured via CanIfTxPduCanId.⌋()\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 61395,
+      "char_end": 61449,
+      "text": "34 of 228\nDocument ID 12: AUTOSAR_CP_SWS_CANInterface\n"
+    }
+  ]
+}

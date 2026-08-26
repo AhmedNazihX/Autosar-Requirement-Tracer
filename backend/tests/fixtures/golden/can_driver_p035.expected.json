@@ -1,0 +1,79 @@
+{
+  "fixture": "can_driver_p035",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "page": 35,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "Second half of the page-break pair. 7 ceilings but 8 floors: the extra floor closes SWS_Can_00407, which is labeled on page 34 and must NOT appear here — an extractor that attributes a requirement to the page of its floor rather than its id will fail this fixture. SWS_Can_00062 and SWS_Can_00291 continue with ordinary prose AFTER their closing floor and reference list, inside the same block: the labeled text stops at the floor.",
+  "requirements": [
+    {
+      "id": "SWS_Can_00056",
+      "title": null,
+      "text": "Post-Build configuration elements that are marked as ’multiple’ (’M’ or ’x’) in chapter 10 can be selected by passing the pointer ’Config’ to the init function of the module.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00062",
+      "title": null,
+      "text": "If Can_SetBaudrate determines that the aimed configuration change requires a re-initialization and the CAN Controller is in STOPPED, the function Can_SetBaudrate shall re-initialize the CAN controller and the controller specific settings.",
+      "upstream_ids": ["SRS_Can_01139", "SRS_Can_01042"],
+      "named_symbols": ["Can_SetBaudrate"],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00255",
+      "title": null,
+      "text": "The function Can_SetBaudrate shall only affect register areas that contain specific configuration for a single CAN controller.",
+      "upstream_ids": [],
+      "named_symbols": ["Can_SetBaudrate"],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00021",
+      "title": null,
+      "text": "The desired CAN controller configuration can be selected with the parameter Config.",
+      "upstream_ids": [
+        "SRS_BSW_00344",
+        "SRS_BSW_00404",
+        "SRS_BSW_00405",
+        "SRS_SPAL_12263",
+        "SRS_SPAL_12265"
+      ],
+      "named_symbols": [],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00291",
+      "title": null,
+      "text": "Config is a pointer into an array of implementation specific data structure stored in ROM. The different controller configuration sets are located as data structures in ROM.",
+      "upstream_ids": ["SRS_BSW_00438"],
+      "named_symbols": [],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00059",
+      "title": null,
+      "text": "Data mapping by CAN to memory is defined in a way that the CAN data byte which is sent out first is array element 0, the CAN data byte which is sent out last is array element 7 or 63 in case of CAN FD.",
+      "upstream_ids": ["SRS_SPAL_12063"],
+      "named_symbols": [],
+      "page": 35,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Can_00427",
+      "title": null,
+      "text": "If the presentation inside the CAN Hardware buffer differs from AUTOSAR definition, the Can module must provide an adapted SDU-Buffer for the upper layers.",
+      "upstream_ids": [],
+      "named_symbols": [],
+      "page": 35,
+      "spans_page_break": false
+    }
+  ]
+}

@@ -1,0 +1,393 @@
+{
+  "fixture": "can_driver_p094",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 94,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 156339,
+  "char_end": 158458,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 156339,
+      "char_end": 156367,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 156367,
+      "char_end": 156385,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        77.342,
+        123.355,
+        284.611,
+        131.325
+      ],
+      "char_start": 156385,
+      "char_end": 156411,
+      "text": "SWS Item\n[ECUC_Can_00359]\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        77.342,
+        137.023,
+        291.673,
+        145.17
+      ],
+      "char_start": 156411,
+      "char_end": 156445,
+      "text": "Parameter Name\nCanWakeupSourceRef\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        77.342,
+        151.174,
+        259.809,
+        159.185
+      ],
+      "char_start": 156445,
+      "char_end": 156476,
+      "text": "Parent Container\nCanController\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        77.342,
+        163.675,
+        490.933,
+        181.151
+      ],
+      "char_start": 156476,
+      "char_end": 156602,
+      "text": "Description\nThis parameter contains a reference to the Wakeup Source for this controller as\ndefined in the ECU State Manager.\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        210.649,
+        187.377,
+        429.38,
+        195.347
+      ],
+      "char_start": 156602,
+      "char_end": 156658,
+      "text": "Implementation Type: reference to EcuM_WakeupSourceType\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        77.342,
+        201.209,
+        223.943,
+        209.322
+      ],
+      "char_start": 156658,
+      "char_end": 156676,
+      "text": "Multiplicity\n0..1\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        215.156,
+        386.461,
+        223.302
+      ],
+      "char_start": 156676,
+      "char_end": 156725,
+      "text": "Type\nSymbolic name reference to EcuMWakeupSource\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        77.342,
+        229.307,
+        227.482,
+        237.318
+      ],
+      "char_start": 156725,
+      "char_end": 156763,
+      "text": "Post-Build Variant Multiplicity\nfalse\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        243.246,
+        227.482,
+        251.257
+      ],
+      "char_start": 156763,
+      "char_end": 156794,
+      "text": "Post-Build Variant Value\nfalse\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        210.649,
+        255.533,
+        416.418,
+        263.646
+      ],
+      "char_start": 156794,
+      "char_end": 156826,
+      "text": "Pre-compile time\nX\nAll Variants\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        210.649,
+        269.971,
+        348.388,
+        278.084
+      ],
+      "char_start": 156826,
+      "char_end": 156838,
+      "text": "Link time\n–\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        77.342,
+        256.672,
+        196.909,
+        264.642
+      ],
+      "char_start": 156838,
+      "char_end": 156871,
+      "text": "Multiplicity Configuration Class\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        210.649,
+        282.859,
+        348.388,
+        290.971
+      ],
+      "char_start": 156871,
+      "char_end": 156889,
+      "text": "Post-build time\n–\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        210.649,
+        295.248,
+        416.418,
+        303.361
+      ],
+      "char_start": 156889,
+      "char_end": 156921,
+      "text": "Pre-compile time\nX\nAll Variants\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        210.649,
+        309.686,
+        348.388,
+        317.798
+      ],
+      "char_start": 156921,
+      "char_end": 156933,
+      "text": "Link time\n–\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        77.342,
+        296.387,
+        176.068,
+        304.357
+      ],
+      "char_start": 156933,
+      "char_end": 156959,
+      "text": "Value Configuration Class\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        210.649,
+        322.574,
+        348.388,
+        330.686
+      ],
+      "char_start": 156959,
+      "char_end": 156977,
+      "text": "Post-build time\n–\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        77.342,
+        334.963,
+        253.257,
+        343.076
+      ],
+      "char_start": 156977,
+      "char_end": 157009,
+      "text": "Scope / Dependency\nscope: local\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        77.342,
+        361.0,
+        153.68,
+        368.97
+      ],
+      "char_start": 157009,
+      "char_end": 157029,
+      "text": "Included Containers\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        77.342,
+        373.39,
+        366.878,
+        381.36
+      ],
+      "char_start": 157029,
+      "char_end": 157076,
+      "text": "Container Name\nMultiplicity\nScope / Dependency\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        77.342,
+        387.187,
+        479.4,
+        404.805
+      ],
+      "char_start": 157076,
+      "char_end": 157203,
+      "text": "CanControllerBaudrateConfig\n1..*\nThis container contains bit timing related configuration\nparameters of the CAN controller(s).\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        77.342,
+        410.667,
+        499.317,
+        428.285
+      ],
+      "char_start": 157203,
+      "char_end": 157337,
+      "text": "CanPartialNetwork\n0..1\nContainer gives CAN Controller driver information about the\nconfiguration of Partial Networking functionality.\n"
+    },
+    {
+      "block_no": 24,
+      "bbox": [
+        77.342,
+        434.242,
+        510.746,
+        470.789
+      ],
+      "char_start": 157337,
+      "char_end": 157562,
+      "text": "CanTTController\n0..1\nCanTTController is specified in the SWS TTCAN and contains\nthe configuration parameters of the TTCAN controller(s) (which\nare needed in addition to the configuration parameters of the\nCAN controller(s)).\n"
+    },
+    {
+      "block_no": 25,
+      "bbox": [
+        289.002,
+        477.016,
+        510.961,
+        503.915
+      ],
+      "char_start": 157562,
+      "char_end": 157706,
+      "text": "This container is only included and valid if TTCAN is supported\nby the controller, enabled (see CanSupportTTCANRef, ECUC_\nCan_00430), and used.\n"
+    },
+    {
+      "block_no": 26,
+      "bbox": [
+        77.342,
+        509.777,
+        505.709,
+        536.859
+      ],
+      "char_start": 157706,
+      "char_end": 157895,
+      "text": "CanXLController\n0..1\nThis container is specified in the SWS CAN XL Driver and\nrepresents a CAN XL channel. If this container is present, the\nCAN driver will provide the extended CanXL API.\n"
+    },
+    {
+      "block_no": 27,
+      "bbox": [
+        70.866,
+        559.085,
+        524.411,
+        600.227
+      ],
+      "char_start": 157895,
+      "char_end": 158066,
+      "text": "[SWS_Can_CONSTR_00509] ⌈The ECUC partitions referenced by CanControllerE-\ncucPartitionRef shall be a subset of the ECUC partitions referenced by CanEcucParti-\ntionRef.⌋()\n"
+    },
+    {
+      "block_no": 28,
+      "bbox": [
+        70.866,
+        610.392,
+        524.415,
+        637.089
+      ],
+      "char_start": 158066,
+      "char_end": 158202,
+      "text": "[SWS_Can_CONSTR_00510] ⌈CanController and CanTrcvChannel of one communi-\ncation channel shall all reference the same ECUC partition.⌋()\n"
+    },
+    {
+      "block_no": 29,
+      "bbox": [
+        70.866,
+        647.254,
+        524.411,
+        688.397
+      ],
+      "char_start": 158202,
+      "char_end": 158407,
+      "text": "[SWS_Can_CONSTR_00511] ⌈If CanEcucPartitionRef references one or more ECUC\npartitions, CanControllerEcucPartitionRef shall have a multiplicity of one and reference\none of these ECUC partitions as well.⌋()\n"
+    },
+    {
+      "block_no": 30,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 158407,
+      "char_end": 158458,
+      "text": "94 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}

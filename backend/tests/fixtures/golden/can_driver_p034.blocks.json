@@ -1,0 +1,261 @@
+{
+  "fixture": "can_driver_p034",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 34,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 55745,
+  "char_end": 57799,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 55745,
+      "char_end": 55773,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 55773,
+      "char_end": 55791,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.182,
+        524.414,
+        152.324
+      ],
+      "char_start": 55791,
+      "char_end": 56006,
+      "text": "[SWS_Can_00272] ⌈After bus-off detection, the CAN controller shall transition to the\nstate STOPPED and the Can module shall ensure that the CAN controller doesn’t\nparticipate on the network anymore.⌋(SRS_Can_01060)\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        162.489,
+        524.415,
+        189.186
+      ],
+      "char_start": 56006,
+      "char_end": 56116,
+      "text": "[SWS_Can_00273] ⌈After bus-off detection, the Can module shall cancel still pending\nmessages.⌋(SRS_Can_01060)\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        70.866,
+        199.351,
+        524.412,
+        226.048
+      ],
+      "char_start": 56116,
+      "char_end": 56220,
+      "text": "[SWS_Can_00274] ⌈The Can module shall disable or suppress automatic bus-off re-\ncovery.⌋(SRS_Can_01060)\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        70.866,
+        260.429,
+        374.229,
+        272.384
+      ],
+      "char_start": 56220,
+      "char_end": 56273,
+      "text": "7.3.7\nState transition caused by function Can_DeInit\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        70.866,
+        288.813,
+        454.659,
+        300.778
+      ],
+      "char_start": 56273,
+      "char_end": 56343,
+      "text": "- STOPPED -> UNINIT; SLEEP -> UNINIT (for all controllers in HW unit)\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        70.866,
+        310.752,
+        353.526,
+        323.194
+      ],
+      "char_start": 56343,
+      "char_end": 56396,
+      "text": "- software triggered by the function call Can_DeInit\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        70.866,
+        333.644,
+        416.211,
+        345.609
+      ],
+      "char_start": 56396,
+      "char_end": 56462,
+      "text": "- prepares all CAN controllers inside HW Unit to be re-configured\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        70.866,
+        355.583,
+        524.411,
+        382.461
+      ],
+      "char_start": 56462,
+      "char_end": 56584,
+      "text": "[SWS_Can_91010] ⌈The function Can_DeInit shall set all CAN controllers in the\nstate UNINIT⌋(SRS_Can_01166, SRS_Can_01053)\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        70.866,
+        392.445,
+        524.41,
+        433.769
+      ],
+      "char_start": 56584,
+      "char_end": 56810,
+      "text": "When the function Can_DeInit is entered and the Can module is not in state\nCAN_READY or any of the CAN controllers is in state STARTED, it shall raise the\nerror CAN_E_TRANSITION (Refer to [SWS_Can_91011] and [SWS_Can_91012]).\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        70.866,
+        469.798,
+        346.399,
+        484.144
+      ],
+      "char_start": 56810,
+      "char_end": 56851,
+      "text": "7.4\nCan module/Controller Initialization\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        70.866,
+        500.021,
+        524.411,
+        526.421
+      ],
+      "char_start": 56851,
+      "char_end": 57018,
+      "text": "The ECU State Manager module shall initialize the Can module during startup phase\nby calling the function Can_Init before using any other functions of the Can module.\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        70.866,
+        536.405,
+        524.41,
+        577.729
+      ],
+      "char_start": 57018,
+      "char_end": 57228,
+      "text": "[SWS_Can_00250] ⌈The function Can_Init shall initialize: static variables, including\nflags, Common setting for the complete CAN HW unit, CAN controller specific settings\nfor each CAN controller⌋(SRS_BSW_00101)\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        70.866,
+        587.713,
+        524.409,
+        614.591
+      ],
+      "char_start": 57228,
+      "char_end": 57354,
+      "text": "[SWS_Can_00053] ⌈Can_Init shall not change registers of CAN controller Hardware\nresources that are not used.⌋(SRS_SPAL_12125)\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        70.866,
+        625.052,
+        524.411,
+        651.453
+      ],
+      "char_start": 57354,
+      "char_end": 57451,
+      "text": "The Can module shall apply the following rules regarding initialization of controller\nregisters:\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        661.617,
+        183.805,
+        673.878
+      ],
+      "char_start": 57451,
+      "char_end": 57469,
+      "text": "[SWS_Can_00407] ⌈\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        88.3,
+        684.033,
+        524.409,
+        710.73
+      ],
+      "char_start": 57469,
+      "char_end": 57621,
+      "text": "• If the hardware allows for only one usage of the register, the Can module imple-\nmenting that functionality is responsible initializing the register.\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        88.3,
+        720.895,
+        524.409,
+        747.592
+      ],
+      "char_start": 57621,
+      "char_end": 57748,
+      "text": "• If the register can affect several hardware modules and if it is an I/O register it\nshall be initialized by the PORT driver.\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 57748,
+      "char_end": 57799,
+      "text": "34 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}

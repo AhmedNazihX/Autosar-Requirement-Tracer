@@ -1,0 +1,261 @@
+{
+  "fixture": "can_driver_p032",
+  "document_key": "can_driver",
+  "source_document": "AUTOSAR_CP_SWS_CANDriver.pdf",
+  "source_sha256": "489244f27a2218fd63832897f47a3727d0036a2d97d5b910761cba4939fcb78d",
+  "corpus_version": "R23-11",
+  "page": 32,
+  "page_count": 131,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 51709,
+  "char_end": 53899,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        379.706,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 51709,
+      "char_end": 51737,
+      "text": "Specification of CAN Driver\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 51737,
+      "char_end": 51755,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.478,
+        524.411,
+        152.324
+      ],
+      "char_start": 51755,
+      "char_end": 51966,
+      "text": "is operational get lost. The only indicator for operability is the reception of TX confir-\nmations or RX indications. The sending entities might get a confirmation timeout and\nneed to be able to cope with that.\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        162.308,
+        524.411,
+        203.632
+      ],
+      "char_start": 51966,
+      "char_end": 52174,
+      "text": "[SWS_Can_00409]\n⌈When\nthe\nfunction\nCan_SetControllerMode\n(CAN_CS_STARTED) is entered and the CAN controller is not in state STOPPED it\nshall detect a invalid state transition (Compare to [SWS_Can_00200]).⌋()\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        70.866,
+        213.351,
+        524.41,
+        240.504
+      ],
+      "char_start": 52174,
+      "char_end": 52249,
+      "text": "State\ntransition\ncaused\nby\nfunction\nCan_SetControllerMode\n(CAN_CS_STOPPED)\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        88.3,
+        250.659,
+        228.398,
+        262.91
+      ],
+      "char_start": 52249,
+      "char_end": 52270,
+      "text": "• STARTED -> STOPPED\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        88.3,
+        273.075,
+        212.94,
+        285.326
+      ],
+      "char_start": 52270,
+      "char_end": 52289,
+      "text": "• SLEEP -> STOPPED\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        88.3,
+        295.49,
+        195.808,
+        307.741
+      ],
+      "char_start": 52289,
+      "char_end": 52310,
+      "text": "• software triggered\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        70.866,
+        317.725,
+        524.411,
+        359.049
+      ],
+      "char_start": 52310,
+      "char_end": 52491,
+      "text": "[SWS_Can_00263] ⌈The function Can_SetControllerMode(CAN_CS_STOPPED)\nshall set the bits inside the CAN hardware such that the CAN controller stops partici-\npating on the network.⌋()\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        70.866,
+        369.033,
+        524.411,
+        410.357
+      ],
+      "char_start": 52491,
+      "char_end": 52669,
+      "text": "[SWS_Can_00264] ⌈The function Can_SetControllerMode(CAN_CS_STOPPED)\nshall wait for a limited time until the CAN controller is really switched off. Compare to\n[SWS_Can_00398].⌋()\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        70.866,
+        420.522,
+        524.41,
+        461.664
+      ],
+      "char_start": 52669,
+      "char_end": 52909,
+      "text": "[SWS_Can_00267] ⌈If the CAN HW does not support a sleep mode, the transition from\nSLEEP to STOPPED shall return from the logical sleep mode, but have no effect to the\nCAN controller state (as the controller is already in stopped state).⌋()\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        70.866,
+        471.648,
+        524.41,
+        512.972
+      ],
+      "char_start": 52909,
+      "char_end": 53084,
+      "text": "[SWS_Can_00268] ⌈The function Can_SetControllerMode(CAN_CS_STOPPED)\nshall wait for a limited time until the CAN controller is in STOPPED state. Compare to\n[SWS_Can_00398].⌋()\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        70.866,
+        522.956,
+        524.41,
+        549.834
+      ],
+      "char_start": 53084,
+      "char_end": 53186,
+      "text": "[SWS_Can_00282] ⌈The function Can_SetControllerMode(CAN_CS_STOPPED)\nshall cancel pending messages.⌋()\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        70.866,
+        559.553,
+        524.41,
+        572.26
+      ],
+      "char_start": 53186,
+      "char_end": 53258,
+      "text": "State transition caused by function Can_SetControllerMode(CAN_CS_SLEEP)\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        88.3,
+        582.415,
+        212.94,
+        594.666
+      ],
+      "char_start": 53258,
+      "char_end": 53277,
+      "text": "• STOPPED -> SLEEP\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        88.3,
+        604.83,
+        195.808,
+        617.081
+      ],
+      "char_start": 53277,
+      "char_end": 53298,
+      "text": "• software triggered\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        627.065,
+        524.41,
+        653.943
+      ],
+      "char_start": 53298,
+      "char_end": 53409,
+      "text": "[SWS_Can_00265]\n⌈The\nfunction\nCan_SetControllerMode(CAN_CS_SLEEP)\nshall set the controller into sleep mode.⌋()\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        70.866,
+        663.927,
+        524.411,
+        719.697
+      ],
+      "char_start": 53409,
+      "char_end": 53676,
+      "text": "[SWS_Can_00266] ⌈If the CAN HW does support a sleep mode, the function Can_-\nSetControllerMode(CAN_CS_SLEEP) shall wait for a limited time until the CAN\ncontroller is in SLEEP state and it is assured that the CAN hardware is wake able.\nCompare to [SWS_Can_00398].⌋()\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        70.866,
+        729.862,
+        524.41,
+        771.004
+      ],
+      "char_start": 53676,
+      "char_end": 53848,
+      "text": "[SWS_Can_00290] ⌈If the CAN HW does not support a sleep mode, the function\nCan_SetControllerMode(CAN_CS_SLEEP) shall set the CAN controller to the log-\nical sleep mode.⌋()\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 53848,
+      "char_end": 53899,
+      "text": "32 of 131\nDocument ID 11: AUTOSAR_CP_SWS_CANDriver\n"
+    }
+  ]
+}
