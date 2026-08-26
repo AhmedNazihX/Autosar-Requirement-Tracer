@@ -533,6 +533,29 @@ def create_thread(conn: sqlite3.Connection, project_id: str, title: str | None =
     return thread_id
 
 
+def create_thread_with_id(
+    conn: sqlite3.Connection,
+    thread_id: str,
+    project_id: str,
+    title: str | None = None,
+) -> str:
+    """Create a thread using a caller-supplied id.
+
+    The frontend mints thread ids client-side so a new conversation can be
+    opened without a round trip (``frontend/lib/threads.ts``), and ``POST
+    /chat`` then creates the row on first use. ``INSERT OR IGNORE`` keeps that
+    idempotent: two messages racing on a new thread must not fail one of them.
+    """
+    now = _now_iso()
+    conn.execute(
+        "INSERT OR IGNORE INTO threads (id, project_id, title, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (thread_id, project_id, title, now, now),
+    )
+    conn.commit()
+    return thread_id
+
+
 def list_threads(conn: sqlite3.Connection, project_id: str) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM threads WHERE project_id = ? ORDER BY updated_at DESC",
