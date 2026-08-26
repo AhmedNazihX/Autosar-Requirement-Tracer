@@ -74,7 +74,7 @@ def load_indexes(manifest: ProjectManifest, db_path: Path | None = None) -> Star
         conn = db.connect(path)
         try:
             db.migrate(conn)
-            index = bm25.build_from_sqlite(conn, manifest.project_id)
+            index = bm25.build_from_sqlite(conn, manifest)
         finally:
             conn.close()
     except (sqlite3.Error, OSError) as exc:

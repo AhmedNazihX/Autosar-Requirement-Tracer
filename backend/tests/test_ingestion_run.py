@@ -151,6 +151,7 @@ FIXTURE_MANIFEST = {
         "chat": "test/chat",
         "judge": "test/judge",
         "rerank": "test/rerank",
+        "translate": "test/translate",
         "title": "test/title",
         "embedding": "test/embedding-v1",
     },

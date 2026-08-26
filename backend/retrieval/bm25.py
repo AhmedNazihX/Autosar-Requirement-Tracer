@@ -36,7 +36,15 @@ from dataclasses import dataclass
 
 from rank_bm25 import BM25Okapi
 
-from retrieval.chunks import CODE_DOC_TYPE, code_chunk_key, requirement_chunk_key
+from core.manifest import ProjectManifest
+from retrieval.chunks import (
+    CODE_DOC_TYPE,
+    code_chunk_key,
+    module_by_document,
+    module_for_path,
+    module_names,
+    requirement_chunk_key,
+)
 
 #: Runs of letters, digits and underscores. Underscores are *kept* so
 #: ``Can_Write`` survives as one token; everything else (dots, brackets,
@@ -86,6 +94,13 @@ class Bm25Record:
     symbol: str | None = None
     page: int | None = None
     line_span: tuple[int, int] | None = None
+    #: The two fields the self-query stage (story S2.4.1) filters on. They are
+    #: carried here — not just in Chroma's metadata — because BM25 reads every
+    #: row in SQLite while Chroma holds a subset, so if only the vector side
+    #: could be filtered the fused result would contain lexical hits that
+    #: violate the user's constraint.
+    module: str | None = None
+    section_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -177,7 +192,7 @@ def search(
 # keep in sync with SQLite, which is the thing this design avoids.
 
 _REQUIREMENTS_SQL = """
-SELECT id, title, text, doc_type, source_doc, page
+SELECT id, title, text, doc_type, source_doc, page, section_path
 FROM requirements
 WHERE project_id = ?
 ORDER BY id
@@ -191,13 +206,22 @@ ORDER BY repo_path, kind, symbol, line_span_start, line_span_end
 """
 
 
-def load_records(conn: sqlite3.Connection, project_id: str) -> list[Bm25Record]:
-    """Every indexable chunk for ``project_id``, requirements then code.
+def load_records(conn: sqlite3.Connection, manifest: ProjectManifest) -> list[Bm25Record]:
+    """Every indexable chunk for the manifest's project, requirements then code.
 
     The order is deterministic (by id, then by code-unit storage key), so two
     startups over the same database produce identical indexes and therefore
     identical rankings.
+
+    The manifest is needed rather than a bare ``project_id`` because ``module``
+    is not stored in SQLite — it is derived from the document a requirement
+    came from, or the directory a code unit lives in — and both derivations
+    belong to :mod:`retrieval.chunks` so the two indexes cannot disagree.
     """
+    project_id = manifest.project_id
+    document_modules = module_by_document(manifest)
+    code_modules = module_names(manifest)
+
     records: list[Bm25Record] = []
     for row in conn.execute(_REQUIREMENTS_SQL, (project_id,)):
         records.append(
@@ -208,6 +232,8 @@ def load_records(conn: sqlite3.Connection, project_id: str) -> list[Bm25Record]:
                 source=row["source_doc"],
                 title=row["title"],
                 page=row["page"],
+                module=document_modules.get(row["source_doc"]),
+                section_path=row["section_path"],
             )
         )
     for row in conn.execute(_CODE_UNITS_SQL, (project_id,)):
@@ -220,11 +246,12 @@ def load_records(conn: sqlite3.Connection, project_id: str) -> list[Bm25Record]:
                 source=row["repo_path"],
                 symbol=row["symbol"],
                 line_span=span,
+                module=module_for_path(row["repo_path"], code_modules),
             )
         )
     return records
 
 
-def build_from_sqlite(conn: sqlite3.Connection, project_id: str) -> Bm25Index:
-    """Load ``project_id``'s chunks from ``conn`` and build the index."""
-    return build_index(load_records(conn, project_id))
+def build_from_sqlite(conn: sqlite3.Connection, manifest: ProjectManifest) -> Bm25Index:
+    """Load the manifest project's chunks from ``conn`` and build the index."""
+    return build_index(load_records(conn, manifest))

@@ -80,6 +80,11 @@ models:
   chat: anthropic/claude-sonnet-4.5
   judge: openai/gpt-4o-mini
   rerank: openai/gpt-4o-mini
+  # Query rewriting and self-query filter extraction. Both are short,
+  # schema-bound transformations of one sentence, so they run on the cheap
+  # model rather than the chat model — three rewrites per question would
+  # otherwise multiply the cost of every search by the expensive model's rate.
+  translate: openai/gpt-4o-mini
   title: openai/gpt-4o-mini
   embedding: openai/text-embedding-3-small
 
