@@ -32,9 +32,14 @@ export function SourcePane({
   onClose: () => void;
   codeFile: HighlightedFile;
 }) {
+  // Both tabs render from whichever citations the target carries. A chat chip
+  // supplies one; a report row supplies both (see `SourceTarget.companion`).
+  const carried = [target?.citation, target?.companion].filter(
+    (one) => one != null,
+  );
   const requirement =
-    target?.citation.kind === "requirement" ? target.citation : null;
-  const code = target?.citation.kind === "code" ? target.citation : null;
+    carried.find((one) => one.kind === "requirement") ?? null;
+  const code = carried.find((one) => one.kind === "code") ?? null;
 
   return (
     <Tabs

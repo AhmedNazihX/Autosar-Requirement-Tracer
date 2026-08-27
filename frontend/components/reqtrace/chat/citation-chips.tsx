@@ -97,7 +97,7 @@ function SourceChip({
  * are not in the index, so there is genuinely no page to open and the chip must
  * not look like it leads anywhere (spec §11).
  */
-function UpstreamChip({ citation }: { citation: UpstreamCitation }) {
+export function UpstreamChip({ citation }: { citation: UpstreamCitation }) {
   return (
     <Tooltip>
       <TooltipTrigger

@@ -13,6 +13,7 @@ import type { HighlightedFile } from "@/lib/code-highlight";
 import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
 import { toExchanges } from "@/lib/exchanges";
+import { fetchRequirementCitation } from "@/lib/requirements";
 import {
   targetForCitation,
   type SourceTab,
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/tooltip";
 
 import { CheckpointRail } from "./checkpoint-rail";
+import { ReportDrawer } from "./report/report-drawer";
 import { ChatPane } from "./chat/chat-pane";
 import { SourcePane } from "./source/source-pane";
 import { ThemeToggle } from "./theme-toggle";
@@ -74,6 +76,11 @@ import { ThreadSidebar } from "./thread-sidebar";
  * is no store and no context — the only reducer is the pure one that turns a
  * message's event array into its render state.
  */
+/** The scope the drawer opens on. `CanIf` is the only module with a real
+ *  implementation in the permitted snapshot (finding A1), so it is the one
+ *  that produces a matrix with every verdict class in it. */
+const DEFAULT_REPORT_MODULE = "CanIf";
+
 export function AppShell({
   codeFile,
   setup = null,
@@ -90,6 +97,7 @@ export function AppShell({
   const { thread } = threads;
   const threadId = thread?.id ?? null;
 
+  const [reportOpen, setReportOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(true);
   const [renamingTitle, setRenamingTitle] = useState<string | null>(null);
@@ -220,6 +228,30 @@ export function AppShell({
     [transcriptKey],
   );
 
+  /**
+   * A report row points at two things at once — the requirement and the code
+   * its verdict cited — so it pins both and lands on the document tab. Spec §7:
+   * "row click opens both tabs".
+   *
+   * The requirement citation is fetched rather than built from the row: a row
+   * carries the id, document and page, but the bbox and page count live in
+   * storage. Guessing them would put the highlight in the wrong place, which
+   * is worse than not drawing one.
+   */
+  const openReportRow = useCallback(
+    async (reqId: string, evidence: CodeCitation | null) => {
+      const citation = await fetchRequirementCitation(reqId);
+      if (!citation) return;
+      setPinned({
+        key: transcriptKey,
+        target: { tab: "document", citation, companion: evidence },
+        tab: "document",
+      });
+      setSourceOpen(true);
+    },
+    [transcriptKey],
+  );
+
   const changeSourceTab = useCallback(
     (tab: SourceTab) => {
       setPinned({ key: transcriptKey, target: sourceTarget, tab });
@@ -313,6 +345,15 @@ export function AppShell({
     />
   );
 
+  const reportDrawer = (
+    <ReportDrawer
+      open={reportOpen}
+      onOpenChange={setReportOpen}
+      defaultModule={DEFAULT_REPORT_MODULE}
+      onOpenRow={(reqId, evidence) => void openReportRow(reqId, evidence)}
+    />
+  );
+
   const sourcePane = (
     <SourcePane
       target={sourceTarget}
@@ -380,12 +421,14 @@ export function AppShell({
 
           <span className="flex-1" />
 
-          <DisabledWithReason reason="The report drawer is story F5.5 — POST /reports does not exist on this backend yet.">
-            <Button variant="outline" size="sm" disabled>
-              <Table2Icon />
-              Generate report
-            </Button>
-          </DisabledWithReason>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReportOpen(true)}
+          >
+            <Table2Icon />
+            Generate report
+          </Button>
 
           <DisabledWithReason reason="Thread export is story F5.7.">
             <Button
@@ -462,12 +505,17 @@ export function AppShell({
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]"
+          // Same specificity rule as the report drawer: without the
+          // `data-[side=right]:` qualifier this loses to the base
+          // `max-w-sm` and the overlay pane comes out 384 px wide.
+          className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-[640px]"
         >
           <SheetTitle className="sr-only">Source</SheetTitle>
           {sourcePane}
         </SheetContent>
       </Sheet>
+
+      {reportDrawer}
     </div>
   );
 }

@@ -22,6 +22,17 @@ export type SourceTab = "document" | "code";
 export interface SourceTarget {
   tab: SourceTab;
   citation: RequirementCitation | CodeCitation;
+  /**
+   * The other tab's content, when one action legitimately fills both.
+   *
+   * A citation chip in an answer points at one thing, so this is normally
+   * absent. A traceability-report row points at two — the requirement and the
+   * code its verdict cited — and spec §7 says a row click opens both tabs
+   * (story S5.5.3). Carrying the second here keeps the pane a pure function of
+   * one target rather than growing a second piece of state that could drift
+   * out of step with the first.
+   */
+  companion?: RequirementCitation | CodeCitation | null;
 }
 
 /** `null` for an upstream citation: there is no page to open. */
