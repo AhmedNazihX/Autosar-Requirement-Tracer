@@ -1,6 +1,6 @@
 # ReqTrace — corpus, toolchain & security findings
 
-Measured 2026-08-26 during WP1, extended 2026-08-27 during WP4 (A7, C13, D5, D6). Everything here comes from probing the real
+Measured 2026-08-26 during WP1, extended 2026-08-27 during WP4 (A7, C13, D5, D6) and again on 2026-08-27 when the corpus grew from four to seven SWS documents (see the dated update in A5). Everything here comes from probing the real
 AUTOSAR documents, the real `openAUTOSAR/classic-platform` repository and the
 real toolchain — not from reasoning about the plan. Figures are reproducible.
 
@@ -101,6 +101,12 @@ corpus, grouped by module, labelled as release drift rather than as errors.
 Cite the figure in the README.
 
 ### A5. Corpus-wide tier-1 join rate is 38%, 70% for modules whose specs are ingested
+
+*(Superseded 2026-08-27: CanNm, Com and PduR are now ingested and the join
+is **892/1267 (70.4%) corpus-wide** — see the dated update at the end of
+this section. Everything between here and that update is kept as the
+2026-08-26 four-document measurement it was.)*
+
 **Measured by the shipped pipeline**, over the whole indexed corpus:
 
 | Scope | annotated IDs | resolve to a requirement |
@@ -137,6 +143,39 @@ overstates its coverage. Both belong together.
 **manifest edit only** — no code change — and would lift the join rate
 further. Both fetch fine from the same URL pattern. The owner chose four
 documents deliberately; this is the lever if the matrix should look fuller.
+
+**Update 2026-08-27 — the lever above was pulled; the gap this section is
+named for is closed.** The CanNm, Com and PduR SWS documents were added to
+the manifest (a manifest edit only, as predicted — no code change; their
+extraction quirks are recorded as comments on the new
+`projects/autosar-can/project.yaml` entries) and ingested by the shipped
+pipeline. Measured by the same command, over the same 1267 distinct
+annotated ids:
+
+| Scope | annotated IDs | resolve to a requirement |
+|---|---|---|
+| corpus-wide | 1267 | **892 (70.4%)** |
+| modules whose specs are ingested | 1267 | **892 (70.4%)** — now the same set |
+| `CANIF` | 323 | 220 (68.1%) |
+| `Can` | 1 | 1 (100%) |
+| `CanNm` | 238 | 155 (65.1%) |
+| `CanSM` | 219 | 165 (75.3%) |
+| `CanTp` | 141 | 95 (67.4%) |
+| `Com` | 236 | 176 (74.6%) |
+| `PduR` | 109 | 80 (73.4%) |
+
+Every annotated module now has its specification ingested, so the
+corpus-wide and spec-ingested rows coincide and the 38%-vs-70% split no
+longer exists in the live corpus — the table above is kept unchanged as the
+2026-08-26 measurement it was, same denominator discipline as §A4. The rows
+that moved are exactly the ones that read 0: CanNm 155/238, Com 176/236,
+PduR 80/109. The residual ~30% (375 of 1267) is the release drift §A4
+describes — annotations referencing ids absent from R23-11 — by design, not
+a defect. Corpus totals moved with it: **7 documents, 1860 requirements,
+2403 context chunks** (the code side is unchanged: 1253 units, 1646
+annotations, 1267 distinct ids). Embedding the three new documents cost
+$0.003194 (1913 new vectors; 3382 of the 5299 came from the cache).
+Regenerate rather than copy, with the same command as above.
 
 ### A6. The repository is GPL-2.0, not "Apache-style" as the plan says
 **Measured** from the GitHub API. We fetch and analyse locally and never
@@ -195,6 +234,13 @@ Format: `[<ID>] <optional title> ⌈<text>⌋(<optional upstream refs>)`, where
 Per-document results: CAN Driver 240/241 ceilings, CAN Interface 398/399,
 CanTp 175/176, CanSM 241/241 — **1054 requirements**.
 
+*(2026-08-27: three more documents joined the corpus — CanNm 240, Com 345,
+PduR 221, corpus total **1860** — see §A5's dated update; their expected
+extractor misses are named in the manifest comments: nine `SWS_CanNm_NA_*`
+Appendix B not-applicable placeholders for CanNm where the other documents
+have at most one catch-all, and the single `SWS_Com_NA_00999` for Com. NA
+items are deliberately excluded corpus-wide.)*
+
 ### B2. Upstream references are not only `SRS_`
 `RS_Ids_00810` (Intrusion Detection System) genuinely appears. The pattern
 must be `(?:SRS|RS)_[A-Za-z]+_\d+`. Getting this wrong silently drops
@@ -210,6 +256,13 @@ and `canonical_id()` exists for case-insensitive *matching* only.
 CanIf's upper-case form, the annotation module map would have been wrong and
 the joins the owner paid for would have quietly produced nothing. Verified
 before committing the manifest.
+
+*(2026-08-27: PduR repeats the CAN Driver's internal-inconsistency variant of
+this trap — exactly one of its requirements, `SWS_PDUR_00816`, is spelled
+upper-case, so its pattern was widened to
+`SWS_(?:PduR|PDUR)(?:_CONSTR)?_\d+`. Com is single-cased, with no
+`SWS_ComM_*` bleed in either direction. Exact wording lives on the manifest
+entries.)*
 
 ### B4. One extra `⌈` per document — needs a named exclusion, not a `-1`
 Three of four documents contain exactly one more ceiling than their expected

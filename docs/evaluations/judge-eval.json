@@ -1,11 +1,11 @@
 {
   "set": {
-    "positives": 408,
-    "negatives": 73,
+    "positives": 785,
+    "negatives": 107,
     "both_markers": 0,
-    "unresolved": 786
+    "unresolved": 375
   },
-  "limit_per_class": 73,
+  "limit_per_class": 107,
   "results": [
     {
       "mode": "sighted",
@@ -14,48 +14,48 @@
       "corpus_version": "R23-11",
       "positive": {
         "label": "positive",
-        "judged": 73,
+        "judged": 107,
         "counts": {
-          "implemented": 34,
-          "partial": 26,
-          "missing": 10,
-          "unverifiable": 3
+          "implemented": 47,
+          "partial": 43,
+          "missing": 12,
+          "unverifiable": 5
         },
         "mean_confidence": {
-          "implemented": 0.9558823529411765,
-          "partial": 0.7923076923076924,
-          "missing": 0.97,
-          "unverifiable": 0.7666666666666666
+          "implemented": 0.9404255319148936,
+          "partial": 0.8069767441860466,
+          "missing": 0.9916666666666667,
+          "unverifiable": 0.8
         },
-        "correct_pct": 82.1917808219178,
-        "wrong_pct": 13.698630136986301,
-        "unscored_pct": 4.109589041095891,
-        "unverifiable_pct": 4.109589041095891
+        "correct_pct": 84.11214953271028,
+        "wrong_pct": 11.214953271028037,
+        "unscored_pct": 4.672897196261682,
+        "unverifiable_pct": 4.672897196261682
       },
       "negative": {
         "label": "negative",
-        "judged": 73,
+        "judged": 107,
         "counts": {
           "implemented": 0,
-          "partial": 0,
-          "missing": 73,
-          "unverifiable": 0
+          "partial": 3,
+          "missing": 102,
+          "unverifiable": 2
         },
         "mean_confidence": {
           "implemented": null,
-          "partial": null,
-          "missing": 0.9986301369863014,
-          "unverifiable": null
+          "partial": 0.8000000000000002,
+          "missing": 0.9970588235294118,
+          "unverifiable": 0.9
         },
-        "correct_pct": 100.0,
+        "correct_pct": 97.19626168224299,
         "wrong_pct": 0.0,
-        "unscored_pct": 0.0,
-        "unverifiable_pct": 0.0
+        "unscored_pct": 2.803738317757009,
+        "unverifiable_pct": 1.8691588785046729
       },
       "precision_implemented": 1.0,
-      "recall_implemented": 0.4657534246575342,
+      "recall_implemented": 0.4392523364485981,
       "false_positive_rate_pct": 0.0,
-      "cost_usd": 0.06659899999999998,
+      "cost_usd": 0.04452659,
       "aborted": false,
       "abort_reason": null
     },
@@ -66,48 +66,48 @@
       "corpus_version": "R23-11",
       "positive": {
         "label": "positive",
-        "judged": 73,
+        "judged": 107,
         "counts": {
-          "implemented": 29,
-          "partial": 30,
-          "missing": 8,
-          "unverifiable": 6
+          "implemented": 47,
+          "partial": 38,
+          "missing": 18,
+          "unverifiable": 4
         },
         "mean_confidence": {
-          "implemented": 0.9655172413793104,
-          "partial": 0.8,
-          "missing": 0.9625,
-          "unverifiable": 0.45
+          "implemented": 0.9595744680851064,
+          "partial": 0.8026315789473685,
+          "missing": 0.9500000000000001,
+          "unverifiable": 0.8
         },
-        "correct_pct": 80.82191780821918,
-        "wrong_pct": 10.95890410958904,
-        "unscored_pct": 8.219178082191782,
-        "unverifiable_pct": 8.219178082191782
+        "correct_pct": 79.4392523364486,
+        "wrong_pct": 16.822429906542055,
+        "unscored_pct": 3.7383177570093458,
+        "unverifiable_pct": 3.7383177570093458
       },
       "negative": {
         "label": "negative",
-        "judged": 73,
+        "judged": 107,
         "counts": {
-          "implemented": 6,
-          "partial": 18,
-          "missing": 35,
-          "unverifiable": 14
+          "implemented": 9,
+          "partial": 39,
+          "missing": 38,
+          "unverifiable": 21
         },
         "mean_confidence": {
-          "implemented": 0.9333333333333332,
-          "partial": 0.8,
-          "missing": 0.9685714285714285,
-          "unverifiable": 0.7785714285714286
+          "implemented": 0.9555555555555555,
+          "partial": 0.7923076923076924,
+          "missing": 0.9657894736842106,
+          "unverifiable": 0.6761904761904762
         },
-        "correct_pct": 67.12328767123287,
-        "wrong_pct": 8.219178082191782,
-        "unscored_pct": 24.65753424657534,
-        "unverifiable_pct": 19.17808219178082
+        "correct_pct": 55.14018691588785,
+        "wrong_pct": 8.411214953271028,
+        "unscored_pct": 36.44859813084112,
+        "unverifiable_pct": 19.626168224299064
       },
-      "precision_implemented": 0.8285714285714286,
-      "recall_implemented": 0.3972602739726027,
-      "false_positive_rate_pct": 8.219178082191782,
-      "cost_usd": 0.06259770000000003,
+      "precision_implemented": 0.8392857142857143,
+      "recall_implemented": 0.4392523364485981,
+      "false_positive_rate_pct": 8.411214953271028,
+      "cost_usd": 0.08892,
       "aborted": false,
       "abort_reason": null
     }
