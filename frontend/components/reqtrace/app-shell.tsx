@@ -12,18 +12,30 @@ import { toast } from "sonner";
 import type { HighlightedFile } from "@/lib/code-highlight";
 import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
-import { toExchanges } from "@/lib/exchanges";
+import { toExchanges, type Exchange } from "@/lib/exchanges";
+import { fetchRequirementCitation } from "@/lib/requirements";
 import {
   targetForCitation,
   type SourceTab,
   type SourceTarget,
 } from "@/lib/source-target";
-import { getPaneLayout, setPaneLayout } from "@/lib/threads";
+import {
+  getPaneLayout,
+  setPaneLayout,
+  type StoredMessage,
+} from "@/lib/threads";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { useBackendHealth } from "@/hooks/use-backend-health";
+import type { SetupStatus } from "@/hooks/use-setup-status";
 import { useThreads } from "@/hooks/use-threads";
 import { useViewport } from "@/hooks/use-viewport";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   ResizableHandle,
@@ -31,13 +43,9 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 import { CheckpointRail } from "./checkpoint-rail";
+import { ReportDrawer } from "./report/report-drawer";
 import { ChatPane } from "./chat/chat-pane";
 import { SourcePane } from "./source/source-pane";
 import { ThemeToggle } from "./theme-toggle";
@@ -69,13 +77,28 @@ import { ThreadSidebar } from "./thread-sidebar";
  * is no store and no context — the only reducer is the pure one that turns a
  * message's event array into its render state.
  */
-export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
+/** The scope the drawer opens on. `CanIf` is the only module with a real
+ *  implementation in the permitted snapshot (finding A1), so it is the one
+ *  that produces a matrix with every verdict class in it. */
+const DEFAULT_REPORT_MODULE = "CanIf";
+
+export function AppShell({
+  codeFile,
+  setup = null,
+}: {
+  codeFile: HighlightedFile;
+  /** The readiness snapshot `BootGate` already fetched. Passed down rather
+   *  than re-fetched: two components asking the same question can disagree,
+   *  and the sidebar footer states index counts a user will believe. */
+  setup?: SetupStatus | null;
+}) {
   const viewport = useViewport();
   const { health, recheck } = useBackendHealth();
   const threads = useThreads();
   const { thread } = threads;
   const threadId = thread?.id ?? null;
 
+  const [reportOpen, setReportOpen] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(true);
   const [renamingTitle, setRenamingTitle] = useState<string | null>(null);
@@ -90,7 +113,28 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
     key: string;
     target: SourceTarget | null;
     tab: SourceTab;
+    /** Set only by a checkpoint restore: the turn the pane was rewound to, so
+     *  the pane can say so and offer a way back (story S5.4.1). */
+    fromTurn?: number;
   } | null>(null);
+
+  /**
+   * The turn that could not be stored.
+   *
+   * The transcript renders from the thread store, which was local until WP5
+   * made it the backend. That change introduced a failure the local store
+   * could not have: with the API down, persisting the user message fails, the
+   * transcript never shows it, and the whole send vanishes — composer cleared,
+   * nothing else. Measured, not theorised: killing the backend mid-session
+   * produced exactly that.
+   *
+   * So a turn that cannot be persisted is held here and rendered anyway. What
+   * the user typed stays on screen and the stream's `error` event still gets
+   * somewhere to appear, which is what makes "nothing was lost" true rather
+   * than merely reassuring. It clears the moment a write succeeds — the store
+   * is the source of truth again as soon as there is one.
+   */
+  const [unsaved, setUnsaved] = useState<StoredMessage[]>([]);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const streamThreadRef = useRef<string | null>(null);
@@ -111,7 +155,16 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
         .map((event) => event.data.text)
         .join("");
 
-      void threads.append(target, { role: "assistant", content: text, events });
+      void threads
+        .append(target, { role: "assistant", content: text, events })
+        .then((stored) => {
+          if (stored) setUnsaved([]);
+          else
+            setUnsaved((current) => [
+              ...current,
+              localMessage("assistant", text, events),
+            ]);
+        });
 
       // An `error` event renders inline AND as a toast. The toast is what makes
       // an unreachable backend impossible to mistake for a hang; the inline
@@ -133,7 +186,10 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
     stop,
   } = useChatStream({ source, onSettled });
 
-  const exchanges = useMemo(() => toExchanges(thread?.messages ?? []), [thread]);
+  const exchanges = useMemo(
+    () => toExchanges([...(thread?.messages ?? []), ...unsaved]),
+    [thread, unsaved],
+  );
   const lastExchangeId = exchanges.at(-1)?.id ?? null;
 
   /* --------------------------------------------------------- source pane --- */
@@ -176,6 +232,30 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
     [transcriptKey],
   );
 
+  /**
+   * A report row points at two things at once — the requirement and the code
+   * its verdict cited — so it pins both and lands on the document tab. Spec §7:
+   * "row click opens both tabs".
+   *
+   * The requirement citation is fetched rather than built from the row: a row
+   * carries the id, document and page, but the bbox and page count live in
+   * storage. Guessing them would put the highlight in the wrong place, which
+   * is worse than not drawing one.
+   */
+  const openReportRow = useCallback(
+    async (reqId: string, evidence: CodeCitation | null) => {
+      const citation = await fetchRequirementCitation(reqId);
+      if (!citation) return;
+      setPinned({
+        key: transcriptKey,
+        target: { tab: "document", citation, companion: evidence },
+        tab: "document",
+      });
+      setSourceOpen(true);
+    },
+    [transcriptKey],
+  );
+
   const changeSourceTab = useCallback(
     (tab: SourceTab) => {
       setPinned({ key: transcriptKey, target: sourceTarget, tab });
@@ -190,11 +270,13 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
       const active = thread ?? (await threads.create());
       lastPromptRef.current = text;
       streamThreadRef.current = active.id;
-      await threads.append(active.id, {
+      const stored = await threads.append(active.id, {
         role: "user",
         content: text,
         events: [],
       });
+      // Could not be written — show it anyway. See `unsaved`.
+      setUnsaved(stored ? [] : [localMessage("user", text, [])]);
       send(active.id, text);
     },
     [thread, threads, send],
@@ -214,6 +296,36 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
     found.scrollIntoView({ behavior: "smooth", block: "start" });
     setFlashExchangeId(id);
   }, []);
+
+  /**
+   * A checkpoint restore (story S5.4.1): scroll to the turn **and** put the
+   * source pane back to what that turn showed.
+   *
+   * The pane state is `Exchange.target`, which `lib/exchanges.ts` derives from
+   * the turn's stored `citation` events — so this is a replay of what was
+   * recorded, not a re-derivation from the current conversation. Spec §11 asks
+   * for exactly that, and it is why the rail can rewind a thread loaded from
+   * SQLite as faithfully as one that just streamed.
+   *
+   * A turn that cited nothing restores to an empty pane rather than leaving
+   * the previous turn's page up, which would attribute a source to a turn that
+   * had none.
+   */
+  const restoreCheckpoint = useCallback(
+    (exchange: Exchange) => {
+      scrollToExchange(exchange.id);
+      setPinned({
+        key: transcriptKey,
+        target: exchange.target,
+        tab: exchange.target?.tab ?? "document",
+        fromTurn: exchange.turn,
+      });
+      setSourceOpen(true);
+    },
+    [scrollToExchange, transcriptKey],
+  );
+
+  const returnToLatest = useCallback(() => setPinned(null), []);
 
   useEffect(() => {
     if (!flashExchangeId) return;
@@ -267,9 +379,23 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
     />
   );
 
+  const reportDrawer = (
+    <ReportDrawer
+      open={reportOpen}
+      onOpenChange={setReportOpen}
+      defaultModule={DEFAULT_REPORT_MODULE}
+      onOpenRow={(reqId, evidence) => void openReportRow(reqId, evidence)}
+    />
+  );
+
   const sourcePane = (
     <SourcePane
       target={sourceTarget}
+      restoredFrom={
+        pinned?.fromTurn != null && pinned.fromTurn < exchanges.length
+          ? { turn: pinned.fromTurn, onReturn: returnToLatest }
+          : null
+      }
       tab={sourceTab}
       onTabChange={changeSourceTab}
       onClose={() => setSourceOpen(false)}
@@ -285,6 +411,7 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
         loading={threads.loading}
         collapsed={sidebarCollapsed}
         health={health}
+        setup={setup}
         onRecheckHealth={recheck}
         onSelect={(id) => void threads.select(id)}
         onCreate={() => void threads.create()}
@@ -333,23 +460,55 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
 
           <span className="flex-1" />
 
-          <DisabledWithReason reason="The report drawer is story F5.5 — POST /reports does not exist on this backend yet.">
-            <Button variant="outline" size="sm" disabled>
-              <Table2Icon />
-              Generate report
-            </Button>
-          </DisabledWithReason>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReportOpen(true)}
+          >
+            <Table2Icon />
+            Generate report
+          </Button>
 
-          <DisabledWithReason reason="Thread export is story F5.7.">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled
-              aria-label="Export thread"
-            >
-              <DownloadIcon />
-            </Button>
-          </DisabledWithReason>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Export thread"
+                  disabled={!threadId}
+                >
+                  <DownloadIcon />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              {/* Two formats, and the labels say what each is *for*. Markdown
+                  is the one a person reads; JSON is the raw event stream,
+                  which is what makes an exported thread replayable rather
+                  than merely readable (spec §11). */}
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/py/threads/${threadId}/export?fmt=md`}
+                    download
+                  >
+                    Markdown — readable, citations linked
+                  </a>
+                }
+              />
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/py/threads/${threadId}/export?fmt=json`}
+                    download
+                  >
+                    JSON — the raw event stream
+                  </a>
+                }
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <ThemeToggle />
           <span aria-hidden className="mx-0.5 h-[18px] w-px bg-border" />
@@ -369,7 +528,7 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
               exchanges={exchanges}
               activeExchangeId={lastExchangeId}
               streamingExchangeId={isStreaming ? lastExchangeId : null}
-              onSelect={(exchange) => scrollToExchange(exchange.id)}
+              onSelect={restoreCheckpoint}
             />
           ) : null}
 
@@ -415,38 +574,38 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
         <SheetContent
           side="right"
           showCloseButton={false}
-          className="flex w-full flex-col gap-0 p-0 sm:max-w-[640px]"
+          // Same specificity rule as the report drawer: without the
+          // `data-[side=right]:` qualifier this loses to the base
+          // `max-w-sm` and the overlay pane comes out 384 px wide.
+          className="flex w-full flex-col gap-0 p-0 data-[side=right]:sm:max-w-[640px]"
         >
           <SheetTitle className="sr-only">Source</SheetTitle>
           {sourcePane}
         </SheetContent>
       </Sheet>
+
+      {reportDrawer}
     </div>
   );
 }
 
 /**
- * A control that is deliberately not wired yet, with the reason attached.
- *
- * The canvas's first-run cell states the rule: a disabled control says why it is
- * disabled. A disabled button swallows pointer events, so the tooltip has to be
- * anchored to a wrapper rather than to the button.
+ * A message that exists only in this tab, for a turn the backend could not be
+ * told about. Shaped exactly like a stored one so `toExchanges` and every
+ * renderer treat it identically — the transcript should not have two kinds of
+ * message in it.
  */
-function DisabledWithReason({
-  reason,
-  children,
-}: {
-  reason: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span tabIndex={0} className="inline-flex" />}>
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-[260px]">
-        {reason}
-      </TooltipContent>
-    </Tooltip>
-  );
+function localMessage(
+  role: "user" | "assistant",
+  content: string,
+  events: ChatEvent[],
+): StoredMessage {
+  return {
+    id: `unsaved_${role}_${content.length}_${events.length}`,
+    role,
+    content,
+    events,
+    created_at: new Date().toISOString(),
+    parent_id: null,
+  };
 }

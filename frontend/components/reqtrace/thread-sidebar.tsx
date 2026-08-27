@@ -16,6 +16,7 @@ import { relativeTime, pluralise } from "@/lib/format";
 import type { ThreadSummary } from "@/lib/threads";
 import { cn } from "@/lib/utils";
 import type { BackendHealth } from "@/hooks/use-backend-health";
+import type { SetupStatus } from "@/hooks/use-setup-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +41,7 @@ export function ThreadSidebar({
   loading,
   collapsed,
   health,
+  setup,
   onRecheckHealth,
   onSelect,
   onCreate,
@@ -52,6 +54,9 @@ export function ThreadSidebar({
   loading: boolean;
   collapsed: boolean;
   health: BackendHealth;
+  /** `GET /setup/status`, when there is a backend to have asked. `null` in
+   *  canned mode, where the footer falls back to what the fixture knows. */
+  setup: SetupStatus | null;
   onRecheckHealth: () => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -204,22 +209,31 @@ export function ThreadSidebar({
                 : "Backend not reachable"}
           </span>
           <span className="flex h-[18px] flex-none items-center rounded-md border bg-muted px-1.5 font-mono text-[10px] leading-none text-muted-foreground">
-            {CANIF_FIXTURE_SHA.slice(0, 7)}
+            {(setup?.git_sha ?? CANIF_FIXTURE_SHA).slice(0, 7)}
           </span>
         </div>
         <Meta>
-          {health.status === "ok"
-            ? "Index status is not reported by /health yet"
-            : "Start it with `make dev` — the UI keeps working"}
+          {health.status !== "ok"
+            ? "Start it with `make dev` — the UI keeps working"
+            : setup
+              ? `${setup.requirements.toLocaleString()} requirements · ${setup.code_units.toLocaleString()} code units · ${setup.indexed_chunks.toLocaleString()} indexed`
+              : "Index status unavailable"}
         </Meta>
         {/*
-          Says where this SHA comes from, and it is the code fixture — not the
-          manifest. The two agree today only because the fixture was cut from
-          the pinned snapshot; naming the manifest here would become a wrong
-          claim in a demo the first time either moves. WP3 replaces this with
-          the SHA the backend reports.
+          Where this SHA comes from, said accurately in both worlds. In live
+          mode it is the manifest's pinned snapshot, reported by
+          `GET /setup/status` — which is the SHA every citation and every
+          verdict is only true against. In canned mode there is no backend to
+          ask, so it falls back to the committed fixture's SHA and says so:
+          the two agree today only because the fixture was cut from the pinned
+          snapshot, and claiming otherwise would become wrong the first time
+          either moves.
         */}
-        <Meta>Snapshot sha of the committed code fixture</Meta>
+        <Meta>
+          {setup?.git_sha
+            ? `Pinned snapshot · ${setup.corpus_version ?? ""}`.trim()
+            : "Snapshot sha of the committed code fixture"}
+        </Meta>
         {health.status === "unreachable" ? (
           <Button
             variant="ghost"

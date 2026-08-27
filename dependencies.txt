@@ -162,6 +162,7 @@ declared, runtime:
   lucide-react                 ^1.34.0      -> 1.34.0        # shadcn icon set
   next                         16.3.3       -> 16.3.3        # framework (create-next-app)
   next-themes                  ^0.4.6       -> 0.4.6         # shadcn dark-mode provider
+  pdfjs-dist                   ^6.2.108     -> 6.2.108     
   react                        19.2.8       -> 19.2.8        # framework (create-next-app)
   react-dom                    19.2.8       -> 19.2.8        # framework (create-next-app)
   react-markdown               ^10.1.0      -> 10.1.0        # assistant message rendering (owner-approved)
@@ -183,7 +184,7 @@ declared, dev:
   tailwindcss                  ^4           -> 4.3.3         # styling (create-next-app, spec §11)
   typescript                   ^5           -> 5.9.3         # framework (create-next-app)
 
-resolved transitively (768) — the full tree is in package-lock.json;
+resolved transitively (780) — the full tree is in package-lock.json;
 listed here so this inventory is complete rather than indicative:
   @alloc/quick-lru                             5.2.0
   @babel/code-frame                            7.29.7
@@ -292,6 +293,18 @@ listed here so this inventory is complete rather than indicative:
   @modelcontextprotocol/sdk                    1.30.0
   @modelcontextprotocol/sdk/node_modules/ajv   8.20.0
   @modelcontextprotocol/sdk/node_modules/json-schema-traverse 1.0.0
+  @napi-rs/canvas                              1.0.8
+  @napi-rs/canvas-android-arm64                1.0.8
+  @napi-rs/canvas-darwin-arm64                 1.0.8
+  @napi-rs/canvas-darwin-x64                   1.0.8
+  @napi-rs/canvas-linux-arm-gnueabihf          1.0.8
+  @napi-rs/canvas-linux-arm64-gnu              1.0.8
+  @napi-rs/canvas-linux-arm64-musl             1.0.8
+  @napi-rs/canvas-linux-riscv64-gnu            1.0.8
+  @napi-rs/canvas-linux-x64-gnu                1.0.8
+  @napi-rs/canvas-linux-x64-musl               1.0.8
+  @napi-rs/canvas-win32-arm64-msvc             1.0.8
+  @napi-rs/canvas-win32-x64-msvc               1.0.8
   @napi-rs/wasm-runtime                        1.2.3
   @next/env                                    16.3.3
   @next/eslint-plugin-next                     16.3.3
@@ -954,4 +967,4 @@ listed here so this inventory is complete rather than indicative:
   zod-validation-error                         4.0.2
   zwitch                                       2.0.4
 
-total resolved: 792 packages
+total resolved: 805 packages

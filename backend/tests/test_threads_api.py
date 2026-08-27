@@ -25,7 +25,7 @@ from api import chat as chat_module
 from api import deps, threads
 from core import db
 from core.llm import chat_model
-from tests.support_engine import MANIFEST, build_index
+from tests.support_engine import MANIFEST, build_index, close_index
 from tests.support_llm import FakeOpenRouter, openrouter_body
 
 PROJECT = MANIFEST.project_id
@@ -47,7 +47,7 @@ def wired(tmp_path: Path):
     app.include_router(chat_module.router)
     app.state.reqtrace = state
     yield TestClient(app), state, parts
-    parts["conn"].close_all()
+    close_index(parts)
 
 
 def titler(*replies) -> object:
@@ -305,3 +305,138 @@ def test_no_titler_means_no_network_call_and_no_title(wired):
 def test_titling_an_unknown_thread_is_a_no_op(wired):
     _, state, _ = wired
     assert threads.autotitle(state, "thr_missing", "q", titler()) is None
+
+
+# --------------------------------------------------------------------------
+# GET /threads/{id}/export  (spec §6, story S5.7.1)
+# --------------------------------------------------------------------------
+
+
+def _thread_with_a_turn(wired) -> str:
+    """A thread holding one answered turn, with the events a real one carries."""
+    http, state, _ = wired
+    thread_id = http.post("/threads", json={"title": "Bus-off handling"}).json()["id"]
+    db.create_message(
+        state.pool, thread_id, role="user", events=[], content="How is bus-off reported?"
+    )
+    db.create_message(
+        state.pool,
+        thread_id,
+        role="assistant",
+        content="The driver calls CanIf_ControllerBusOff [SWS_Can_00272].",
+        events=[
+            {"type": "tool_start", "data": {"id": "c1", "tool": "search_requirements", "args": {}}},
+            {
+                "type": "citation",
+                "data": {
+                    "kind": "requirement",
+                    "req_id": "SWS_Can_00272",
+                    "doc": "can_driver",
+                    "doc_title": "Specification of CAN Driver",
+                    "page": 61,
+                    "bbox": None,
+                    "page_count": 131,
+                },
+            },
+            {
+                "type": "citation",
+                "data": {
+                    "kind": "code",
+                    "repo_path": "communication/CanIf/src/CanIf.c",
+                    "symbol": "CanIf_ControllerBusOff",
+                    "line_span": [300, 340],
+                    "git_sha": "09433770bebb8f27a7b480d7c96d814c68ffed3e",
+                },
+            },
+            {
+                "type": "citation",
+                "data": {
+                    "kind": "upstream",
+                    "req_id": "SRS_Can_01059",
+                    "cited_by": "SWS_Can_00272",
+                    "doc": "AUTOSAR SRS",
+                },
+            },
+            {
+                "type": "usage",
+                "data": {
+                    "model": "google/gemini-2.5-flash",
+                    "prompt_tokens": 3406,
+                    "completion_tokens": 95,
+                    "cost_usd": 0.0013,
+                    "elapsed_ms": 1600,
+                },
+            },
+        ],
+    )
+    return thread_id
+
+
+def test_markdown_export_links_citations_to_the_page_they_point_at(wired):
+    """Spec §11: "readable, citations as links"."""
+    http, _, _ = wired
+    thread_id = _thread_with_a_turn(wired)
+
+    response = http.get(f"/threads/{thread_id}/export", params={"fmt": "md"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/markdown")
+    text = response.text
+    assert "# Bus-off handling" in text
+    assert "## How is bus-off reported?" in text
+    # The requirement links straight at its page in the PDF.
+    assert "[`SWS_Can_00272`](/api/py/documents/can_driver/file#page=61)" in text
+    assert (
+        "[`communication/CanIf/src/CanIf.c:300-340`]"
+        "(/api/py/code/communication/CanIf/src/CanIf.c?lines=300-340)" in text
+    )
+    assert "`search_requirements`" in text
+    assert "$0.0013" in text
+
+
+def test_markdown_export_never_links_an_upstream_id(wired):
+    """SRS documents are not ingested, so there is genuinely nothing to open —
+    a link would be a promise the corpus cannot keep."""
+    http, _, _ = wired
+    thread_id = _thread_with_a_turn(wired)
+
+    text = http.get(f"/threads/{thread_id}/export", params={"fmt": "md"}).text
+
+    assert "SRS_Can_01059" in text
+    assert "](/api/py/documents/AUTOSAR" not in text
+    assert "not ingested" in text
+
+
+def test_json_export_is_the_raw_event_stream(wired):
+    """Spec §11 makes the events the message: an export that summarised them
+    could not be replayed."""
+    http, _, _ = wired
+    thread_id = _thread_with_a_turn(wired)
+
+    payload = http.get(f"/threads/{thread_id}/export", params={"fmt": "json"}).json()
+
+    assistant = payload["messages"][1]
+    assert [event["type"] for event in assistant["events"]] == [
+        "tool_start",
+        "citation",
+        "citation",
+        "citation",
+        "usage",
+    ]
+    assert assistant["events"][1]["data"]["req_id"] == "SWS_Can_00272"
+
+
+def test_an_unknown_export_format_is_a_400(wired):
+    http, _, _ = wired
+    thread_id = _thread_with_a_turn(wired)
+
+    response = http.get(f"/threads/{thread_id}/export", params={"fmt": "pdf"})
+
+    assert response.status_code == 400
+    assert "md" in response.json()["detail"]
+
+
+def test_exporting_an_unknown_thread_is_a_404(wired):
+    http, _, _ = wired
+
+    assert http.get("/threads/nope/export").status_code == 404

@@ -50,12 +50,29 @@ export function useThreads(): UseThreadsResult {
   const [loading, setLoading] = useState(true);
   const booted = useRef(false);
 
+  // Every call below is failure-tolerant, and that is not defensive padding:
+  // with a live backend these are network calls, and a thrown one used to take
+  // down the whole send. Killing the API mid-session cleared the composer and
+  // did nothing else — no message, no error, no toast — because `append` threw
+  // before the chat stream ever started. The stream has its own error handling
+  // and produces the "could not reach the backend" event the UI already
+  // renders; bookkeeping around it must never pre-empt that.
   const refresh = useCallback(async () => {
-    setSummaries(await listThreads());
+    try {
+      setSummaries(await listThreads());
+    } catch {
+      // Keep the list we have. Blanking the sidebar because one refresh failed
+      // would lose the user's place over a transient error.
+    }
   }, []);
 
   const select = useCallback(async (id: string) => {
-    const found = await getThread(id);
+    let found: Thread | null = null;
+    try {
+      found = await getThread(id);
+    } catch {
+      found = null;
+    }
     setThread(found);
     setActiveThreadId(found?.id ?? null);
   }, []);
@@ -145,7 +162,15 @@ export function useThreads(): UseThreadsResult {
   // was sent to even if the user has since selected another one.
   const append = useCallback(
     async (threadId: string, message: NewMessage) => {
-      const updated = await appendMessage(threadId, message);
+      let updated: Thread | null = null;
+      try {
+        updated = await appendMessage(threadId, message);
+      } catch {
+        // In live mode this is a re-read: `POST /chat` already persisted the
+        // turn. Failing it means the backend went away, which the stream is
+        // about to report properly — so leave the transcript alone and let it.
+        return null;
+      }
       setThread((current) =>
         updated && current?.id === threadId ? updated : current,
       );

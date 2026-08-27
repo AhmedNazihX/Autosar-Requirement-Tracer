@@ -1,6 +1,6 @@
 "use client";
 
-import { CodeIcon, FileTextIcon, XIcon } from "lucide-react";
+import { CodeIcon, FileTextIcon, HistoryIcon, XIcon } from "lucide-react";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
 import type { SourceTab, SourceTarget } from "@/lib/source-target";
@@ -25,16 +25,26 @@ export function SourcePane({
   onTabChange,
   onClose,
   codeFile,
+  restoredFrom = null,
 }: {
   target: SourceTarget | null;
   tab: SourceTab;
   onTabChange: (tab: SourceTab) => void;
   onClose: () => void;
   codeFile: HighlightedFile;
+  /** Set while a checkpoint restore is pinning the pane to an earlier turn
+   *  (story S5.4.1). Without it the pane silently shows an old page while the
+   *  conversation has moved on — which reads as a bug, not as a rewind. */
+  restoredFrom?: { turn: number; onReturn: () => void } | null;
 }) {
+  // Both tabs render from whichever citations the target carries. A chat chip
+  // supplies one; a report row supplies both (see `SourceTarget.companion`).
+  const carried = [target?.citation, target?.companion].filter(
+    (one) => one != null,
+  );
   const requirement =
-    target?.citation.kind === "requirement" ? target.citation : null;
-  const code = target?.citation.kind === "code" ? target.citation : null;
+    carried.find((one) => one.kind === "requirement") ?? null;
+  const code = carried.find((one) => one.kind === "code") ?? null;
 
   return (
     <Tabs
@@ -72,6 +82,18 @@ export function SourcePane({
           <XIcon />
         </Button>
       </div>
+
+      {restoredFrom ? (
+        <div className="flex h-8 flex-none items-center gap-2 border-b bg-muted px-3">
+          <HistoryIcon className="size-3.5 flex-none text-muted-foreground" />
+          <span className="flex-1 text-[11.5px] text-muted-foreground">
+            Restored from turn {restoredFrom.turn}
+          </span>
+          <Button variant="ghost" size="xs" onClick={restoredFrom.onReturn}>
+            Return to latest
+          </Button>
+        </div>
+      ) : null}
 
       <TabsContent
         value="document"

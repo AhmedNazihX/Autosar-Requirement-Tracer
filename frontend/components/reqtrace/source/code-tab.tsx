@@ -4,27 +4,104 @@ import { useEffect, useRef } from "react";
 import { CopyIcon, GitCommitHorizontalIcon, ScanLineIcon } from "lucide-react";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
+import { useCodeFile } from "@/hooks/use-code-file";
 import type { CodeCitation } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { CodeTokens } from "@/components/reqtrace/code-tokens";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Cap, Meta } from "@/components/reqtrace/text";
 
 /** Canvas artboard 3: 11.8 px mono on a 17 px line, 52 px right-aligned gutter. */
 const LINE_HEIGHT = 17;
 const PAD_TOP = 10;
 
+/**
+ * The Code tab.
+ *
+ * `fallback` is the committed fixture, highlighted on the server and rendered
+ * when there is no code citation to fetch — the pane's resting state, and the
+ * whole of canned mode. As soon as a citation arrives, story S5.3.2 fetches
+ * *that* file from the indexed snapshot: before it did, an evidence chip
+ * pointing at `CanTp.c` opened `CanIf.c` and looked right.
+ */
 export function CodeTab({
-  file,
+  file: fallback,
   citation,
 }: {
   file: HighlightedFile;
   citation: CodeCitation | null;
 }) {
+  const fetched = useCodeFile(citation);
+
+  // While a cited file is in flight, show that it is — never the fallback.
+  // Rendering the committed fixture under the citation's line numbers is the
+  // exact failure this story fixes, and it is invisible: the pane looks right.
+  if (citation && fetched.phase === "loading") {
+    return <Pending path={citation.repo_path} />;
+  }
+  if (fetched.phase === "failed") {
+    return <Unavailable message={fetched.message} />;
+  }
+
+  const file = fetched.phase === "ready" ? fetched.file : fallback;
+  return (
+    <CodeView
+      file={file}
+      citation={citation}
+      live={fetched.phase === "ready"}
+    />
+  );
+}
+
+function Pending({ path }: { path: string }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex h-[34px] flex-none items-center gap-2 border-b pr-2 pl-3">
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+          {path}
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+        {Array.from({ length: 14 }, (_, index) => (
+          <Skeleton
+            key={index}
+            className="h-3"
+            style={{ width: `${45 + ((index * 37) % 50)}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Unavailable({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 bg-muted px-10 text-center">
+      <ScanLineIcon className="size-5 text-muted-foreground" />
+      <p className="text-[12.5px] leading-[18px] text-muted-foreground">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+function CodeView({
+  file,
+  citation,
+  live,
+}: {
+  file: HighlightedFile;
+  citation: CodeCitation | null;
+  /** True when `file` came from `GET /code/{path}` rather than the committed
+   *  fixture. The footer says which, because "committed slice" printed under a
+   *  live file is the kind of stale caption nobody re-reads. */
+  live: boolean;
+}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLine = file.first_line + file.lines.length - 1;
 
   const span = citation?.line_span ?? null;
-  // The committed slice is a window on a 1 927-line file. A span outside it is
+  // The rendered slice is a window on a much larger file. A span outside it is
   // reported rather than clamped into a band that would point at the wrong code.
   const spanInWindow =
     span !== null && span[0] <= lastLine && span[1] >= file.first_line;
@@ -38,7 +115,7 @@ export function CodeTab({
     // see what precedes it — the canvas draws the band starting inside the view.
     const offset = (bandStart - file.first_line) * LINE_HEIGHT + PAD_TOP;
     container.scrollTo({ top: Math.max(offset - 3 * LINE_HEIGHT, 0) });
-  }, [bandStart, file.first_line]);
+  }, [bandStart, file.first_line, file.path]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -136,14 +213,12 @@ export function CodeTab({
 
       <div className="flex-none border-t bg-muted px-3 py-1.5">
         <Meta>
-          Committed slice, lines {file.first_line}&ndash;{lastLine} of{" "}
-          {file.total_lines.toLocaleString("en-US")}. Live slices arrive with{" "}
-          <span className="text-foreground">
-            GET /code/{"{path}"}?lines=a-b
-          </span>{" "}
-          , which the backend already serves (story S3.3.2); this pane fetching
-          it is story S5.3.2. The pane can only ever open paths inside the
-          pinned snapshot.
+          {live ? "Lines" : "Committed slice, lines"} {file.first_line}&ndash;
+          {lastLine} of {file.total_lines.toLocaleString("en-US")}
+          {live
+            ? ", read from the indexed snapshot at this commit."
+            : " — the committed fixture, shown until a citation names a file."}{" "}
+          The pane can only ever open paths inside the pinned snapshot.
         </Meta>
       </div>
     </div>

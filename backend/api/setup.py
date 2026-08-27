@@ -82,6 +82,11 @@ class SetupStatus(BaseModel):
     snapshot_present: bool
     project_id: str | None
     corpus_version: str | None
+    #: The pinned code snapshot's SHA, from the manifest. Reported because the
+    #: sidebar showed the *fixture's* SHA before this existed, which is only
+    #: right for as long as the two happen to agree — and a citation is only
+    #: true against the snapshot it was resolved on.
+    git_sha: str | None
     requirements: int
     context_chunks: int
     code_units: int
@@ -121,6 +126,7 @@ def status(state: deps.AppState = Depends(deps.state_of)) -> SetupStatus:
         snapshot_present=manifest is not None and repo_dir(manifest).is_dir(),
         project_id=manifest.project_id if manifest else None,
         corpus_version=manifest.version if manifest else None,
+        git_sha=manifest.code.git_sha if manifest else None,
         requirements=counts["requirements"],
         context_chunks=counts["context"],
         code_units=counts["code_units"],
