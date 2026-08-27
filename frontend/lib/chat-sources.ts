@@ -198,10 +198,16 @@ function describeHttpFailure(status: number): string {
     );
   }
   if (status >= 500) {
+    // Deliberately does NOT promise the question was saved. When the backend
+    // is down, `POST /chat` is what would have stored it — so it was not, and
+    // the transcript is showing it from memory (`app-shell.tsx`, `unsaved`).
+    // Claiming otherwise was measured to be false: killing the API mid-session
+    // produced this exact message above a question that existed nowhere but
+    // that tab.
     return (
       `The backend did not answer (HTTP ${status}). Either it is not running — ` +
       "start it with `make dev` — or it failed while handling the request. " +
-      "Your question is saved in the thread."
+      "Your question is still here: fix the backend and press Retry."
     );
   }
   return `The backend refused the request (HTTP ${status}).`;

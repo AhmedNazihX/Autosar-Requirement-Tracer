@@ -18,7 +18,11 @@ import {
   type SourceTab,
   type SourceTarget,
 } from "@/lib/source-target";
-import { getPaneLayout, setPaneLayout } from "@/lib/threads";
+import {
+  getPaneLayout,
+  setPaneLayout,
+  type StoredMessage,
+} from "@/lib/threads";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { useBackendHealth } from "@/hooks/use-backend-health";
 import type { SetupStatus } from "@/hooks/use-setup-status";
@@ -102,6 +106,24 @@ export function AppShell({
     tab: SourceTab;
   } | null>(null);
 
+  /**
+   * The turn that could not be stored.
+   *
+   * The transcript renders from the thread store, which was local until WP5
+   * made it the backend. That change introduced a failure the local store
+   * could not have: with the API down, persisting the user message fails, the
+   * transcript never shows it, and the whole send vanishes — composer cleared,
+   * nothing else. Measured, not theorised: killing the backend mid-session
+   * produced exactly that.
+   *
+   * So a turn that cannot be persisted is held here and rendered anyway. What
+   * the user typed stays on screen and the stream's `error` event still gets
+   * somewhere to appear, which is what makes "nothing was lost" true rather
+   * than merely reassuring. It clears the moment a write succeeds — the store
+   * is the source of truth again as soon as there is one.
+   */
+  const [unsaved, setUnsaved] = useState<StoredMessage[]>([]);
+
   const transcriptRef = useRef<HTMLDivElement>(null);
   const streamThreadRef = useRef<string | null>(null);
   const lastPromptRef = useRef<string>("");
@@ -121,7 +143,16 @@ export function AppShell({
         .map((event) => event.data.text)
         .join("");
 
-      void threads.append(target, { role: "assistant", content: text, events });
+      void threads
+        .append(target, { role: "assistant", content: text, events })
+        .then((stored) => {
+          if (stored) setUnsaved([]);
+          else
+            setUnsaved((current) => [
+              ...current,
+              localMessage("assistant", text, events),
+            ]);
+        });
 
       // An `error` event renders inline AND as a toast. The toast is what makes
       // an unreachable backend impossible to mistake for a hang; the inline
@@ -143,7 +174,10 @@ export function AppShell({
     stop,
   } = useChatStream({ source, onSettled });
 
-  const exchanges = useMemo(() => toExchanges(thread?.messages ?? []), [thread]);
+  const exchanges = useMemo(
+    () => toExchanges([...(thread?.messages ?? []), ...unsaved]),
+    [thread, unsaved],
+  );
   const lastExchangeId = exchanges.at(-1)?.id ?? null;
 
   /* --------------------------------------------------------- source pane --- */
@@ -200,11 +234,13 @@ export function AppShell({
       const active = thread ?? (await threads.create());
       lastPromptRef.current = text;
       streamThreadRef.current = active.id;
-      await threads.append(active.id, {
+      const stored = await threads.append(active.id, {
         role: "user",
         content: text,
         events: [],
       });
+      // Could not be written — show it anyway. See `unsaved`.
+      setUnsaved(stored ? [] : [localMessage("user", text, [])]);
       send(active.id, text);
     },
     [thread, threads, send],
@@ -460,4 +496,25 @@ function DisabledWithReason({
       </TooltipContent>
     </Tooltip>
   );
+}
+
+/**
+ * A message that exists only in this tab, for a turn the backend could not be
+ * told about. Shaped exactly like a stored one so `toExchanges` and every
+ * renderer treat it identically — the transcript should not have two kinds of
+ * message in it.
+ */
+function localMessage(
+  role: "user" | "assistant",
+  content: string,
+  events: ChatEvent[],
+): StoredMessage {
+  return {
+    id: `unsaved_${role}_${content.length}_${events.length}`,
+    role,
+    content,
+    events,
+    created_at: new Date().toISOString(),
+    parent_id: null,
+  };
 }
