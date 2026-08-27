@@ -221,10 +221,13 @@ class CodeSummary:
 class JoinSummary:
     """Tier-1 join: how many annotated ids exist as ingested requirements.
 
-    Reported twice on purpose. The corpus-wide rate is depressed by modules
-    whose specifications are deliberately not ingested (CanNm, Com, PduR have
-    annotations in the code but no SWS document here), so the rate restricted
-    to *ingested* modules is the one that says whether canonicalization works.
+    Reported twice on purpose. A module with annotations in the code but no
+    SWS document ingested would depress the corpus-wide rate without saying
+    anything about canonicalization, so the rate restricted to *ingested*
+    modules is the one that says whether canonicalization works. Since the
+    CanNm, Com and PduR specifications joined the corpus the two rates
+    coincide; the residual gap is release drift (annotated ids absent from
+    R23-11), not a canonicalization failure.
     """
 
     distinct_ids: int

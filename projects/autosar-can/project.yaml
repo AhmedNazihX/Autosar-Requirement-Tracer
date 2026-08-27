@@ -11,7 +11,8 @@ documents:
     # The CAN Driver document is internally inconsistent about casing: 228 of
     # its requirements are spelled SWS_Can_*, but 7 are spelled SWS_CAN_*
     # (SWS_CAN_00491, 00496, 91025-91029). Both spellings must match or those
-    # 7 are silently dropped. The other three documents are self-consistent.
+    # 7 are silently dropped. Of the other six documents only pdu_router
+    # repeats the quirk (SWS_PDUR_00816, see its entry).
     req_id_pattern: 'SWS_(?:Can|CAN)(?:_CONSTR)?_\d+'
     expected_requirements: 240
   - key: can_interface
@@ -35,6 +36,40 @@ documents:
     module: CanSM
     req_id_pattern: 'SWS_CanSM(?:_CONSTR)?_\d+'
     expected_requirements: 241
+  - key: can_nm
+    title: Specification of CAN Network Management
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_CANNetworkManagement.pdf
+    filename: AUTOSAR_CP_SWS_CANNetworkManagement.pdf
+    module: CanNm
+    # 9 extractor misses are expected here: Appendix B defines nine
+    # SWS_CanNm_NA_* not-applicable placeholders where the other documents
+    # have at most one catch-all (SWS_CANIF_NA_00999, SWS_Com_NA_00999, ...).
+    # NA items define no behavior, so the pattern deliberately excludes them.
+    req_id_pattern: 'SWS_CanNm(?:_CONSTR)?_\d+'
+    expected_requirements: 240
+  - key: com
+    title: Specification of Communication
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_COM.pdf
+    filename: AUTOSAR_CP_SWS_COM.pdf
+    module: Com
+    # Single-cased ids throughout; the only excluded token is the appendix
+    # not-applicable placeholder SWS_Com_NA_00999 (the 1 expected miss).
+    # SWS_ComM_* (Communication Manager) never appears in this document,
+    # and the _\d+ tail keeps the pattern from ever matching it anyway.
+    req_id_pattern: 'SWS_Com(?:_CONSTR)?_\d+'
+    expected_requirements: 345
+  - key: pdu_router
+    title: Specification of PDU Router
+    url: https://www.autosar.org/fileadmin/standards/R23-11/CP/AUTOSAR_CP_SWS_PDURouter.pdf
+    filename: AUTOSAR_CP_SWS_PDURouter.pdf
+    module: PduR
+    # The CAN Driver casing quirk repeats here: exactly one requirement,
+    # SWS_PDUR_00816 (the §7.8.2 runtime-errors table), is spelled uppercase
+    # in both its definition and the change history. Both spellings must
+    # match or it is silently dropped. The 1 expected miss is the Annex A
+    # not-applicable marker SWS_PduR_NA_00777.
+    req_id_pattern: 'SWS_(?:PduR|PDUR)(?:_CONSTR)?_\d+'
+    expected_requirements: 221
 
 extraction:
   req_id_pattern: 'SWS_[A-Za-z]+(?:_CONSTR)?_\d+'

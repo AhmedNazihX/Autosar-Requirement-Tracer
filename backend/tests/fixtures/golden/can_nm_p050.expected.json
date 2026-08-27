@@ -1,0 +1,46 @@
+{
+  "fixture": "can_nm_p050",
+  "document_key": "can_nm",
+  "source_document": "AUTOSAR_CP_SWS_CANNetworkManagement.pdf",
+  "page": 50,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The fifth document (SWS_CanNm_* casing) with the titled table-body variant it uses for every API definition: SWS_CanNm_00211 and SWS_CanNm_00213 are '[id] Definition of API function <name> ⌈<table>⌋' where the body is the whole service table (Service Name through Available via), interleaved with the plain '[id] ⌈sentence⌋()' shape (SWS_CanNm_00254, SWS_CanNm_00255). SWS_CanNm_00213 closes with '⌋() ()' — a stray second empty parens pair after the upstream list, which must not become an upstream id or a fifth requirement. SWS_CanNm_00255 carries the source's curly quotes around ‘requested’. Every upstream list on the page is empty, and the section headings 8.3.3/8.3.4 name CanNm_PassiveStartUp and CanNm_NetworkRequest without a ceiling — references, not requirements.",
+  "requirements": [
+    {
+      "id": "SWS_CanNm_00211",
+      "title": "Definition of API function CanNm_PassiveStartUp",
+      "text": "Service Name CanNm_PassiveStartUp Syntax Std_ReturnType CanNm_PassiveStartUp ( NetworkHandleType nmChannelHandle ) Service ID [hex] 0x01 Sync/Async Asynchronous Reentrancy Reentrant (but not for the same NM-Channel) Parameters (in) nmChannelHandle Identification of the NM-channel Parameters (inout) None Parameters (out) None Return value Std_ReturnType E_OK: No error E_NOT_OK: Passive startup of network management has failed Description Passive startup of the AUTOSAR CAN NM. It triggers the transition from Bus-Sleep Mode or Prepare Bus Sleep Mode to the Network Mode in Repeat Message State. Caveats: CanNm is initialized correctly. Available via CanNm.h",
+      "upstream_ids": [],
+      "named_symbols": ["CanNm_PassiveStartUp"],
+      "page": 50,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CanNm_00254",
+      "title": null,
+      "text": "Caveats of CanNm_PassiveStartUp: The CanNm module is initialized correctly.",
+      "upstream_ids": [],
+      "named_symbols": ["CanNm_PassiveStartUp"],
+      "page": 50,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CanNm_00213",
+      "title": "Definition of API function CanNm_NetworkRequest",
+      "text": "Service Name CanNm_NetworkRequest Syntax Std_ReturnType CanNm_NetworkRequest ( NetworkHandleType nmChannelHandle ) Service ID [hex] 0x02 Sync/Async Asynchronous Reentrancy Reentrant (but not for the same NM-channel) Parameters (in) nmChannelHandle Identification of the NM-channel Parameters (inout) None Parameters (out) None Return value Std_ReturnType E_OK: No error E_NOT_OK: Requesting of network has failed Description Request the network, since ECU needs to communicate on the bus. Available via CanNm.h",
+      "upstream_ids": [],
+      "named_symbols": ["CanNm_NetworkRequest"],
+      "page": 50,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_CanNm_00255",
+      "title": null,
+      "text": "The function CanNm_NetworkRequest shall change the Network state to ‘requested’.",
+      "upstream_ids": [],
+      "named_symbols": ["CanNm_NetworkRequest"],
+      "page": 50,
+      "spans_page_break": false
+    }
+  ]
+}

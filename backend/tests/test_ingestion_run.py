@@ -669,6 +669,23 @@ def test_the_spot_check_covers_every_document_and_every_shape():
             REAL_MANIFEST.documents[3],
             REAL_MANIFEST,
         ),
+        ingestion_for(
+            ["[SWS_CanNm_00040] ⌈Network management body.⌋()"],
+            REAL_MANIFEST.documents[4],
+            REAL_MANIFEST,
+        ),
+        ingestion_for(
+            ["[SWS_Com_00050] ⌈Signal body.⌋(SRS_Com_02041)"],
+            REAL_MANIFEST.documents[5],
+            REAL_MANIFEST,
+        ),
+        # The uppercase spelling is deliberate: pdu_router's pattern admits
+        # both casings (SWS_PDUR_00816 is real), and the spot check must too.
+        ingestion_for(
+            ["[SWS_PDUR_00060] ⌈Router body.⌋()"],
+            REAL_MANIFEST.documents[6],
+            REAL_MANIFEST,
+        ),
     ]
 
     picks = select_picks(results)

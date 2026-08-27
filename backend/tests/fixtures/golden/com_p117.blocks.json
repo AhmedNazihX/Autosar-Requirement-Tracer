@@ -1,0 +1,309 @@
+{
+  "fixture": "com_p117",
+  "document_key": "com",
+  "source_document": "AUTOSAR_CP_SWS_COM.pdf",
+  "source_sha256": "c0067ba3e603d4d6b72bfdecdce9bf246686da8818fb600a0f21236c510609b3",
+  "corpus_version": "R23-11",
+  "page": 117,
+  "page_count": 209,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 228832,
+  "char_end": 231278,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        357.099,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 228832,
+      "char_end": 228863,
+      "text": "Specification of Communication\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 228863,
+      "char_end": 228881,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.182,
+        524.409,
+        152.324
+      ],
+      "char_start": 228881,
+      "char_end": 229062,
+      "text": "[SWS_Com_00816] ⌈The AUTOSAR COM module shall forward all data of the re-\nceived I-PDU (i.e. the complete I-PDU as provided by the PduR) in the Com_RxIpdu-\nCallout.⌋(SRS_Com_02037)\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        162.489,
+        505.18,
+        174.75
+      ],
+      "char_start": 229062,
+      "char_end": 229135,
+      "text": "[SWS_Com_00346] Definition of configurable interface Com_TxIpduCallout ⌈\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        77.342,
+        189.606,
+        252.585,
+        197.617
+      ],
+      "char_start": 229135,
+      "char_end": 229166,
+      "text": "Service Name\nCom_TxIpduCallout\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        77.342,
+        203.162,
+        311.277,
+        211.591
+      ],
+      "char_start": 229166,
+      "char_end": 229201,
+      "text": "Syntax\nboolean Com_TxIpduCallout (\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        182.161,
+        212.626,
+        301.713,
+        239.525
+      ],
+      "char_start": 229201,
+      "char_end": 229244,
+      "text": "PduIdType PduId,\nPduInfoType* PduInfoPtr\n)\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        77.342,
+        244.904,
+        199.44,
+        253.016
+      ],
+      "char_start": 229244,
+      "char_end": 229266,
+      "text": "Service ID [hex]\n0x29\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        258.85,
+        228.675,
+        266.861
+      ],
+      "char_start": 229266,
+      "char_end": 229289,
+      "text": "Sync/Async\nSynchronous\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        77.342,
+        272.723,
+        217.158,
+        280.7
+      ],
+      "char_start": 229289,
+      "char_end": 229311,
+      "text": "Reentrancy\ndon’t care\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        286.527,
+        384.471,
+        294.681
+      ],
+      "char_start": 229311,
+      "char_end": 229362,
+      "text": "Parameters (in)\nPduId\nID of the transmitted I-PDU.\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        77.342,
+        300.609,
+        511.507,
+        318.085
+      ],
+      "char_start": 229362,
+      "char_end": 229502,
+      "text": "Parameters (inout)\nPduInfoPtr\nContains the length (SduLength) of the transmitted I-PDU and a\npointer to the data of the I-PDU (SduDataPtr).\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        77.342,
+        323.947,
+        201.21,
+        332.059
+      ],
+      "char_start": 229502,
+      "char_end": 229524,
+      "text": "Parameters (out)\nNone\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        77.342,
+        337.886,
+        447.61,
+        355.321
+      ],
+      "char_start": 229524,
+      "char_end": 229629,
+      "text": "Return value\nboolean\ntrue: I-PDU will be processed normal\nfalse: I-PDU will not be processed any further\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        77.342,
+        361.325,
+        503.077,
+        378.801
+      ],
+      "char_start": 229629,
+      "char_end": 229820,
+      "text": "Description\nThe I-PDU callout on sender side can be configured for example to implement user-defined\ntransmission filtering or user-defined pre-transmission-processing of the outgoing I-PDU.\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        77.342,
+        384.901,
+        356.945,
+        392.912
+      ],
+      "char_start": 229820,
+      "char_end": 229879,
+      "text": "Available via\nConfiguration parameter ComUserCbkHeaderFile\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        409.255,
+        180.489,
+        421.506
+      ],
+      "char_start": 229879,
+      "char_end": 229896,
+      "text": "⌋(SRS_Com_02037)\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        70.866,
+        431.49,
+        518.908,
+        458.368
+      ],
+      "char_start": 229896,
+      "char_end": 230003,
+      "text": "The callout function name must be configured either by ComIPduCallout or by\nComIPduTriggerTransmitCallout.\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        70.866,
+        468.829,
+        524.411,
+        524.121
+      ],
+      "char_start": 230003,
+      "char_end": 230329,
+      "text": "The AUTOSAR COM module implements no means to detect or prevent possible re-\ncursions that may occur when I-PDUs are triggered by actions within an I-PDU callout.\nIt is solely in the responsibility of the implementer of an I-PDU callout and the system\nintegrator that unwanted or endless chains of I-PDU callouts are avoided.\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        70.866,
+        534.286,
+        524.414,
+        589.875
+      ],
+      "char_start": 230329,
+      "char_end": 230579,
+      "text": "[SWS_Com_00381] ⌈The AUTOSAR COM module shall not support that other\nAUTOSAR COM module’s APIs than Com_TriggerIPDUSend, Com_TriggerIP-\nDUSendWithMetaData, Com_SendSignal and Com_SendSignalGroup can be\ncalled out of an I-PDU callout.⌋(SRS_Com_02037)\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        70.866,
+        599.859,
+        524.411,
+        655.628
+      ],
+      "char_start": 230579,
+      "char_end": 230823,
+      "text": "[SWS_Com_00766] ⌈In case ComIPduTriggerTransmitCallout is configured for\nan I-PDU and the I-PDU is started, the AUTOSAR COM module shall invoke this I-\nPDU callout within every execution of Com_TriggerTransmit for this I-PDU.⌋(SRS_-\nCom_02037)\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        70.866,
+        665.612,
+        524.41,
+        706.936
+      ],
+      "char_start": 230823,
+      "char_end": 230986,
+      "text": "[SWS_Com_00395] ⌈When Com_TriggerTransmit is called, the AUTOSAR COM\nmodule shall ignore the return value from the ComIPduTriggerTransmitCallout.⌋\n(SRS_Com_02037)\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        70.866,
+        716.92,
+        524.41,
+        772.689
+      ],
+      "char_start": 230986,
+      "char_end": 231232,
+      "text": "[SWS_Com_00719] ⌈In case a ComIPduCallout is configured for an I-PDU with\nComIPduDirection configured to SEND, the AUTOSAR COM module shall invoke\nthis I-PDU callout directly before the I-PDU is transmitted via PduR_ComTransmit.⌋\n(SRS_Com_02037)\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 231232,
+      "char_end": 231278,
+      "text": "117 of 209\nDocument ID 15: AUTOSAR_CP_SWS_COM\n"
+    }
+  ]
+}

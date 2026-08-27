@@ -1,0 +1,64 @@
+{
+  "fixture": "com_p117",
+  "document_key": "com",
+  "source_document": "AUTOSAR_CP_SWS_COM.pdf",
+  "page": 117,
+  "labeled": "hand-verified against the rendered PDF page — never regenerate from code",
+  "notes": "The COM document — the largest in the corpus — at requirement density: six fully self-contained requirements, five plain and one titled. SWS_Com_00346 is the titled 'Definition of configurable interface' variant whose body is a service table, and every requirement on the page carries the same upstream (SRS_Com_02037). SWS_Com_00719 names the cross-module symbol PduR_ComTransmit; ComIPduCallout, ComIPduDirection and ComIPduTriggerTransmitCallout appear throughout but are configuration parameters, not Com_* symbols, and must not be extracted. Two paragraphs of running prose between SWS_Com_00346 and SWS_Com_00381 contain no bracketed ids and no ceiling — plain text, not requirements. SWS_Com_00766's 'I-\\nPDU' is hyphen-split at a line break in the parser output, so normalization rule 3 rejoins it to 'IPDU' — the documented lossy trade (text_norm rule 3); the rendered page reads 'I-PDU'.",
+  "requirements": [
+    {
+      "id": "SWS_Com_00816",
+      "title": null,
+      "text": "The AUTOSAR COM module shall forward all data of the received I-PDU (i.e. the complete I-PDU as provided by the PduR) in the Com_RxIpduCallout.",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["Com_RxIpduCallout"],
+      "page": 117,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Com_00346",
+      "title": "Definition of configurable interface Com_TxIpduCallout",
+      "text": "Service Name Com_TxIpduCallout Syntax boolean Com_TxIpduCallout ( PduIdType PduId, PduInfoType* PduInfoPtr ) Service ID [hex] 0x29 Sync/Async Synchronous Reentrancy don’t care Parameters (in) PduId ID of the transmitted I-PDU. Parameters (inout) PduInfoPtr Contains the length (SduLength) of the transmitted I-PDU and a pointer to the data of the I-PDU (SduDataPtr). Parameters (out) None Return value boolean true: I-PDU will be processed normal false: I-PDU will not be processed any further Description The I-PDU callout on sender side can be configured for example to implement user-defined transmission filtering or user-defined pre-transmission-processing of the outgoing I-PDU. Available via Configuration parameter ComUserCbkHeaderFile",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["Com_TxIpduCallout"],
+      "page": 117,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Com_00381",
+      "title": null,
+      "text": "The AUTOSAR COM module shall not support that other AUTOSAR COM module’s APIs than Com_TriggerIPDUSend, Com_TriggerIPDUSendWithMetaData, Com_SendSignal and Com_SendSignalGroup can be called out of an I-PDU callout.",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["Com_TriggerIPDUSend", "Com_TriggerIPDUSendWithMetaData", "Com_SendSignal", "Com_SendSignalGroup"],
+      "page": 117,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Com_00766",
+      "title": null,
+      "text": "In case ComIPduTriggerTransmitCallout is configured for an I-PDU and the I-PDU is started, the AUTOSAR COM module shall invoke this IPDU callout within every execution of Com_TriggerTransmit for this I-PDU.",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["Com_TriggerTransmit"],
+      "page": 117,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Com_00395",
+      "title": null,
+      "text": "When Com_TriggerTransmit is called, the AUTOSAR COM module shall ignore the return value from the ComIPduTriggerTransmitCallout.",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["Com_TriggerTransmit"],
+      "page": 117,
+      "spans_page_break": false
+    },
+    {
+      "id": "SWS_Com_00719",
+      "title": null,
+      "text": "In case a ComIPduCallout is configured for an I-PDU with ComIPduDirection configured to SEND, the AUTOSAR COM module shall invoke this I-PDU callout directly before the I-PDU is transmitted via PduR_ComTransmit.",
+      "upstream_ids": ["SRS_Com_02037"],
+      "named_symbols": ["PduR_ComTransmit"],
+      "page": 117,
+      "spans_page_break": false
+    }
+  ]
+}

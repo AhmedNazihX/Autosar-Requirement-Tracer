@@ -1,0 +1,357 @@
+{
+  "fixture": "pdu_router_p060",
+  "document_key": "pdu_router",
+  "source_document": "AUTOSAR_CP_SWS_PDURouter.pdf",
+  "source_sha256": "bfe52ea523a4cff7474164d039ba676252da23e4fdc5f37b14c8f13b9ed83c70",
+  "corpus_version": "R23-11",
+  "page": 60,
+  "page_count": 133,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 120234,
+  "char_end": 121973,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        375.582,
+        59.925,
+        524.412,
+        71.88
+      ],
+      "char_start": 120234,
+      "char_end": 120262,
+      "text": "Specification of PDU Router\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 120262,
+      "char_end": 120280,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        111.001,
+        524.415,
+        195.662
+      ],
+      "char_start": 120280,
+      "char_end": 120697,
+      "text": "<Lo>, <Up>, and <LoTp> tags of the GenericComServices APIs. The CDD’s ven-\ndor specific module definition can be indirectly accessed via the configuration param-\neter PduRBswModuleRef which references the top-level element of the concrete con-\nfiguration of the CDD (i.e., EcucModuleConfigurationValues element) which ref-\nerences the CDD’s vendor specific module definition (EcucModuleDef element).⌋\n(SRS_BSW_00310)\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        231.691,
+        234.542,
+        246.037
+      ],
+      "char_start": 120697,
+      "char_end": 120722,
+      "text": "7.8\nError classification\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        70.866,
+        261.913,
+        505.426,
+        273.868
+      ],
+      "char_start": 120722,
+      "char_end": 120807,
+      "text": "For details refer to the Chapter 7.2 \"Error classification\" in [2, SWS BSW General].\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        70.866,
+        284.329,
+        353.583,
+        296.284
+      ],
+      "char_start": 120807,
+      "char_end": 120861,
+      "text": "Note that the PduR does not report production errors.\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        70.866,
+        330.666,
+        223.08,
+        342.621
+      ],
+      "char_start": 120861,
+      "char_end": 120886,
+      "text": "7.8.1\nDevelopment Errors\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        70.866,
+        358.753,
+        470.834,
+        371.014
+      ],
+      "char_start": 120886,
+      "char_end": 120952,
+      "text": "[SWS_PduR_00100] Definiton of development errors in module PduR ⌈\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        385.699,
+        500.28,
+        393.84
+      ],
+      "char_start": 120952,
+      "char_end": 120997,
+      "text": "Type of error\nRelated error code\nError value\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        77.342,
+        399.667,
+        475.796,
+        407.821
+      ],
+      "char_start": 120997,
+      "char_end": 121051,
+      "text": "Invalid configuration pointer\nPDUR_E_INIT_FAILED\n0x00\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        413.962,
+        252.31,
+        440.861
+      ],
+      "char_start": 121051,
+      "char_end": 121183,
+      "text": "API service (except PduR_GetVersionInfo) used\nwithout module initialization or PduR_Init called in\nany state other than PDUR_UNINIT\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        267.93,
+        413.778,
+        475.796,
+        421.748
+      ],
+      "char_start": 121183,
+      "char_end": 121202,
+      "text": "PDUR_E_UNINIT\n0x01\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        77.342,
+        446.723,
+        475.796,
+        454.876
+      ],
+      "char_start": 121202,
+      "char_end": 121252,
+      "text": "Invalid PDU identifier\nPDUR_E_PDU_ID_INVALID\n0x02\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        77.342,
+        460.017,
+        243.582,
+        486.916
+      ],
+      "char_start": 121252,
+      "char_end": 121357,
+      "text": "If the routing table is invalid that is given to the\nPduR_EnableRouting or PduR_DisableRouting\nfunctions\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        267.93,
+        459.833,
+        475.796,
+        467.987
+      ],
+      "char_start": 121357,
+      "char_end": 121399,
+      "text": "PDUR_E_ROUTING_PATH_GROUP_ID_INVALID\n0x08\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        77.342,
+        491.192,
+        475.796,
+        499.345
+      ],
+      "char_start": 121399,
+      "char_end": 121469,
+      "text": "Null pointer has been passed as an argument\nPDUR_E_PARAM_POINTER\n0x09\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        70.866,
+        515.505,
+        392.467,
+        527.756
+      ],
+      "char_start": 121469,
+      "char_end": 121516,
+      "text": "⌋(SRS_BSW_00337, SRS_BSW_00323, SRS_BSW_00452)\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        70.866,
+        562.137,
+        196.013,
+        574.092
+      ],
+      "char_start": 121516,
+      "char_end": 121537,
+      "text": "7.8.2\nRuntime Errors\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        70.866,
+        590.225,
+        443.767,
+        602.486
+      ],
+      "char_start": 121537,
+      "char_end": 121599,
+      "text": "[SWS_PDUR_00816] Definiton of runtime errors in module PduR ⌈\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        77.342,
+        617.17,
+        500.28,
+        625.312
+      ],
+      "char_start": 121599,
+      "char_end": 121644,
+      "text": "Type of error\nRelated error code\nError value\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        77.342,
+        631.322,
+        248.93,
+        648.757
+      ],
+      "char_start": 121644,
+      "char_end": 121738,
+      "text": "TP module rejected a transmit request for a valid\nPDU identifier in case of gateway operation\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        267.93,
+        631.139,
+        475.796,
+        639.292
+      ],
+      "char_start": 121738,
+      "char_end": 121772,
+      "text": "PDUR_E_TP_GW_TX_REQ_REJECTED\n0x03\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        77.342,
+        654.898,
+        254.541,
+        672.332
+      ],
+      "char_start": 121772,
+      "char_end": 121833,
+      "text": "Loss of a PDU instance (buffer overrun in gateway\noperation)\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        267.93,
+        654.714,
+        475.796,
+        662.868
+      ],
+      "char_start": 121833,
+      "char_end": 121864,
+      "text": "PDUR_E_PDU_INSTANCES_LOST\n0x0a\n"
+    },
+    {
+      "block_no": 24,
+      "bbox": [
+        70.866,
+        688.58,
+        84.142,
+        700.831
+      ],
+      "char_start": 121864,
+      "char_end": 121868,
+      "text": "⌋()\n"
+    },
+    {
+      "block_no": 25,
+      "bbox": [
+        70.866,
+        735.212,
+        200.556,
+        747.167
+      ],
+      "char_start": 121868,
+      "char_end": 121891,
+      "text": "7.8.3\nTransient Faults\n"
+    },
+    {
+      "block_no": 26,
+      "bbox": [
+        70.866,
+        763.596,
+        223.402,
+        775.551
+      ],
+      "char_start": 121891,
+      "char_end": 121922,
+      "text": "There are no transient faults.\n"
+    },
+    {
+      "block_no": 27,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 121922,
+      "char_end": 121973,
+      "text": "60 of 133\nDocument ID 35: AUTOSAR_CP_SWS_PDURouter\n"
+    }
+  ]
+}

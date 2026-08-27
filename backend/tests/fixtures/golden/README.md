@@ -41,9 +41,14 @@ re-reading the page and saying so in the commit message.
 | `can_driver_p023` | CAN Driver 23 | the §6 Requirements-Tracing table: 33 bracketed `SWS_Can_*` ids and **zero** requirements — the false-positive guard |
 | `can_interface_p034` | CAN Interface 34 | 7 requirements in the **other ID casing** (`SWS_CANIF_*`); both documents must be represented or a casing bug passes every test |
 | `can_driver_p094` | CAN Driver 94 | `SWS_Can_CONSTR_00509/00510/00511` — the `_CONSTR_` infix, worth ~20 requirements corpus-wide |
+| `can_nm_p050` | CAN NM 50 | the fifth document (`SWS_CanNm_*`); two **titled** API definitions (`SWS_CanNm_00211`, `SWS_CanNm_00213`) whose bodies are whole **service tables**, interleaved with plain requirements; `SWS_CanNm_00213` closes with `⌋() ()` — a stray extra empty parens pair |
+| `com_p117` | COM 117 | the largest document (209 pp); 5 plain + 1 **titled table** requirement (`SWS_Com_00346`), all with upstream `(SRS_Com_02037)`; the cross-module symbol `PduR_ComTransmit`, and `ComIPduCallout`-style config parameters the symbol pattern must ignore |
+| `pdu_router_p060` | PDU Router 60 | `SWS_PDUR_00816` — the document's one **UPPERCASE**-cased id, next to the normal-cased `SWS_PduR_00100`; a `req_id_pattern` without the `PDUR` alternative drops it while every other fixture stays green. Both are titled table bodies (`"Definiton"`, sic) |
 
-Seven files for six distinct cases: the page-break case inherently costs two
-pages (controller ruling **R15**). Do not trim the set to hit a round number.
+Ten files for nine distinct cases: the page-break case inherently costs two
+pages (controller ruling **R15**). The last three joined on 2026-08-27 with
+the CanNm/Com/PduR documents, so every ingested document is represented. Do
+not trim the set to hit a round number.
 
 ## `.blocks.json` format
 

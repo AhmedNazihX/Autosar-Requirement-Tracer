@@ -44,6 +44,24 @@
       "document_key": "can_driver",
       "page": 94,
       "why": "SWS_Can_CONSTR_00509/00510/00511 - the _CONSTR_ infix. Omitting the infix from the id pattern silently drops ~20 requirements across the corpus and nothing else here would catch it"
+    },
+    {
+      "fixture": "can_nm_p050",
+      "document_key": "can_nm",
+      "page": 50,
+      "why": "the fifth document (SWS_CanNm_*): two titled 'Definition of API function ... ⌈<table>⌋' requirements whose bodies are whole service tables, interleaved with plain one-sentence requirements; SWS_CanNm_00213 closes with '⌋() ()' — a stray extra empty parens pair after the upstream list"
+    },
+    {
+      "fixture": "com_p117",
+      "document_key": "com",
+      "page": 117,
+      "why": "the COM document at density: 6 self-contained requirements — 5 plain + the titled 'Definition of configurable interface' table variant — every one with an upstream (SRS_Com_02037), a cross-module PduR_ComTransmit symbol, and ComIPdu* config parameters that must not be extracted as symbols"
+    },
+    {
+      "fixture": "pdu_router_p060",
+      "document_key": "pdu_router",
+      "page": 60,
+      "why": "the PDU Router casing quirk: [SWS_PDUR_00816] — the document's only UPPERCASE-spelled id, genuine in the source — sits next to the normally-cased [SWS_PduR_00100]; both are titled table-body requirements carrying the spec's own 'Definiton' typo, one with SRS_BSW upstream refs and one with an empty ⌋()"
     }
   ]
 }

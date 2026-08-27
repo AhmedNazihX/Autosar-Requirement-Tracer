@@ -1,0 +1,453 @@
+{
+  "fixture": "can_nm_p050",
+  "document_key": "can_nm",
+  "source_document": "AUTOSAR_CP_SWS_CANNetworkManagement.pdf",
+  "source_sha256": "6b7b234cb73d3e90a6c3f53913dca68cf499bb3d69b6fb9636b6bfbbba2c8d76",
+  "corpus_version": "R23-11",
+  "page": 50,
+  "page_count": 103,
+  "width": 595.276,
+  "height": 841.89,
+  "char_start": 101084,
+  "char_end": 102778,
+  "parser": {
+    "library": "pymupdf",
+    "version": "1.28.2",
+    "extraction_mode": "blocks",
+    "module": "ingestion.pdf_loader.parse_pdf"
+  },
+  "blocks": [
+    {
+      "block_no": 0,
+      "bbox": [
+        294.467,
+        59.925,
+        524.413,
+        71.88
+      ],
+      "char_start": 101084,
+      "char_end": 101124,
+      "text": "Specification of CAN Network Management\n"
+    },
+    {
+      "block_no": 1,
+      "bbox": [
+        405.242,
+        74.371,
+        524.411,
+        86.326
+      ],
+      "char_start": 101124,
+      "char_end": 101142,
+      "text": "AUTOSAR CP R23-11\n"
+    },
+    {
+      "block_no": 2,
+      "bbox": [
+        70.866,
+        110.736,
+        252.872,
+        123.443
+      ],
+      "char_start": 101142,
+      "char_end": 101169,
+      "text": "8.3.3\nCanNm_PassiveStartUp\n"
+    },
+    {
+      "block_no": 3,
+      "bbox": [
+        70.866,
+        139.575,
+        489.244,
+        151.836
+      ],
+      "char_start": 101169,
+      "char_end": 101237,
+      "text": "[SWS_CanNm_00211] Definition of API function CanNm_PassiveStartUp ⌈\n"
+    },
+    {
+      "block_no": 4,
+      "bbox": [
+        77.342,
+        166.692,
+        268.326,
+        174.703
+      ],
+      "char_start": 101237,
+      "char_end": 101271,
+      "text": "Service Name\nCanNm_PassiveStartUp\n"
+    },
+    {
+      "block_no": 5,
+      "bbox": [
+        77.342,
+        180.248,
+        359.098,
+        188.677
+      ],
+      "char_start": 101271,
+      "char_end": 101316,
+      "text": "Syntax\nStd_ReturnType CanNm_PassiveStartUp (\n"
+    },
+    {
+      "block_no": 6,
+      "bbox": [
+        182.161,
+        189.712,
+        349.533,
+        207.147
+      ],
+      "char_start": 101316,
+      "char_end": 101352,
+      "text": "NetworkHandleType nmChannelHandle\n)\n"
+    },
+    {
+      "block_no": 7,
+      "bbox": [
+        77.342,
+        212.525,
+        199.44,
+        220.637
+      ],
+      "char_start": 101352,
+      "char_end": 101374,
+      "text": "Service ID [hex]\n0x01\n"
+    },
+    {
+      "block_no": 8,
+      "bbox": [
+        77.342,
+        226.329,
+        232.66,
+        234.442
+      ],
+      "char_start": 101374,
+      "char_end": 101398,
+      "text": "Sync/Async\nAsynchronous\n"
+    },
+    {
+      "block_no": 9,
+      "bbox": [
+        77.342,
+        240.276,
+        342.272,
+        248.422
+      ],
+      "char_start": 101398,
+      "char_end": 101453,
+      "text": "Reentrancy\nReentrant (but not for the same NM-Channel)\n"
+    },
+    {
+      "block_no": 10,
+      "bbox": [
+        77.342,
+        254.427,
+        399.056,
+        262.438
+      ],
+      "char_start": 101453,
+      "char_end": 101518,
+      "text": "Parameters (in)\nnmChannelHandle\nIdentification of the NM-channel\n"
+    },
+    {
+      "block_no": 11,
+      "bbox": [
+        77.342,
+        268.224,
+        201.21,
+        276.336
+      ],
+      "char_start": 101518,
+      "char_end": 101542,
+      "text": "Parameters (inout)\nNone\n"
+    },
+    {
+      "block_no": 12,
+      "bbox": [
+        77.342,
+        282.164,
+        201.21,
+        290.276
+      ],
+      "char_start": 101542,
+      "char_end": 101564,
+      "text": "Parameters (out)\nNone\n"
+    },
+    {
+      "block_no": 13,
+      "bbox": [
+        77.342,
+        295.786,
+        508.031,
+        313.538
+      ],
+      "char_start": 101564,
+      "char_end": 101666,
+      "text": "Return value\nStd_ReturnType\nE_OK: No error\nE_NOT_OK: Passive startup of network management has failed\n"
+    },
+    {
+      "block_no": 14,
+      "bbox": [
+        77.342,
+        319.638,
+        506.401,
+        337.113
+      ],
+      "char_start": 101666,
+      "char_end": 101835,
+      "text": "Description\nPassive startup of the AUTOSAR CAN NM. It triggers the transition from Bus-Sleep Mode or\nPrepare Bus Sleep Mode to the Network Mode in Repeat Message State.\n"
+    },
+    {
+      "block_no": 15,
+      "bbox": [
+        182.161,
+        343.34,
+        319.589,
+        351.31
+      ],
+      "char_start": 101835,
+      "char_end": 101876,
+      "text": "Caveats: CanNm is initialized correctly.\n"
+    },
+    {
+      "block_no": 16,
+      "bbox": [
+        77.342,
+        357.315,
+        215.819,
+        365.325
+      ],
+      "char_start": 101876,
+      "char_end": 101898,
+      "text": "Available via\nCanNm.h\n"
+    },
+    {
+      "block_no": 17,
+      "bbox": [
+        70.866,
+        380.059,
+        84.142,
+        392.31
+      ],
+      "char_start": 101898,
+      "char_end": 101902,
+      "text": "⌋()\n"
+    },
+    {
+      "block_no": 18,
+      "bbox": [
+        70.866,
+        402.294,
+        524.404,
+        429.171
+      ],
+      "char_start": 101902,
+      "char_end": 102000,
+      "text": "[SWS_CanNm_00254] ⌈Caveats of CanNm_PassiveStartUp: The CanNm module\nis initialized correctly.⌋()\n"
+    },
+    {
+      "block_no": 19,
+      "bbox": [
+        70.866,
+        462.801,
+        252.872,
+        475.508
+      ],
+      "char_start": 102000,
+      "char_end": 102027,
+      "text": "8.3.4\nCanNm_NetworkRequest\n"
+    },
+    {
+      "block_no": 20,
+      "bbox": [
+        70.866,
+        491.64,
+        495.748,
+        503.901
+      ],
+      "char_start": 102027,
+      "char_end": 102095,
+      "text": "[SWS_CanNm_00213] Definition of API function CanNm_NetworkRequest ⌈\n"
+    },
+    {
+      "block_no": 21,
+      "bbox": [
+        77.342,
+        518.757,
+        272.55,
+        526.768
+      ],
+      "char_start": 102095,
+      "char_end": 102129,
+      "text": "Service Name\nCanNm_NetworkRequest\n"
+    },
+    {
+      "block_no": 22,
+      "bbox": [
+        77.342,
+        532.313,
+        359.098,
+        540.742
+      ],
+      "char_start": 102129,
+      "char_end": 102174,
+      "text": "Syntax\nStd_ReturnType CanNm_NetworkRequest (\n"
+    },
+    {
+      "block_no": 23,
+      "bbox": [
+        182.161,
+        541.777,
+        349.533,
+        559.212
+      ],
+      "char_start": 102174,
+      "char_end": 102210,
+      "text": "NetworkHandleType nmChannelHandle\n)\n"
+    },
+    {
+      "block_no": 24,
+      "bbox": [
+        77.342,
+        564.59,
+        199.44,
+        572.703
+      ],
+      "char_start": 102210,
+      "char_end": 102232,
+      "text": "Service ID [hex]\n0x02\n"
+    },
+    {
+      "block_no": 25,
+      "bbox": [
+        77.342,
+        578.394,
+        232.66,
+        586.507
+      ],
+      "char_start": 102232,
+      "char_end": 102256,
+      "text": "Sync/Async\nAsynchronous\n"
+    },
+    {
+      "block_no": 26,
+      "bbox": [
+        77.342,
+        592.341,
+        340.503,
+        600.487
+      ],
+      "char_start": 102256,
+      "char_end": 102311,
+      "text": "Reentrancy\nReentrant (but not for the same NM-channel)\n"
+    },
+    {
+      "block_no": 27,
+      "bbox": [
+        77.342,
+        606.492,
+        399.056,
+        614.503
+      ],
+      "char_start": 102311,
+      "char_end": 102376,
+      "text": "Parameters (in)\nnmChannelHandle\nIdentification of the NM-channel\n"
+    },
+    {
+      "block_no": 28,
+      "bbox": [
+        77.342,
+        620.289,
+        201.21,
+        628.401
+      ],
+      "char_start": 102376,
+      "char_end": 102400,
+      "text": "Parameters (inout)\nNone\n"
+    },
+    {
+      "block_no": 29,
+      "bbox": [
+        77.342,
+        634.229,
+        201.21,
+        642.341
+      ],
+      "char_start": 102400,
+      "char_end": 102422,
+      "text": "Parameters (out)\nNone\n"
+    },
+    {
+      "block_no": 30,
+      "bbox": [
+        77.342,
+        647.851,
+        445.33,
+        665.603
+      ],
+      "char_start": 102422,
+      "char_end": 102508,
+      "text": "Return value\nStd_ReturnType\nE_OK: No error\nE_NOT_OK: Requesting of network has failed\n"
+    },
+    {
+      "block_no": 31,
+      "bbox": [
+        77.342,
+        671.703,
+        421.057,
+        679.714
+      ],
+      "char_start": 102508,
+      "char_end": 102584,
+      "text": "Description\nRequest the network, since ECU needs to communicate on the bus.\n"
+    },
+    {
+      "block_no": 32,
+      "bbox": [
+        77.342,
+        685.718,
+        215.819,
+        693.729
+      ],
+      "char_start": 102584,
+      "char_end": 102606,
+      "text": "Available via\nCanNm.h\n"
+    },
+    {
+      "block_no": 33,
+      "bbox": [
+        70.866,
+        708.462,
+        98.798,
+        720.713
+      ],
+      "char_start": 102606,
+      "char_end": 102613,
+      "text": "⌋() ()\n"
+    },
+    {
+      "block_no": 34,
+      "bbox": [
+        70.866,
+        730.697,
+        524.404,
+        757.575
+      ],
+      "char_start": 102613,
+      "char_end": 102716,
+      "text": "[SWS_CanNm_00255] ⌈The function CanNm_NetworkRequest shall change the\nNetwork state to ‘requested’.⌋()\n"
+    },
+    {
+      "block_no": 35,
+      "bbox": [
+        70.866,
+        802.755,
+        524.413,
+        812.717
+      ],
+      "char_start": 102716,
+      "char_end": 102778,
+      "text": "50 of 103\nDocument ID 13: AUTOSAR_CP_SWS_CANNetworkManagement\n"
+    }
+  ]
+}

@@ -90,9 +90,10 @@ def module_names(manifest: ProjectManifest) -> list[str]:
     requirement chunk from the same module would carry two different ``module``
     values and no metadata filter could match both.
 
-    Modules present only in the code (``CanNm``, ``PduR``, ``Com`` here, whose
-    specifications are deliberately not ingested) keep their annotation-map
-    spelling, which is the only spelling available for them.
+    A module present only in the code would keep its annotation-map spelling,
+    the only one available for it. Since the CanNm, Com and PduR
+    specifications joined the corpus no such module exists here, but the
+    ordering rule still guards the case for the next manifest.
     """
     return [
         *manifest.code.annotation_module_map.values(),
