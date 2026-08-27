@@ -32,6 +32,30 @@ export const VERDICTS = [
 export type Verdict = (typeof VERDICTS)[number];
 
 /**
+ * What each verdict means, in the reader's terms.
+ *
+ * These paraphrase the definitions the judge itself is given — the four
+ * bullets in `backend/engines/evidence.py`'s `SYSTEM_PROMPT` — and they are
+ * kept beside `VERDICTS` so a fifth verdict, or a changed definition, is
+ * obviously incomplete here. If the two ever disagree, the prompt is what the
+ * model actually followed and this is the stale copy.
+ *
+ * Each also states the consequence, because that is the part a reader cannot
+ * infer from the label: `implemented` and `partial` are what the coverage
+ * percentage counts, and `unverifiable` is deliberately counted as neither.
+ */
+export const VERDICT_MEANING: Record<Verdict, string> = {
+  implemented:
+    "A cited code unit clearly performs what the requirement mandates. Counts towards coverage.",
+  partial:
+    "Some of the mandated behaviour is present, or it is present only for some of the cases the requirement covers. Counts towards coverage.",
+  missing:
+    "The candidates were relevant enough to judge, and none of them implements the requirement. Usually release drift — the snapshot implements an older AUTOSAR release — rather than a defect.",
+  unverifiable:
+    "The evidence did not settle it: the candidates were unrelated, or the requirement is about configuration, documentation or naming that source code cannot decide. Counted as neither implemented nor missing, on purpose.",
+};
+
+/**
  * One stage of the advanced RAG pipeline (spec §4), reported by
  * `search_requirements` so the pipeline is visible without a debug panel.
  */

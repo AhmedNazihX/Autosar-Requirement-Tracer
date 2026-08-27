@@ -10,7 +10,12 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { VERDICTS, type CodeCitation, type Verdict } from "@/lib/events";
+import {
+  VERDICT_MEANING,
+  VERDICTS,
+  type CodeCitation,
+  type Verdict,
+} from "@/lib/events";
 import {
   covered,
   coveredPct,
@@ -30,6 +35,11 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { UpstreamChip } from "@/components/reqtrace/chat/citation-chips";
 import { Cap, Meta } from "@/components/reqtrace/text";
 
@@ -494,8 +504,10 @@ function Finished({
             const count = coverage[verdict];
             const active = filters.has(verdict);
             return (
+              <Tooltip key={verdict}>
+                <TooltipTrigger
+                  render={
               <button
-                key={verdict}
                 type="button"
                 onClick={() => {
                   const next = new Set(filters);
@@ -515,6 +527,20 @@ function Finished({
                 {verdict}
                 <span className="font-mono tabular-nums">{count}</span>
               </button>
+                  }
+                />
+                <TooltipContent
+                  side="bottom"
+                  className="max-w-[300px] flex-col items-start gap-1 px-2.5 py-2 text-left"
+                >
+                  <span className="text-[11.5px] leading-4 font-medium">
+                    {verdict}
+                  </span>
+                  <span className="text-[10.5px] leading-[14.5px] opacity-80">
+                    {VERDICT_MEANING[verdict]}
+                  </span>
+                </TooltipContent>
+              </Tooltip>
             );
           })}
           {filters.size > 0 ? (
@@ -666,8 +692,12 @@ function Row({
         ) : null}
       </td>
       <td className="px-3 py-2">
+        {/* `title`, not a Tooltip: this renders once per row and 398 tooltip
+            roots is a real cost for a hint the four filter chips above already
+            give in full. */}
         <span
-          className={`inline-flex rounded border px-1.5 py-px text-[10.5px] ${VERDICT_CLASS[row.status]}`}
+          title={`${row.status} — ${VERDICT_MEANING[row.status]}${row.rationale ? `\n\nThe judge said: ${row.rationale}` : ""}`}
+          className={`inline-flex cursor-help rounded border px-1.5 py-px text-[10.5px] ${VERDICT_CLASS[row.status]}`}
         >
           {row.status}
         </span>
