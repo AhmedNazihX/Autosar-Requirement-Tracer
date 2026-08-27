@@ -40,6 +40,10 @@ from retrieval.lookup import InvalidRequirementId, lookup
 
 router = APIRouter(tags=["documents"])
 
+#: Stands in for "no upper bound" when a caller asks which requirements a whole
+#: file is tied to. Larger than any source file that could be indexed.
+WHOLE_FILE = 10**9
+
 #: Most lines one request may slice out of a file. A code pane shows a
 #: function, not a translation unit, and an unbounded slice is a cheap way to
 #: make the server read a megabyte per request.
@@ -382,6 +386,137 @@ def get_document_file(
         media_type="application/pdf",
         # Inline: pdf.js reads it, the browser must not offer to save it.
         headers={"Content-Disposition": f'inline; filename="{entry.filename}"'},
+    )
+
+
+class LinkedRequirement(BaseModel):
+    """A requirement a piece of code is tied to, ready to open in the pane."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    req_id: str
+    doc: str
+    doc_title: str
+    page: int
+    page_count: int
+    bbox: tuple[float, float, float, float] | None
+    section: str | None
+    quote: str
+    #: ``annotation`` — a comment in this code names the requirement.
+    #: ``symbol`` — the requirement's text names a symbol defined here.
+    found_by: Literal["annotation", "symbol"]
+    claim: str | None = None
+    #: The unit the link came through, so the UI can say where.
+    via_symbol: str
+    via_kind: str
+
+
+class CodeRequirementsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    repo_path: str
+    line_span: tuple[int, int]
+    requirements: list[LinkedRequirement]
+
+
+# Registered BEFORE the code-slice route below: `{path:path}` is greedy but
+# backtracks, so a URL ending in `/requirements` matches here and anything else
+# falls through to the slice. The only cost is that a source file literally
+# named `requirements` would be unreachable, and none exists in a C snapshot.
+@router.get("/code/{path:path}/requirements", response_model=CodeRequirementsResponse)
+def get_code_requirements(
+    path: str,
+    lines: str | None = Query(default=None, max_length=32, pattern=r"^\d+-\d+$"),
+    state: deps.AppState = Depends(deps.state_of),
+) -> CodeRequirementsResponse:
+    """Which requirements this code is tied to — the reverse of
+    ``/requirements/{id}/implementation``.
+
+    Same two free links, read the other way: the ``@req``/``!req`` comments in
+    the code units covering this span, and the requirements whose own text
+    names a symbol defined here. No model call, no cost, and no verdict — this
+    answers "what does this code claim to implement", not "does it".
+
+    One code unit routinely names several requirements — a file-header comment
+    block can carry a dozen — so this returns all of them rather than pretending
+    there is one answer.
+    """
+    ready = _require_ready(state)
+    project_id = ready.manifest.project_id
+    # Parsed here rather than through `_span`, which clamps against a file it
+    # has read from disk. This endpoint answers from the index alone, so an
+    # absent range means "the whole file".
+    if lines:
+        first_text, _, last_text = lines.partition("-")
+        first, last = int(first_text), int(last_text)
+        if last < first:
+            raise HTTPException(
+                status_code=400, detail=f"Lines {lines} run backwards."
+            )
+    else:
+        first, last = 1, WHOLE_FILE
+
+    units = db.list_code_units_in_span(ready.pool, project_id, path, first, last)
+    if not units:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No indexed code at {path!r} lines {first}-{last}. The pane can "
+                "only open paths inside the pinned snapshot."
+            ),
+        )
+
+    titles = {entry.key: entry.title for entry in ready.manifest.documents}
+    claimed: list[LinkedRequirement] = []
+    denied: list[LinkedRequirement] = []
+    anchored: list[LinkedRequirement] = []
+    seen: set[str] = set()
+
+    def add(
+        requirement, found_by: str, claim: str | None, unit, bucket: list
+    ) -> None:
+        if requirement.id in seen:
+            return
+        seen.add(requirement.id)
+        bucket.append(
+            LinkedRequirement(
+                req_id=requirement.id,
+                doc=requirement.source_doc,
+                doc_title=titles.get(requirement.source_doc, requirement.source_doc),
+                page=requirement.page,
+                page_count=ready.page_counts.get(requirement.source_doc, 0),
+                bbox=requirement.bbox,
+                section=requirement.section_path,
+                quote=requirement.text,
+                found_by=found_by,
+                claim=claim,
+                via_symbol=unit.symbol,
+                via_kind=unit.kind,
+            )
+        )
+
+    for unit in units:
+        for annotation in unit.req_annotations:
+            found = db.get_requirement(ready.pool, project_id, annotation.canonical_id)
+            # An annotated id that resolves to nothing is release drift, not an
+            # error — finding A4 measures it at about a third of them.
+            if found is None:
+                continue
+            bucket = (
+                denied if annotation.claim == "claimed_not_implemented" else claimed
+            )
+            add(found, "annotation", annotation.claim, unit, bucket)
+
+    for unit in units:
+        for requirement in db.list_requirements_naming_symbol(
+            ready.pool, project_id, unit.symbol
+        ):
+            add(requirement, "symbol", None, unit, anchored)
+
+    return CodeRequirementsResponse(
+        repo_path=path,
+        line_span=(first, last),
+        requirements=[*claimed, *anchored, *denied],
     )
 
 

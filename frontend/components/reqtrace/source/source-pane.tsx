@@ -3,6 +3,7 @@
 import { CodeIcon, FileTextIcon, HistoryIcon, XIcon } from "lucide-react";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
+import type { RequirementCitation } from "@/lib/events";
 import type { SourceTab, SourceTarget } from "@/lib/source-target";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +43,7 @@ export function SourcePane({
   onTabChange,
   onClose,
   codeFile,
+  onOpenRequirement,
   restoredFrom = null,
 }: {
   target: SourceTarget | null;
@@ -49,6 +51,8 @@ export function SourcePane({
   onTabChange: (tab: SourceTab) => void;
   onClose: () => void;
   codeFile: HighlightedFile;
+  /** Open a requirement the open code traces to (story: the reverse link). */
+  onOpenRequirement?: (citation: RequirementCitation) => void;
   /** Set while a checkpoint restore is pinning the pane to an earlier turn
    *  (story S5.4.1). Without it the pane silently shows an old page while the
    *  conversation has moved on — which reads as a bug, not as a rewind. */
@@ -125,7 +129,11 @@ export function SourcePane({
         value="code"
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <CodeTab file={codeFile} citation={code} />
+        <CodeTab
+          file={codeFile}
+          citation={code}
+          onOpenRequirement={onOpenRequirement}
+        />
       </TabsContent>
     </Tabs>
   );

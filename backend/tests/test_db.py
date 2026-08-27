@@ -869,3 +869,31 @@ def test_annotated_ids_reports_both_claims_per_id(conn):
 
     assert claims["SWS_CANIF_00023"] == {"claimed_implemented"}
     assert claims["SWS_CANIF_00316"] == {"claimed_not_implemented"}
+
+
+def test_list_code_units_in_span_finds_overlapping_units(conn):
+    """Overlap, not containment: a file-scope annotation block and the function
+    beneath it routinely overlap, and the annotation is what carries the link."""
+    db.upsert_code_unit(conn, _code_unit(kind="file", symbol="CanIf.c", line_span=(80, 90)))
+    db.upsert_code_unit(conn, _code_unit(kind="function", line_span=(85, 150)))
+    db.upsert_code_unit(conn, _code_unit(kind="function", symbol="Other", line_span=(400, 420)))
+
+    found = db.list_code_units_in_span(
+        conn, "autosar-can", "communication/CanIf/src/CanIf.c", 88, 92
+    )
+
+    assert sorted((u.kind, u.symbol) for u in found) == [
+        ("file", "CanIf.c"),
+        ("function", "CanIf_Transmit"),
+    ]
+
+
+def test_list_requirements_naming_symbol_is_exact_and_case_sensitive(conn):
+    """C is case-sensitive; `CanIf_Transmit` is not `canif_transmit`."""
+    db.upsert_requirement(conn, _requirement(id="SWS_A_1", named_symbols=["CanIf_Transmit"]))
+    db.upsert_requirement(conn, _requirement(id="SWS_A_2", named_symbols=["canif_transmit"]))
+    db.upsert_requirement(conn, _requirement(id="SWS_A_3", named_symbols=[]))
+
+    found = db.list_requirements_naming_symbol(conn, "autosar-can", "CanIf_Transmit")
+
+    assert [r.id for r in found] == ["SWS_A_1"]

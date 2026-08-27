@@ -15,6 +15,9 @@ import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events"
 import { toExchanges, type Exchange } from "@/lib/exchanges";
 import {
   bestCodeLink,
+  bestRequirementLink,
+  citationForLink,
+  fetchCodeRequirements,
   fetchImplementation,
   fetchRequirementCitation,
 } from "@/lib/requirements";
@@ -261,6 +264,30 @@ export function AppShell({
       setPinned({ key, target, tab: target.tab });
       setSourceOpen(true);
 
+      if (citation.kind === "code") {
+        // The reverse link, same rules: fill the other tab when the code is
+        // tied to a requirement, and never let a `!req` — which says the
+        // developers believe it is NOT implemented here — be the one opened.
+        void fetchCodeRequirements(citation.repo_path, citation.line_span).then(
+          (links) => {
+            const best = bestRequirementLink(links);
+            if (!best) return;
+            setPinned((current) =>
+              current?.target?.citation === citation
+                ? {
+                    ...current,
+                    target: {
+                      ...current.target,
+                      companion: citationForLink(best),
+                    },
+                  }
+                : current,
+            );
+          },
+        );
+        return;
+      }
+
       if (citation.kind !== "requirement") return;
       void fetchImplementation(citation.req_id).then((implementation) => {
         const link = bestCodeLink(implementation);
@@ -465,6 +492,7 @@ export function AppShell({
           : null
       }
       tab={sourceTab}
+      onOpenRequirement={openCitation}
       onTabChange={changeSourceTab}
       onClose={() => setSourceOpen(false)}
       codeFile={codeFile}

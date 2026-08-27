@@ -586,6 +586,52 @@ def list_code_units_by_annotation(
     return [_row_to_code_unit(row) for row in rows]
 
 
+def list_code_units_in_span(
+    conn: sqlite3.Connection,
+    project_id: str,
+    repo_path: str,
+    first_line: int,
+    last_line: int,
+) -> list[CodeUnit]:
+    """Every code unit in ``repo_path`` overlapping ``[first_line, last_line]``.
+
+    Overlap, not containment: a citation's span comes from whichever unit the
+    evidence engine cited, and the annotation that links it to a requirement
+    may sit in a *different* unit that overlaps it — a file-scope comment block
+    and the function beneath it routinely do.
+    """
+    rows = conn.execute(
+        """
+        SELECT * FROM code_units
+        WHERE project_id = ? AND repo_path = ?
+          AND line_span_start <= ? AND line_span_end >= ?
+        ORDER BY line_span_start, kind, symbol
+        """,
+        (project_id, repo_path, last_line, first_line),
+    ).fetchall()
+    return [_row_to_code_unit(row) for row in rows]
+
+
+def list_requirements_naming_symbol(
+    conn: sqlite3.Connection, project_id: str, symbol: str
+) -> list[Requirement]:
+    """Requirements whose ``named_symbols`` include ``symbol``.
+
+    The reverse of tier-2 anchoring: given a function, which requirements name
+    it. Matched exactly and case-sensitively — C is case-sensitive and
+    ``CanIf_Transmit`` is not ``canif_transmit``.
+    """
+    rows = conn.execute(
+        """
+        SELECT DISTINCT r.* FROM requirements r, json_each(r.named_symbols) s
+        WHERE r.project_id = ? AND s.value = ?
+        ORDER BY r.source_doc, r.page, r.id
+        """,
+        (project_id, symbol),
+    ).fetchall()
+    return [_row_to_requirement(row) for row in rows]
+
+
 def annotated_ids(conn: sqlite3.Connection, project_id: str) -> dict[str, set[str]]:
     """``canonical_id -> the set of claims made about it anywhere in the code``.
 

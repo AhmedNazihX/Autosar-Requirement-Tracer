@@ -124,3 +124,76 @@ export function bestCodeLink(
   );
   return usable?.[0] ?? null;
 }
+
+/* ------------------------------------------------- code -> requirements --- */
+
+/** Mirrors `LinkedRequirement` in `api/documents.py`. */
+export interface LinkedRequirement {
+  req_id: string;
+  doc: string;
+  doc_title: string;
+  page: number;
+  page_count: number;
+  bbox: [number, number, number, number] | null;
+  section: string | null;
+  quote: string;
+  found_by: "annotation" | "symbol";
+  claim: "claimed_implemented" | "claimed_not_implemented" | null;
+  via_symbol: string;
+  via_kind: string;
+}
+
+/**
+ * The requirements a piece of code is tied to — the reverse of
+ * {@link fetchImplementation}.
+ *
+ * Free and verdict-free on the backend, same as the forward direction. One
+ * code unit routinely names several requirements (a file-header comment block
+ * can carry a dozen), so this returns all of them and the caller decides what
+ * to show.
+ */
+export async function fetchCodeRequirements(
+  repoPath: string,
+  lineSpan: [number, number],
+): Promise<LinkedRequirement[]> {
+  if (chatSourceKind() !== "live") return [];
+  try {
+    const path = repoPath.split("/").map(encodeURIComponent).join("/");
+    const response = await fetch(
+      `/api/py/code/${path}/requirements?lines=${lineSpan[0]}-${lineSpan[1]}`,
+    );
+    if (!response.ok) return [];
+    const body = (await response.json()) as { requirements: LinkedRequirement[] };
+    return body.requirements;
+  } catch {
+    return [];
+  }
+}
+
+/** A linked requirement as the citation the source pane opens. */
+export function citationForLink(link: LinkedRequirement): RequirementCitation {
+  return {
+    kind: "requirement",
+    req_id: link.req_id,
+    doc: link.doc,
+    doc_title: link.doc_title,
+    page: link.page,
+    bbox: link.bbox,
+    page_count: link.page_count,
+    section: link.section ?? undefined,
+    quote: link.quote,
+  };
+}
+
+/**
+ * The requirement a code citation should open, or `null`.
+ *
+ * Never a `!req` link: that comment says the developers believe the
+ * requirement is *not* implemented here, so opening it as "what this code
+ * implements" would invert its meaning. It stays in the list, labelled.
+ */
+export function bestRequirementLink(
+  links: readonly LinkedRequirement[],
+): LinkedRequirement | null {
+  return links.find((link) => link.claim !== "claimed_not_implemented") ?? null;
+}

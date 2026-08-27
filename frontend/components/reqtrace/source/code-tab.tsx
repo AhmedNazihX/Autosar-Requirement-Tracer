@@ -5,7 +5,12 @@ import { CopyIcon, GitCommitHorizontalIcon, ScanLineIcon } from "lucide-react";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
 import { useCodeFile } from "@/hooks/use-code-file";
-import type { CodeCitation } from "@/lib/events";
+import type { CodeCitation, RequirementCitation } from "@/lib/events";
+import {
+  citationForLink,
+  type LinkedRequirement,
+} from "@/lib/requirements";
+import { useCodeRequirements } from "@/hooks/use-code-requirements";
 import { Button } from "@/components/ui/button";
 import { CodeTokens } from "@/components/reqtrace/code-tokens";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,11 +42,15 @@ const PAD_TOP = 10;
 export function CodeTab({
   file: fallback,
   citation,
+  onOpenRequirement,
 }: {
   file: HighlightedFile;
   citation: CodeCitation | null;
+  /** Open one of the requirements this code is tied to, in the Document tab. */
+  onOpenRequirement?: (citation: RequirementCitation) => void;
 }) {
   const fetched = useCodeFile(citation);
+  const links = useCodeRequirements(citation);
 
   // Nothing cited this turn: say so, rather than showing code nobody pointed at.
   if (!citation) return <NoCitation />;
@@ -62,6 +71,8 @@ export function CodeTab({
       file={file}
       citation={citation}
       live={fetched.phase === "ready"}
+      links={links}
+      onOpenRequirement={onOpenRequirement}
     />
   );
 }
@@ -114,6 +125,8 @@ function CodeView({
   file,
   citation,
   live,
+  links,
+  onOpenRequirement,
 }: {
   file: HighlightedFile;
   citation: CodeCitation | null;
@@ -121,6 +134,8 @@ function CodeView({
    *  fixture. The footer says which, because "committed slice" printed under a
    *  live file is the kind of stale caption nobody re-reads. */
   live: boolean;
+  links: readonly LinkedRequirement[];
+  onOpenRequirement?: (citation: RequirementCitation) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLine = file.first_line + file.lines.length - 1;
@@ -176,6 +191,36 @@ function CodeView({
               outside the committed slice ({file.first_line}&ndash;{lastLine})
             </Meta>
           ) : null}
+        </div>
+      ) : null}
+
+      {links.length > 0 ? (
+        <div className="flex flex-none flex-wrap items-center gap-1.5 border-b px-3 py-2">
+          <Cap className="mr-0.5">Traces to</Cap>
+          {links.map((link) => {
+            const denied = link.claim === "claimed_not_implemented";
+            return (
+              <button
+                key={link.req_id}
+                type="button"
+                onClick={() => onOpenRequirement?.(citationForLink(link))}
+                title={
+                  denied
+                    ? `${link.via_symbol} carries a !req for this — the developers state it is NOT implemented here`
+                    : link.found_by === "annotation"
+                      ? `@req in ${link.via_symbol}`
+                      : `named by the requirement's own text`
+                }
+                className={
+                  denied
+                    ? "flex h-[22px] items-center gap-1 rounded-md border border-dashed border-verdict-missing-border bg-transparent px-[7px] font-mono text-[11px] leading-none text-muted-foreground line-through transition-colors hover:bg-muted"
+                    : "flex h-[22px] items-center gap-1 rounded-md border border-source-border bg-source-bg px-[7px] font-mono text-[11px] leading-none text-source transition-colors hover:brightness-110"
+                }
+              >
+                {link.req_id}
+              </button>
+            );
+          })}
         </div>
       ) : null}
 

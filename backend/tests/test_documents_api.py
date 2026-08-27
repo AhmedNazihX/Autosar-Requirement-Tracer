@@ -426,3 +426,88 @@ def test_the_endpoint_never_judges(client):
 def test_an_unknown_requirement_is_a_404(client):
     http, _, _ = client
     assert http.get("/requirements/SWS_Can_99999/implementation").status_code == 404
+
+
+# --------------------------------------------------------------------------
+# GET /code/{path}/requirements — the reverse direction
+# --------------------------------------------------------------------------
+
+
+def test_code_links_back_to_the_requirements_it_annotates(client):
+    http, _, _ = client
+
+    body = http.get(
+        "/code/communication/CanIf/src/CanIf.c/requirements", params={"lines": "120-168"}
+    ).json()
+
+    ids = [one["req_id"] for one in body["requirements"]]
+    assert "SWS_CANIF_00023" in ids
+    first = next(one for one in body["requirements"] if one["req_id"] == "SWS_CANIF_00023")
+    assert first["found_by"] == "annotation"
+    assert first["claim"] == "claimed_implemented"
+    assert first["via_symbol"] == "CanIf_Transmit"
+    # Enough to open the document pane without a second request.
+    assert first["page"] == 42 and first["doc"] == "can_interface" and first["quote"]
+
+
+def test_one_code_unit_returns_every_requirement_it_names(client):
+    """A comment block can carry a dozen ids; returning one would pretend
+    there is a single answer."""
+    http, _, _ = client
+
+    body = http.get(
+        "/code/communication/CanIf/src/CanIf.c/requirements", params={"lines": "120-168"}
+    ).json()
+
+    assert len(body["requirements"]) >= 2
+
+
+def test_a_not_implemented_claim_comes_last_in_the_reverse_direction_too(client):
+    http, _, _ = client
+
+    body = http.get(
+        "/code/communication/CanIf/src/CanIf.c/requirements", params={"lines": "120-168"}
+    ).json()
+
+    denied = [one for one in body["requirements"] if one["claim"] == "claimed_not_implemented"]
+    assert denied, "the !req link must still be reported"
+    assert body["requirements"][-1]["claim"] == "claimed_not_implemented"
+
+
+def test_code_links_back_through_a_named_symbol_with_no_annotation(client):
+    http, _, _ = client
+
+    body = http.get(
+        "/code/communication/CanTp/src/CanTp.c/requirements",
+        params={"lines": "1705-1747"},
+    ).json()
+
+    assert [(one["req_id"], one["found_by"]) for one in body["requirements"]] == [
+        ("SWS_CanTp_00079", "symbol")
+    ]
+
+
+def test_the_requirements_suffix_does_not_shadow_the_code_slice_route(client):
+    """`{path:path}` is greedy; the suffix route is registered first and must
+    not swallow ordinary slice requests."""
+    http, _, _ = client
+
+    # A range inside the 60-line snapshot file the fixture writes, so a 416
+    # cannot be mistaken for the suffix route having swallowed the request.
+    slice_response = http.get(
+        "/code/communication/CanIf/src/CanIf.c", params={"lines": "10-20"}
+    )
+
+    assert slice_response.status_code == 200
+    body = slice_response.json()
+    assert body["repo_path"] == "communication/CanIf/src/CanIf.c"
+    assert body["text"].startswith("line 10")
+
+
+def test_code_outside_the_snapshot_is_a_404(client):
+    http, _, _ = client
+
+    response = http.get("/code/nowhere/absent.c/requirements")
+
+    assert response.status_code == 404
+    assert "pinned snapshot" in response.json()["detail"]
