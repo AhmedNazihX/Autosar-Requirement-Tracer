@@ -14,17 +14,7 @@ import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
 import { toExchanges, type Exchange } from "@/lib/exchanges";
 
-/** Stable identity, so a thread with no live events does not churn the memos
- *  that depend on `liveEvents` on every render. */
-const EMPTY_EVENTS: readonly ChatEvent[] = [];
-import {
-  bestCodeLink,
-  bestRequirementLink,
-  citationForLink,
-  fetchCodeRequirements,
-  fetchImplementation,
-  fetchRequirementCitation,
-} from "@/lib/requirements";
+import { fetchRequirementCitation } from "@/lib/requirements";
 import {
   targetForCitation,
   type SourceTab,
@@ -36,6 +26,7 @@ import {
   type StoredMessage,
 } from "@/lib/threads";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { useSourceCompanion } from "@/hooks/use-source-companion";
 import { useBackendHealth } from "@/hooks/use-backend-health";
 import type { SetupStatus } from "@/hooks/use-setup-status";
 import { useReport } from "@/hooks/use-report";
@@ -60,6 +51,10 @@ import { CheckpointRail } from "./checkpoint-rail";
 import { ReportDrawer, useReportView } from "./report/report-drawer";
 import { ChatPane } from "./chat/chat-pane";
 import { SourcePane } from "./source/source-pane";
+
+/** Stable identity, so a thread with no live events does not churn the memos
+ *  that depend on `liveEvents` on every render. */
+const EMPTY_EVENTS: readonly ChatEvent[] = [];
 import { ThemeToggle } from "./theme-toggle";
 import { ThreadSidebar } from "./thread-sidebar";
 
@@ -274,7 +269,25 @@ export function AppShell({
     exchanges.at(-1)?.assistant?.id ?? ""
   }`;
   const activePin = pinned?.key === transcriptKey ? pinned : null;
-  const sourceTarget = activePin ? activePin.target : latestTarget;
+  const pinnedTarget = activePin ? activePin.target : latestTarget;
+  /**
+   * The other tab's half, resolved for the target on screen — clicked or not.
+   *
+   * This used to happen in `openCitation`, which meant only a citation the
+   * user *clicked* filled both tabs. A `search_code` turn cites no
+   * requirement, so its pane opened on the Code tab with an empty Document
+   * tab until someone thought to click a chip. Deriving it here covers the
+   * automatic path too, and leaves one place that knows how the two halves
+   * are linked.
+   */
+  const companion = useSourceCompanion(pinnedTarget);
+  const sourceTarget = useMemo(
+    () =>
+      pinnedTarget && !pinnedTarget.companion && companion
+        ? { ...pinnedTarget, companion }
+        : pinnedTarget,
+    [pinnedTarget, companion],
+  );
   const sourceTab: SourceTab = activePin
     ? activePin.tab
     : (latestTarget?.tab ?? "document");
@@ -304,59 +317,12 @@ export function AppShell({
     (citation: RequirementCitation | CodeCitation) => {
       const target = targetForCitation(citation);
       if (!target) return;
-      const key = transcriptKey;
-      setPinned({ key, target, tab: target.tab });
+      setPinned({ key: transcriptKey, target, tab: target.tab });
       setSourceOpen(true);
-
-      if (citation.kind === "code") {
-        // The reverse link, same rules: fill the other tab when the code is
-        // tied to a requirement, and never let a `!req` — which says the
-        // developers believe it is NOT implemented here — be the one opened.
-        void fetchCodeRequirements(citation.repo_path, citation.line_span).then(
-          (links) => {
-            const best = bestRequirementLink(links);
-            if (!best) return;
-            setPinned((current) =>
-              current?.target?.citation === citation
-                ? {
-                    ...current,
-                    target: {
-                      ...current.target,
-                      companion: citationForLink(best),
-                    },
-                  }
-                : current,
-            );
-          },
-        );
-        return;
-      }
-
-      if (citation.kind !== "requirement") return;
-      void fetchImplementation(citation.req_id).then((implementation) => {
-        const link = bestCodeLink(implementation);
-        if (!link) return;
-        setPinned((current) =>
-          // Only if the user has not moved on. Filling the companion of a
-          // citation they have already navigated away from would swap the
-          // code pane under them.
-          current?.target?.citation === citation
-            ? {
-                ...current,
-                target: {
-                  ...current.target,
-                  companion: {
-                    kind: "code",
-                    repo_path: link.repo_path,
-                    symbol: link.symbol,
-                    line_span: link.line_span,
-                    git_sha: link.git_sha,
-                  },
-                },
-              }
-            : current,
-        );
-      });
+      // The other tab fills itself: `useSourceCompanion` runs off whatever the
+      // pane is pointed at, so a click needs to say *what* is being opened and
+      // nothing more. It used to do the lookup here, which is why only clicked
+      // citations ever filled both tabs.
     },
     [transcriptKey],
   );
