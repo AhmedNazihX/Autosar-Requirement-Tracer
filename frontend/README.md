@@ -28,8 +28,9 @@ npx next typegen && npx tsc --noEmit
 ## The two rules that shape this app
 
 **The backend is reached only through the Next.js proxy.** `next.config.ts`
-rewrites `/api/py/:path*` to `localhost:8000`; there is no CORS
-configuration and no direct backend URL anywhere in app code.
+rewrites `/api/py/:path*` to the backend origin (`http://localhost:8000`,
+overridable with `REQTRACE_BACKEND_ORIGIN` at dev/build start); there is no
+CORS configuration and no direct backend URL anywhere in app code.
 
 **The wire formats live here, authoritatively.** `lib/events.ts` defines the
 chat SSE contract (`api/chat_events.py` is the Python mirror) and
