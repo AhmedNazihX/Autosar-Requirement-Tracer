@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from api import deps, reports
 from core import db, llm, pricing
-from engines.report import ReportScope
+from engines.report import MAX_SCOPE_IDS, ReportScope
 from tests.support_engine import MANIFEST, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
@@ -153,6 +153,37 @@ def test_an_unpriceable_model_launches_anyway_with_no_figure(wired, monkeypatch)
     assert body["est_cost_usd"] is None
     assert "ConnectError" in body["est_basis"]
     assert body["to_judge"] == 2
+
+
+def test_an_over_long_selector_is_refused_at_the_edge(wired):
+    """Story S6.3.1's length caps, on the one endpoint that starts a job."""
+    client, _, _, _ = wired
+
+    response = client.post("/reports", json={"scope": {"module": "C" * 500}})
+
+    assert response.status_code == 422
+
+
+def test_an_unbounded_id_list_is_refused_at_the_edge(wired):
+    """A scope larger than any corpus is a module, not a list of ids."""
+    client, _, _, _ = wired
+
+    response = client.post(
+        "/reports",
+        json={"scope": {"req_ids": ["SWS_CANIF_00023"] * (MAX_SCOPE_IDS + 1)}},
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_normal_scope_is_unaffected_by_the_caps(wired):
+    """The caps must be invisible to every real request, or they are a bug."""
+    client, script, _, _ = wired
+    script(*[verdict()] * 2)
+
+    response = client.post("/reports", json={"scope": {"module": "CanIf"}})
+
+    assert response.status_code == 200
 
 
 def test_an_unknown_module_is_a_400_naming_the_known_ones(wired):

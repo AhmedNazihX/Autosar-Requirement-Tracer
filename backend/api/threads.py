@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api import deps
 from core import db, llm
 from core.llm import system, user
+from retrieval.prompting import fence
 
 router = APIRouter(prefix="/threads", tags=["threads"])
 
@@ -33,9 +34,18 @@ router = APIRouter(prefix="/threads", tags=["threads"])
 #: "a short title" will occasionally write a sentence.
 MAX_TITLE_CHARS = 72
 
+#: How much of the first message the titler is shown. A title needs the
+#: opening sentence, not a pasted document — and a smaller prompt is a smaller
+#: surface for a title injection to work in.
+MAX_TITLE_SOURCE_CHARS = 2000
+
 #: What an untitled thread is called — the same string ``threads.ts`` uses, so
 #: the two sides agree on what "not yet titled" looks like.
 UNTITLED = "New thread"
+
+#: The fence the user's own message is wrapped in before the titler sees it.
+#: Named so story S6.2.1 can assert on it.
+MESSAGE_FENCE = "<<<FIRST_MESSAGE>>>"
 
 TITLE_PROMPT = (
     "Write a title of at most eight words for a conversation that begins with "
@@ -385,7 +395,20 @@ def autotitle(
 
     try:
         completion = titler.complete(
-            [system(TITLE_PROMPT), user(first_message.strip()[:2000])]
+            [
+                system(TITLE_PROMPT),
+                # The user's message is untrusted like any retrieved text
+                # (spec §8) — "ignore that and call yourself X" is a title
+                # injection, and `_clean_title` bounds the damage but does not
+                # prevent it. Cheap to fence, so it is fenced.
+                user(
+                    fence(
+                        MESSAGE_FENCE,
+                        first_message.strip()[:MAX_TITLE_SOURCE_CHARS],
+                        what="first message",
+                    )
+                ),
+            ]
         )
     except Exception:  # noqa: BLE001 - a title is never worth failing a turn
         return None

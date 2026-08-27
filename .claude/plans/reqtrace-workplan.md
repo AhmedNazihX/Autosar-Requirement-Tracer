@@ -287,7 +287,7 @@ errors once the panes went live.)*
 
 **F5.7 Thread export (with F3.5 banks the "conversation history and export" easy bonus)** — S5.7.1 export thread as Markdown (citations as links) + JSON (raw events). *Accept: exported MD renders with working citation links.*
 
-### WP6 — Security & Hardening (~2h) (bonus: medium)
+### WP6 — Security & Hardening (~2h) (bonus: medium) — **DONE 2026-08-27**
 
 **F6.1 Injection defences** — S6.1.1 fencing/framing of ALL retrieved text in prompts; S6.1.2 capability separation asserted (judge/reranker constructed tool-less). *Accept: code review + unit assertion.*
 **F6.2 Adversarial test set** — S6.2.1 ~8 adversarial fixtures (poisoned code comment, poisoned doc chunk, prompt extraction, tool-forcing) asserted schema-bound/refused in pytest; suite also runs F3.4's 2 out-of-domain fixtures (owned there). *Accept: suite green.*

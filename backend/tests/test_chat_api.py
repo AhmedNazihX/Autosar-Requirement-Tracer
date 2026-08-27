@@ -129,6 +129,10 @@ def wired(tmp_path: Path, monkeypatch):
     one seam where production decides how the chat model reaches the network,
     so patching it exercises everything downstream of it unchanged.
     """
+    # The rate-limit bucket lives on the module, so it is shared by every test
+    # in the process and a full one would fail the next test rather than this
+    # one. Reset it here; the flood test drives it deliberately.
+    chat_module.LIMITER.reset()
     parts = build_index(tmp_path)
     state = deps.AppState(
         manifest=MANIFEST,
