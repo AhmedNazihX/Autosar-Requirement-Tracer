@@ -53,7 +53,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import { CheckpointRail } from "./checkpoint-rail";
-import { ReportDrawer } from "./report/report-drawer";
+import { ReportDrawer, useReportView } from "./report/report-drawer";
 import { ChatPane } from "./chat/chat-pane";
 import { SourcePane } from "./source/source-pane";
 import { ThemeToggle } from "./theme-toggle";
@@ -111,6 +111,10 @@ export function AppShell({
   // a row into the source pane, and Base UI unmounts a closed popup — so a
   // hook inside it would throw the matrix away on the click meant to show it.
   const report = useReport();
+  // The reader's place in the matrix — filters, scroll offset, last row
+  // opened. Lives here so following an evidence span into the code does not
+  // cost it; see `ReportView`.
+  const reportView = useReportView();
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(true);
   const [renamingTitle, setRenamingTitle] = useState<string | null>(null);
@@ -489,6 +493,7 @@ export function AppShell({
       onOpenChange={setReportOpen}
       defaultModule={DEFAULT_REPORT_MODULE}
       report={report}
+      view={reportView}
       onOpenRow={(reqId, evidence, tab) =>
         void openReportRow(reqId, evidence, tab)
       }

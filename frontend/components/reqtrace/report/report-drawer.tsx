@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
   DownloadIcon,
@@ -52,12 +52,40 @@ import { Cap, Meta } from "@/components/reqtrace/text";
  * a binary and the table must not quietly reintroduce one by, say, folding
  * `unverifiable` into `missing`.
  */
+/**
+ * Where the reader had got to in the matrix.
+ *
+ * Held by the shell, not by the drawer, for the same reason the run is: Base
+ * UI unmounts a closed popup, and the drawer now closes every time you follow
+ * an evidence span into the code. Without this, coming back put you at the top
+ * of 398 rows with your filters cleared — so following a piece of evidence
+ * cost you your place, every time.
+ *
+ * `scrollTopRef` is a ref rather than state on purpose: it changes on every
+ * wheel event and nothing needs to re-render when it does.
+ */
+export interface ReportView {
+  filters: Set<Verdict>;
+  setFilters: (next: Set<Verdict>) => void;
+  scrollTopRef: React.RefObject<number>;
+  lastOpened: string | null;
+  setLastOpened: (reqId: string) => void;
+}
+
+export function useReportView(): ReportView {
+  const [filters, setFilters] = useState<Set<Verdict>>(new Set());
+  const [lastOpened, setLastOpened] = useState<string | null>(null);
+  const scrollTopRef = useRef(0);
+  return { filters, setFilters, scrollTopRef, lastOpened, setLastOpened };
+}
+
 export function ReportDrawer({
   open,
   onOpenChange,
   onOpenRow,
   defaultModule,
   report,
+  view,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -82,6 +110,7 @@ export function ReportDrawer({
     tab: "document" | "code",
   ) => void;
   defaultModule: string;
+  view: ReportView;
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -139,6 +168,7 @@ export function ReportDrawer({
             result={report.state.result}
             error={report.state.error}
             onOpenRow={onOpenRow}
+            view={view}
           />
         ) : null}
 
@@ -397,6 +427,7 @@ function Finished({
   result,
   error,
   onOpenRow,
+  view,
 }: {
   jobId: string;
   status: string;
@@ -407,8 +438,17 @@ function Finished({
     evidence: CodeCitation | null,
     tab: "document" | "code",
   ) => void;
+  view: ReportView;
 }) {
-  const [filters, setFilters] = useState<Set<Verdict>>(new Set());
+  const { filters, setFilters, scrollTopRef, lastOpened, setLastOpened } = view;
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // Put the reader back where they were, before the browser paints — a visible
+  // jump from the top would defeat the point.
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (element) element.scrollTop = scrollTopRef.current;
+  }, [scrollTopRef]);
   const rows = useMemo(
     () =>
       result
@@ -457,14 +497,17 @@ function Finished({
               <button
                 key={verdict}
                 type="button"
-                onClick={() =>
-                  setFilters((current) => {
-                    const next = new Set(current);
-                    if (next.has(verdict)) next.delete(verdict);
-                    else next.add(verdict);
-                    return next;
-                  })
-                }
+                onClick={() => {
+                  const next = new Set(filters);
+                  if (next.has(verdict)) next.delete(verdict);
+                  else next.add(verdict);
+                  setFilters(next);
+                  // A filter change reflows the table, so the old offset points
+                  // at a different row. Start from the top rather than
+                  // somewhere arbitrary.
+                  scrollTopRef.current = 0;
+                  if (scroller.current) scroller.current.scrollTop = 0;
+                }}
                 className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11.5px] transition-colors ${
                   VERDICT_CLASS[verdict]
                 } ${active ? "ring-2 ring-foreground/40" : "opacity-90 hover:opacity-100"}`}
@@ -505,7 +548,13 @@ function Finished({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        ref={scroller}
+        onScroll={(event) => {
+          scrollTopRef.current = event.currentTarget.scrollTop;
+        }}
+        className="min-h-0 flex-1 overflow-auto"
+      >
         <table className="w-full border-collapse text-[11.5px]">
           <thead className="sticky top-0 bg-background">
             <tr className="border-b text-left">
@@ -518,7 +567,15 @@ function Finished({
           </thead>
           <tbody>
             {rows.map((row) => (
-              <Row key={row.req_id} row={row} onOpenRow={onOpenRow} />
+              <Row
+                key={row.req_id}
+                row={row}
+                opened={row.req_id === lastOpened}
+                onOpenRow={(reqId, evidence, tab) => {
+                  setLastOpened(reqId);
+                  onOpenRow(reqId, evidence, tab);
+                }}
+              />
             ))}
           </tbody>
         </table>
@@ -550,9 +607,14 @@ function Th({
 
 function Row({
   row,
+  opened,
   onOpenRow,
 }: {
   row: ReportRow;
+  /** The row the reader last followed into the source pane. Marked so that
+   *  coming back to a 398-row table shows where they left off, rather than
+   *  making them find it again. */
+  opened: boolean;
   onOpenRow: (
     reqId: string,
     evidence: CodeCitation | null,
@@ -561,7 +623,11 @@ function Row({
 }) {
   return (
     <tr
-      className="cursor-pointer border-b align-top transition-colors hover:bg-muted/60"
+      className={
+        opened
+          ? "cursor-pointer border-b border-l-2 border-l-source bg-muted/40 align-top transition-colors hover:bg-muted/60"
+          : "cursor-pointer border-b align-top transition-colors hover:bg-muted/60"
+      }
       onClick={() =>
         // Both tabs: the requirement's page, and — when the judge cited code —
         // the lines it cited. That pairing is what makes the matrix useful
