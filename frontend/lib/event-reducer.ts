@@ -14,6 +14,7 @@
 
 import type {
   ChatEvent,
+  Citation,
   CodeCitation,
   ErrorEventData,
   RagStage,
@@ -71,6 +72,7 @@ export function reduceEvents(
   const indexById = new Map<string, number>();
   const sources: (RequirementCitation | CodeCitation)[] = [];
   const upstream: UpstreamCitation[] = [];
+  const citationKeys = new Set<string>();
   let usage: UsageEventData | null = null;
   let error: ErrorEventData | null = null;
   let done = false;
@@ -113,6 +115,18 @@ export function reduceEvents(
         break;
       }
       case "citation": {
+        // Deduplicated, and not only to silence React's duplicate-key warning.
+        // One turn legitimately cites the same requirement from two tools —
+        // `search_requirements` finds it and `check_implementation` then
+        // reports on it — and the second chip points at exactly the same page
+        // as the first. Rendering both is noise; two React children with the
+        // same key is also unsupported behaviour.
+        //
+        // First occurrence wins, which is the earliest tool call, which is the
+        // order the reader saw the answer built in.
+        const key = citationKey(event.data);
+        if (citationKeys.has(key)) break;
+        citationKeys.add(key);
         if (event.data.kind === "upstream") upstream.push(event.data);
         else sources.push(event.data);
         break;
@@ -170,4 +184,25 @@ export function firstToolOf(events: readonly ChatEvent[]): ToolName | null {
     if (event.type === "tool_start") return event.data.tool;
   }
   return null;
+}
+
+/**
+ * What makes two citations the same source.
+ *
+ * Mirrors the keys `citation-chips.tsx` renders with, deliberately: if these
+ * two ever disagree, the chips get duplicate React keys again and the symptom
+ * is a console warning nobody reads rather than a test failure. Requirements
+ * are identified by document and id (an id is only unique within its
+ * document), code by path and line span, and an upstream reference by the pair
+ * — the same SRS id cited by two different requirements is two distinct facts.
+ */
+function citationKey(citation: Citation): string {
+  switch (citation.kind) {
+    case "code":
+      return `code:${citation.repo_path}:${citation.line_span[0]}-${citation.line_span[1]}`;
+    case "upstream":
+      return `upstream:${citation.req_id}:${citation.cited_by}`;
+    default:
+      return `requirement:${citation.doc}:${citation.req_id}`;
+  }
 }
