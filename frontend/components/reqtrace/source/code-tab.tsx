@@ -18,11 +18,21 @@ const PAD_TOP = 10;
 /**
  * The Code tab.
  *
- * `fallback` is the committed fixture, highlighted on the server and rendered
- * when there is no code citation to fetch — the pane's resting state, and the
- * whole of canned mode. As soon as a citation arrives, story S5.3.2 fetches
- * *that* file from the indexed snapshot: before it did, an evidence chip
- * pointing at `CanTp.c` opened `CanIf.c` and looked right.
+ * **With no citation it shows nothing, and that is the point.** It used to
+ * render the committed fixture as a "resting state" — a real slice of
+ * `CanIf.c`, with a real SHA and real line numbers, sitting beside answers
+ * that had never pointed at any code. In a tool whose entire claim is that
+ * every answer is source-linked, presenting arbitrary source as though it were
+ * relevant is the worst thing this pane can do: it is indistinguishable from
+ * evidence. The Document tab always had the right behaviour here; this one was
+ * carried over from before the backend existed, when the fixture was all there
+ * was.
+ *
+ * `fallback` is now used for exactly one case: a code citation in **canned**
+ * mode, where there is no backend to fetch from and the fixture *is* the cited
+ * file (`CANIF_FIXTURE_PATH` is the only path the canned conversation cites).
+ * In live mode story S5.3.2 fetches the cited file — before it did, an evidence
+ * chip pointing at `CanTp.c` opened `CanIf.c` and looked right.
  */
 export function CodeTab({
   file: fallback,
@@ -32,6 +42,9 @@ export function CodeTab({
   citation: CodeCitation | null;
 }) {
   const fetched = useCodeFile(citation);
+
+  // Nothing cited this turn: say so, rather than showing code nobody pointed at.
+  if (!citation) return <NoCitation />;
 
   // While a cited file is in flight, show that it is — never the fallback.
   // Rendering the committed fixture under the citation's line numbers is the
@@ -50,6 +63,18 @@ export function CodeTab({
       citation={citation}
       live={fetched.phase === "ready"}
     />
+  );
+}
+
+function NoCitation() {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 bg-muted px-10 text-center">
+      <ScanLineIcon className="size-5 text-muted-foreground" />
+      <p className="text-[12.5px] leading-[18px] text-muted-foreground">
+        No code open. Click an evidence chip under an answer, or a row in a
+        traceability report, to bring the cited file here.
+      </p>
+    </div>
   );
 }
 
@@ -217,7 +242,8 @@ function CodeView({
           {lastLine} of {file.total_lines.toLocaleString("en-US")}
           {live
             ? ", read from the indexed snapshot at this commit."
-            : " — the committed fixture, shown until a citation names a file."}{" "}
+            : " — the committed fixture, which is the file this citation names. " +
+              "There is no backend in this demo to read the snapshot from."}{" "}
           The pane can only ever open paths inside the pinned snapshot.
         </Meta>
       </div>
