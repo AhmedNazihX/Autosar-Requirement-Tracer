@@ -1,0 +1,232 @@
+{
+  "corpus_version": "R23-11",
+  "authored": "hand-written from the requirement text in the ingested corpus",
+  "count": 25,
+  "items": [
+    {
+      "id": "can-bus-off-controller-state",
+      "question": "What happens to the CAN controller state after a bus-off is detected?",
+      "reference": "After bus-off detection the CAN controller shall transition to the state STOPPED, and the Can module shall ensure the controller no longer participates on the network.",
+      "reference_context_ids": [
+        "SWS_Can_00272"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-mainfunction-read-polling",
+      "question": "When does Can_MainFunction_Read poll for RX indications?",
+      "reference": "Can_MainFunction_Read performs the polling of RX indications when CanRxProcessing is set to POLLING or MIXED. Under MIXED processing only the hardware objects whose CanHardwareObjectUsesPolling is TRUE are polled.",
+      "reference_context_ids": [
+        "SWS_Can_00108"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-setbaudrate-controller-out-of-range",
+      "question": "What error does Can_SetBaudrate raise if the Controller parameter is out of range?",
+      "reference": "With development error detection enabled, Can_SetBaudrate raises CAN_E_PARAM_CONTROLLER and returns E_NOT_OK when the Controller parameter is out of range.",
+      "reference_context_ids": [
+        "SWS_Can_00494"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-hth-transmit-entity",
+      "question": "How are transmit hardware objects grouped for the upper layer in the CAN driver?",
+      "reference": "Several transmit hardware objects, defined by CanHwObjectCount, are assigned by one HTH so that they represent a single transmit entity to the upper layer.",
+      "reference_context_ids": [
+        "SWS_Can_00401"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-egress-timestamp-bad-handle",
+      "question": "What does Can_GetEgressTimeStamp do when the Hth parameter is not a configured transmit handle?",
+      "reference": "With development error detection enabled, Can_GetEgressTimeStamp raises CAN_E_PARAM_HANDLE and returns E_NOT_OK when Hth is not a configured Hardware Transmit Handle.",
+      "reference_context_ids": [
+        "SWS_Can_00531"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-mainfunction-write-purpose",
+      "question": "What is the service ID and purpose of Can_MainFunction_Write?",
+      "reference": "Can_MainFunction_Write has service ID 0x01 and performs the polling of TX confirmation when CAN_TX_PROCESSING is set to POLLING. It takes no parameters, returns nothing, and is available via SchM_Can.h.",
+      "reference_context_ids": [
+        "SWS_Can_00225"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "canif-no-direct-buffer-access",
+      "question": "May the CAN Interface access hardware communication buffers directly?",
+      "reference": "No. CanIf shall avoid direct access to hardware specific communication buffers and shall access them exclusively through CanDrv interface services.",
+      "reference_context_ids": [
+        "SWS_CANIF_00023"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "canif-setdynamictxid-invalid",
+      "question": "What does CanIf_SetDynamicTxId do when given an invalid CanIfTxSduId?",
+      "reference": "When CanIfTxSduId has an invalid value, CanIf reports the development error code CANIF_E_INVALID_TXPDUID to the DET module's Det_ReportError service.",
+      "reference_context_ids": [
+        "SWS_CANIF_00352"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "canif-setbaudrate-delegates",
+      "question": "What does CanIf_SetBaudrate do with the request it receives?",
+      "reference": "CanIf_SetBaudrate calls Can_SetBaudrate(Controller, BaudRateConfigID) for the requested CAN controller.",
+      "reference_context_ids": [
+        "SWS_CANIF_00868"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "canif-egress-timestamp-pointer",
+      "question": "How does CanIf_GetEgressTimeStamp validate its timeStampPtr argument?",
+      "reference": "With development error detection enabled, the function checks that timeStampPtr is valid and raises the development error CANIF_E_PARAM_POINTER if the check fails.",
+      "reference_context_ids": [
+        "SWS_CANIF_00931"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "canif-cleartrcvwufflag-configurable",
+      "question": "Is CanIf_ClearTrcvWufFlag always available?",
+      "reference": "No. Whether CanIf supports CanIf_ClearTrcvWufFlag is pre-compile-time configurable on or off through the parameters CanIfPublicPnSupport and CanIfPublicTrcvPnEnable.",
+      "reference_context_ids": [
+        "SWS_CANIF_00771"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "canif-user-rxindication-config",
+      "question": "How is the upper layer's RxIndication callback configured in CanIf?",
+      "reference": "The upper layer module that provides the <User_RxIndication>() callback has to be configured through the parameter CanIfRxPduUserRxIndicationUL.",
+      "reference_context_ids": [
+        "SWS_CANIF_00441"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "cansm-txtimeout-uninit",
+      "question": "What does CanSM_TxTimeoutException report if the module is not initialised?",
+      "reference": "CanSM_TxTimeoutException reports CANSM_E_UNINIT to the DET when the CanSM module has not been initialised yet.",
+      "reference_context_ids": [
+        "SWS_CanSM_00411"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cansm-setbaudrate-optional",
+      "question": "Under what configuration is CanSM_SetBaudrate not provided?",
+      "reference": "The CanSM module shall not provide the API function CanSM_SetBaudrate when CanSMSetBaudrateApi is configured with the value FALSE.",
+      "reference_context_ids": [
+        "SWS_CanSM_00570"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cansm-cc-stopped-timeout",
+      "question": "What triggers T_CC_STOPPED_TIMEOUT in the CAN State Manager?",
+      "reference": "A timeout of CANSM_MODEREQ_REPEAT_TIME while waiting for all supposed controller stopped mode indications triggers the sub state machine CANSM_BSM_DeinitPnSupported of the respective network with T_CC_STOPPED_TIMEOUT.",
+      "reference_context_ids": [
+        "SWS_CanSM_00445"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cansm-trcv-normal-indicated",
+      "question": "What happens when CanSM receives a CANTRCV_TRCVMODE_NORMAL mode indication?",
+      "reference": "If CanSM has received the CANTRCV_TRCVMODE_NORMAL indication for the configured CAN transceiver of the network after the corresponding request, it triggers the sub state machine CANSM_BSM_WUVALIDATION of that network with T_TRCV_NORMAL_INDICATED.",
+      "reference_context_ids": [
+        "SWS_CanSM_00625"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cansm-e-tx-on-effect",
+      "question": "What does the E_TX_ON effect do when the ECU is not passive?",
+      "reference": "When ECU passive is FALSE, the E_TX_ON effect of the CANSM_BSM_S_FULLCOM sub state machine first calls CanIf_SetPduMode for the configured CAN controllers of the network, passing ControllerId := CanSMControllerId.",
+      "reference_context_ids": [
+        "SWS_CanSM_00516"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cansm-init-signature",
+      "question": "What is the signature of CanSM_Init and is it reentrant?",
+      "reference": "CanSM_Init has the signature void CanSM_Init(const CanSM_ConfigType* ConfigPtr), service ID 0x00. It is synchronous and non-reentrant, takes a pointer to the post-build parameter init structure, returns nothing, and is available via CanSM.h.",
+      "reference_context_ids": [
+        "SWS_CanSM_00023"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cantp-tx-success-notification",
+      "question": "How does CanTp notify the upper layer when a transmission completes successfully?",
+      "reference": "When the transport transmission session completes successfully, CanTp calls the upper layer notification service PduR_CanTpTxConfirmation() with the result E_OK.",
+      "reference_context_ids": [
+        "SWS_CanTp_00090"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-n-cr-timeout",
+      "question": "What does CanTp do when an N_Cr timeout occurs during reception?",
+      "reference": "On N_Cr timeout CanTp aborts the reception and notifies the upper layer of the failure by calling PduR_CanTpRxIndication() with the result E_NOT_OK.",
+      "reference_context_ids": [
+        "SWS_CanTp_00313"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-rxindication-context",
+      "question": "Can CanTp_RxIndication be called from an interrupt?",
+      "reference": "Yes. CanTp_RxIndication shall be callable in interrupt context, since it could be called from the CAN receive interrupt.",
+      "reference_context_ids": [
+        "SWS_CanTp_00235"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-transmit-request-notify",
+      "question": "What must CanTp do after a transmit request has been accepted?",
+      "reference": "After the transmit request has been accepted, CanTp shall notify its upper layer once the N-SDU transfer is fully processed, whether it succeeded or not.",
+      "reference_context_ids": [
+        "SWS_CanTp_00177"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-metadata-fc-check",
+      "question": "What does CanTp check when CanTp_RxIndication is called for a flow control frame on a generic connection?",
+      "reference": "For an FC on a generic connection carrying MetaData, CanTp checks the addressing information contained in the MetaData against the stored values.",
+      "reference_context_ids": [
+        "SWS_CanTp_00336"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-fc-first-byte-addressing",
+      "question": "What does the first data byte of a flow control frame contain under extended and mixed addressing?",
+      "reference": "Under extended addressing the first data byte of the FC contains the N_TA value, or a unique combination of N_TA and N_TAtype. Under mixed addressing the first data byte of the FC contains the N_AE value.",
+      "reference_context_ids": [
+        "SWS_CanTp_00283"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cantp-type-naming-rules",
+      "question": "How must CanTp name any additional types it defines?",
+      "reference": "Additional types shall be labelled CanTp_<TypeName>, where <TypeName> uses no underscores and capitalises the first letter of each word with the remaining letters lower case.",
+      "reference_context_ids": [
+        "SWS_CanTp_00002"
+      ],
+      "doc": "can_transport"
+    }
+  ]
+}

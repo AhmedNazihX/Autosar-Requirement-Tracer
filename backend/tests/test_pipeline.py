@@ -184,6 +184,109 @@ def test_a_filter_naming_code_is_dropped_rather_than_returning_nothing(engine):
     assert result.results, "a code filter in a requirement search must not empty the result"
 
 
+def test_a_filter_that_matches_nothing_falls_back_to_an_unfiltered_search(engine):
+    """An over-narrow filter must degrade, the way every other stage does.
+
+    Measured, not imagined. In the F7.2 RAGAS run, "Under what configuration
+    is CanSM_SetBaudrate not provided?" made the self-query stage infer a
+    *section* filter pointing at the document's chapter 10 configuration
+    annex — because the question contains the word "configuration". The real
+    requirement is in 8.3.7.2, so all eight index queries returned zero hits
+    and the search reported that the corpus does not cover a requirement
+    sitting in it.
+
+    Returning nothing is the worst available outcome here: an unfiltered
+    search is a slightly worse search, but an empty one makes the agent deny
+    the corpus contains something it does.
+    """
+    built, _, _ = build(
+        engine,
+        translate_replies=[
+            json_body({"queries": ["bus off"]}),
+            # Every condition here is individually valid — that is the point.
+            # "6 Requirements Tracing" is a real Can section, but it holds only
+            # a context chunk, so the *conjunction* with doc_type=requirement
+            # matches nothing. Existing validation checks each condition, never
+            # the set of them together, which is how the real miss got through.
+            json_body(
+                {"module": "Can", "section": "Requirements Tracing", "doc_type": "requirement"}
+            ),
+        ],
+        rerank_replies=[json_body({"order": [1]})],
+    )
+
+    result = pipeline.search_requirements(built, "bus off handling", top_n=1)
+
+    assert result.results, "an over-narrow filter emptied the result instead of degrading"
+
+
+def test_the_unfiltered_retry_is_recorded_rather_than_silent(engine):
+    """A search that quietly changed its own filter must say so.
+
+    The stage log is what the UI's RAG chips and the F7.2 eval both read, so a
+    silent retry would make an unfiltered search indistinguishable from a
+    filtered one that happened to work.
+    """
+    built, _, _ = build(
+        engine,
+        translate_replies=[
+            json_body({"queries": ["bus off"]}),
+            json_body(
+                {"module": "Can", "section": "Requirements Tracing", "doc_type": "requirement"}
+            ),
+        ],
+        rerank_replies=[json_body({"order": [1]})],
+    )
+
+    result = pipeline.search_requirements(built, "bus off handling", top_n=1)
+
+    retrieve = next(stage for stage in result.stages if stage.name == "retrieve")
+    assert retrieve.detail.get("dropped_filter") is True
+
+
+def test_a_filter_the_caller_stated_is_never_dropped(engine):
+    """The fallback is for a *model's guess*, not for any narrow filter.
+
+    A caller who passes ``module="CanSM"`` has asked a question about CanSM,
+    and "no CanSM requirement matches" is a true answer to it. Widening the
+    search would answer a different question — and this is the tool signature
+    the agent uses when a user names a module outright.
+    """
+    built, _, _ = build(
+        engine,
+        translate_replies=[json_body({"queries": ["bus off"]})],
+        rerank_replies=[],
+    )
+
+    result = pipeline.search_requirements(
+        built, "bus off handling", filters=QueryFilter(module="CanSM"), top_n=1
+    )
+
+    assert result.results == [], "an explicit filter was silently widened"
+    retrieve = next(stage for stage in result.stages if stage.name == "retrieve")
+    assert not retrieve.detail.get("dropped_filter")
+
+
+def test_a_filter_that_does_match_is_still_honoured(engine):
+    """The fallback must not become "ignore filters when they are strict"."""
+    built, _, _ = build(
+        engine,
+        translate_replies=[
+            json_body({"queries": ["main function polling"]}),
+            json_body(
+                {"module": "Can", "section": "Scheduled functions", "doc_type": "requirement"}
+            ),
+        ],
+        rerank_replies=[json_body({"order": [1]})],
+    )
+
+    result = pipeline.search_requirements(built, "which scheduled functions does Can have?")
+
+    assert ids_of(result) == ["SWS_Can_00110"], "a working filter was discarded"
+    retrieve = next(stage for stage in result.stages if stage.name == "retrieve")
+    assert not retrieve.detail.get("dropped_filter")
+
+
 # --------------------------------------------------------------------------
 # stage instrumentation (what story S7.2 will evaluate)
 # --------------------------------------------------------------------------

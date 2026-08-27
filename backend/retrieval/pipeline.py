@@ -304,6 +304,9 @@ def search_requirements(
         per_query_limit=per_query_limit,
         fuse_limit=fuse_limit,
         want="requirement",
+        # Only a filter this pipeline inferred may be dropped; one the caller
+        # supplied is theirs to mean.
+        droppable_filter=filters is None and extract_filters,
     )
 
     ordered = _maybe_rerank(
@@ -437,29 +440,68 @@ def _retrieve_fuse_hydrate(
     per_query_limit: int,
     fuse_limit: int,
     want: str,
+    droppable_filter: bool = False,
 ) -> tuple[list[tuple[str, Any]], dict[str, hybrid.FusedHit]]:
-    """Run both indexes over every query, fuse, and load the real records."""
+    """Run both indexes over every query, fuse, and load the real records.
+
+    **An inferred filter that matches nothing is dropped and the search is
+    retried unfiltered.** Every condition can be individually valid and the
+    conjunction still be empty — the F7.2 RAGAS run caught exactly that:
+    "Under what configuration is CanSM_SetBaudrate not provided?" produced
+    ``module=CanSM AND doc_type=requirement AND section IN (chapter 10
+    configuration annex)``, all of which exist, and none of which co-occur.
+    Every index query returned zero and the agent told the user the corpus
+    does not cover a requirement that is in it.
+
+    An unfiltered search is a slightly worse search. An empty one is a wrong
+    answer, and a confident one. So the *inferred* filter loses.
+
+    **Only an inferred one.** ``droppable_filter`` is false when the caller
+    stated the filter outright, and a filter a caller asked for is honoured
+    even when it returns nothing — "no CanSM requirement matches this" is a
+    true answer to a question that named CanSM, and silently widening the
+    search would answer a different question than the one asked. The fallback
+    exists because a *model's guess* at a filter can be a keyword coincidence,
+    not because narrow filters are bad.
+
+    It is recorded, not silent: ``dropped_filter`` in the stage log, which is
+    what the UI's RAG chips and the eval both read.
+    """
     where = self_query.combine(conditions)
 
     started = time.perf_counter()
-    rankings: dict[str, list[str]] = {}
     embedding_cost = 0.0
-    for position, one in enumerate(queries):
-        lexical = bm25.search(
-            engine.bm25_index, one, limit=per_query_limit, predicate=bm25_predicate
-        )
-        rankings[f"{hybrid.BM25_SOURCE}#{position}"] = [hit.record.id for hit in lexical]
 
-        vectors = dense.search(
-            engine.collection,
-            engine.embeddings,
-            one,
-            conn=engine.conn,
-            limit=per_query_limit,
-            where=where,
-        )
-        embedding_cost += recorder.embedding(vectors.usage)
-        rankings[f"{hybrid.DENSE_SOURCE}#{position}"] = [hit.id for hit in vectors.hits]
+    def sweep(active_where, predicate) -> dict[str, list[str]]:
+        nonlocal embedding_cost
+        found: dict[str, list[str]] = {}
+        for position, one in enumerate(queries):
+            lexical = bm25.search(
+                engine.bm25_index, one, limit=per_query_limit, predicate=predicate
+            )
+            found[f"{hybrid.BM25_SOURCE}#{position}"] = [hit.record.id for hit in lexical]
+
+            vectors = dense.search(
+                engine.collection,
+                engine.embeddings,
+                one,
+                conn=engine.conn,
+                limit=per_query_limit,
+                where=active_where,
+            )
+            embedding_cost += recorder.embedding(vectors.usage)
+            found[f"{hybrid.DENSE_SOURCE}#{position}"] = [hit.id for hit in vectors.hits]
+        return found
+
+    rankings = sweep(where, bm25_predicate)
+    dropped_filter = False
+    if droppable_filter and where is not None and not any(rankings.values()):
+        # Nothing at all came back. Retry with no filter rather than report an
+        # empty corpus. The embedding calls are cached by content hash, so the
+        # retry re-embeds nothing.
+        dropped_filter = True
+        where = None
+        rankings = sweep(None, None)
 
     recorder.stage(
         "retrieve",
@@ -468,6 +510,7 @@ def _retrieve_fuse_hydrate(
         queries=len(queries),
         where=where,
         hits={name: len(ids) for name, ids in rankings.items()},
+        dropped_filter=dropped_filter,
     )
 
     started = time.perf_counter()

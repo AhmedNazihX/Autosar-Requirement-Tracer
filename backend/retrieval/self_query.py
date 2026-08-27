@@ -35,6 +35,7 @@ reason recorded — rather than failing the search.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -181,6 +182,64 @@ def known_modules(manifest: ProjectManifest) -> list[str]:
     return seen
 
 
+def question_names_module(question: str, module: str, manifest: ProjectManifest) -> bool:
+    """Does ``question`` actually name ``module``?
+
+    The guard on an *inferred* module filter, added because the F7.2 RAGAS run
+    measured what happens without it: the extractor read "controller **state**"
+    as the state manager and "E_TX_ON **effect**" as the driver, and each wrong
+    filter excluded the document holding the answer. Two of the full pipeline's
+    three misses on the golden set were this, and nothing downstream can
+    recover from it — the right requirement is not in the candidate set to
+    rerank.
+
+    Three ways a question names a module, in decreasing certainty:
+
+    * a symbol or requirement id prefix — ``CanSM_SetBaudrate``,
+      ``SWS_CANIF_00023`` — which is unambiguous;
+    * the document's title, because people write "CAN Interface", not "CanIf";
+    * the bare module name as a whole word — but **only** when it is not also
+      the start of another module's name. "Can" prefixes CanIf, CanTp and
+      CanSM, so "the CAN controller" names no module in particular, and
+      reading it as the driver would exclude the other three documents on the
+      strength of a word almost every question here contains.
+
+    Being wrong in the permissive direction costs a wider search. Being wrong
+    in the restrictive direction costs the answer.
+    """
+    lowered = question.casefold()
+    token = module.casefold()
+
+    if f"{token}_" in lowered:
+        return True
+
+    for document in manifest.documents:
+        if document.module != module:
+            continue
+        title = document.title.casefold()
+        # Manifest titles read "Specification of CAN Interface"; a person
+        # writes the half that names the thing.
+        for phrase in {title, title.replace("specification of ", "").strip()}:
+            if phrase and phrase in lowered:
+                return True
+
+    prefixes_another = any(
+        other.casefold().startswith(token) and other != module
+        for other in known_modules(manifest)
+    )
+    if not prefixes_another:
+        return re.search(rf"\b{re.escape(token)}\b", lowered) is not None
+
+    # A module whose name starts another's — "Can" against CanIf/CanTp/CanSM —
+    # is matched **case-sensitively**, in its own spelling. This corpus writes
+    # the module `Can`, the bus `CAN`, and the English verb `can`, and that is
+    # the only thing separating "which scheduled functions does Can have?"
+    # (names the module) from "how does the CAN bus signal an error?" (names
+    # the bus) and "where can I find..." (names nothing). Getting it wrong
+    # here only widens the search, which is the safe direction.
+    return re.search(rf"\b{re.escape(module)}\b", question) is not None
+
+
 def _resolve_module(raw: str, manifest: ProjectManifest) -> tuple[str | None, str | None]:
     """Match ``raw`` to a known module, or say why it could not be matched.
 
@@ -262,8 +321,15 @@ def resolve(
     manifest: ProjectManifest,
     conn: sqlite3.Connection,
     project_id: str,
+    question: str | None = None,
 ) -> Filter:
-    """Check ``raw`` against the corpus, dropping whatever cannot be satisfied."""
+    """Check ``raw`` against the corpus, dropping whatever cannot be satisfied.
+
+    ``question`` is the user's original text, and passing it turns on
+    :func:`question_names_module`'s guard. Only the *inferred* path passes it:
+    a filter a caller stated is theirs to mean, and second-guessing it would
+    answer a different question than the one asked.
+    """
     dropped: list[tuple[str, str]] = []
 
     module: str | None = None
@@ -271,6 +337,13 @@ def resolve(
         module, reason = _resolve_module(raw.module, manifest)
         if reason is not None:
             dropped.append(("module", reason))
+        elif question is not None and not question_names_module(question, module, manifest):
+            dropped.append((
+                "module",
+                f"the question does not name {module}, so the inferred module filter "
+                "was a guess and would have excluded the other documents",
+            ))
+            module = None
 
     doc_type = raw.doc_type
 
@@ -379,7 +452,13 @@ def extract(
         )
 
     return Extraction(
-        filter=resolve(result.value, manifest=manifest, conn=conn, project_id=project_id),
+        filter=resolve(
+            result.value,
+            manifest=manifest,
+            conn=conn,
+            project_id=project_id,
+            question=cleaned,
+        ),
         raw=result.value,
         usage=result.usage,
     )
