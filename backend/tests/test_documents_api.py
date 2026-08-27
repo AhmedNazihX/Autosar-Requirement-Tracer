@@ -487,6 +487,43 @@ def test_code_links_back_through_a_named_symbol_with_no_annotation(client):
     ]
 
 
+def test_a_context_chunk_naming_a_symbol_is_never_a_linked_requirement(client):
+    """Chapter-6 tracing tables are context chunks and do carry
+    ``named_symbols``, but a synthetic ``CTX_...`` id renders as a chip the
+    reader cannot follow. The tool path excludes them (``_requirements_behind``
+    in ``agent/tools.py``); the endpoint behind the pane must agree."""
+    http, state, _ = client
+    from core.models import Requirement
+    from tests.support_engine import PROJECT
+
+    db.bulk_insert_requirements(
+        state.pool,
+        [
+            Requirement(
+                id="CTX_can_interface_6_01",
+                title=None,
+                text="Requirement Satisfied by CanIf_Transmit tracing table",
+                section_path="6 Requirements Tracing",
+                page=12,
+                bbox=None,
+                source_doc="can_interface",
+                named_symbols=["CanIf_Transmit"],
+                version=MANIFEST.version,
+                project_id=PROJECT,
+                doc_type="context",
+            )
+        ],
+    )
+
+    body = http.get(
+        "/code/communication/CanIf/src/CanIf.c/requirements", params={"lines": "120-168"}
+    ).json()
+
+    returned = [one["req_id"] for one in body["requirements"]]
+    assert "SWS_CANIF_00023" in returned, "real links must survive the filter"
+    assert not [one for one in returned if one.startswith("CTX_")]
+
+
 def test_the_requirements_suffix_does_not_shadow_the_code_slice_route(client):
     """`{path:path}` is greedy; the suffix route is registered first and must
     not swallow ordinary slice requests."""

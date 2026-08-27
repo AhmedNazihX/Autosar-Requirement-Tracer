@@ -475,6 +475,12 @@ def get_code_requirements(
     def add(
         requirement, found_by: str, claim: str | None, unit, bucket: list
     ) -> None:
+        # Context prose is excluded for the reason the tool path excludes it
+        # (`_requirements_behind` in agent/tools.py): chapter-6 tracing tables
+        # carry named_symbols too, and a synthetic CTX_... id renders as a
+        # chip the reader cannot follow.
+        if requirement.doc_type != "requirement":
+            return
         if requirement.id in seen:
             return
         seen.add(requirement.id)
