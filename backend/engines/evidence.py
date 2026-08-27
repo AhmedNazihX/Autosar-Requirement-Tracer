@@ -566,7 +566,7 @@ def check_implementation(
     """
     started = time.perf_counter()
     try:
-        hit = lookup(engine.conn, engine.project_id, req_id)
+        requirement = lookup(engine.conn, engine.project_id, req_id)
     except InvalidRequirementId as exc:
         return EvidenceCheck(
             req_id=req_id,
@@ -577,7 +577,7 @@ def check_implementation(
                 rationale=f"{req_id!r} is not a requirement id: {exc}",
             ),
         )
-    if hit is None:
+    if requirement is None:
         return EvidenceCheck(
             req_id=req_id,
             requirement=None,
@@ -591,7 +591,6 @@ def check_implementation(
             ),
         )
 
-    requirement = hit.requirement
     git_sha = engine.manifest.code.git_sha
 
     cache_model_id = f"{judge_llm.model_id}#blind" if blind else judge_llm.model_id

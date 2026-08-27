@@ -15,7 +15,6 @@ Two things here look odd until you know why:
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -34,7 +33,6 @@ from retrieval.chunks import (
     requirement_chunk_id,
     requirement_document,
 )
-from retrieval.startup import load_indexes
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = load_manifest(REPO_ROOT / "projects" / "autosar-can" / "project.yaml")
@@ -453,61 +451,3 @@ def test_the_index_built_from_sqlite_finds_a_known_chunk(populated):
     hits = bm25.search(index, "Can_Write", limit=5)
     assert hits, "the smoke query must return something"
     assert {hit.record.doc_type for hit in hits} <= {"requirement", "context", CODE_DOC_TYPE}
-
-
-def test_startup_loads_the_index_and_reports_its_own_duration(populated):
-    path, _ = populated
-    indexes = load_indexes(MANIFEST, path)
-    assert indexes.ready
-    assert indexes.records == 3
-    assert indexes.error is None
-    assert indexes.elapsed_seconds >= 0.0
-    assert bm25.search(indexes.bm25, "Can_Write")
-
-
-def test_startup_without_a_database_reports_how_to_build_one(tmp_path: Path):
-    """A fresh clone has no ``data/``; the API must still boot."""
-    indexes = load_indexes(MANIFEST, tmp_path / "absent.db")
-    assert not indexes.ready
-    assert indexes.records == 0
-    assert "ingestion.run" in (indexes.error or "")
-    assert bm25.search(indexes.bm25, "Can_Write") == []
-
-
-def test_startup_with_an_unreadable_database_reports_it_instead_of_dying(tmp_path: Path):
-    """A corrupt or WAL-locked database must not kill the lifespan.
-
-    ``make dev`` while ingestion is running is exactly this case, and the
-    first-run screen (story S3.6.1) can only report a broken index if the
-    server is still up to serve it.
-    """
-    path = tmp_path / "corrupt.db"
-    path.write_bytes(b"this is not a database, it is 40 bytes of noise")
-
-    indexes = load_indexes(MANIFEST, path)
-
-    assert not indexes.ready
-    assert indexes.records == 0
-    assert "could not read the index" in (indexes.error or "")
-    assert "DatabaseError" in (indexes.error or "")
-    assert bm25.search(indexes.bm25, "Can_Write") == []
-
-
-def test_startup_with_a_locked_database_reports_it_instead_of_dying(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    """The WAL-lock case, forced deterministically rather than by racing."""
-    path = tmp_path / "locked.db"
-    connection = db.connect(path)
-    db.migrate(connection)
-
-    def locked(*args, **kwargs):
-        raise sqlite3.OperationalError("database is locked")
-
-    monkeypatch.setattr(db, "migrate", locked)
-    indexes = load_indexes(MANIFEST, path)
-    connection.close()
-
-    assert not indexes.ready
-    assert "could not read the index" in (indexes.error or "")
-    assert "database is locked" in (indexes.error or "")

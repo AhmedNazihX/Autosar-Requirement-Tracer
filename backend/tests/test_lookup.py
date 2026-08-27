@@ -164,9 +164,9 @@ def test_a_sql_shaped_string_is_refused_and_leaves_the_table_alone(conn):
 
 
 def test_a_verbatim_id_resolves(conn):
-    hit = lookup(conn, PROJECT, "SWS_Can_00011")
-    assert hit is not None
-    assert hit.requirement.id == "SWS_Can_00011"
+    found = lookup(conn, PROJECT, "SWS_Can_00011")
+    assert found is not None
+    assert found.id == "SWS_Can_00011"
 
 
 @pytest.mark.parametrize(
@@ -186,9 +186,9 @@ def test_a_verbatim_id_resolves(conn):
 )
 def test_a_sloppy_id_resolves_to_the_documents_own_spelling(conn, raw: str, expected: str):
     """The plan's headline example, plus every spelling the corpus really uses."""
-    hit = lookup(conn, PROJECT, raw)
-    assert hit is not None, f"{raw!r} should have resolved"
-    assert hit.requirement.id == expected, "the stored spelling is what citations render"
+    found = lookup(conn, PROJECT, raw)
+    assert found is not None, f"{raw!r} should have resolved"
+    assert found.id == expected, "the stored spelling is what citations render"
 
 
 def test_a_well_formed_id_that_does_not_exist_is_a_clean_miss(conn):
@@ -210,31 +210,31 @@ def test_lookup_is_not_semantic(conn):
 
 
 # --------------------------------------------------------------------------
-# the citation payload
+# what a citation renders, straight off the returned requirement
 # --------------------------------------------------------------------------
 
 
-def test_the_citation_carries_what_the_pdf_pane_needs(conn):
+def test_the_result_carries_what_the_pdf_pane_needs(conn):
     """Spec §6: ``{req_id, doc, page, bbox}`` drives the pdf.js highlight."""
-    hit = lookup(conn, PROJECT, "sws_can_11")
-    assert hit is not None
+    found = lookup(conn, PROJECT, "sws_can_11")
+    assert found is not None
 
-    assert hit.citation.req_id == "SWS_Can_00011"
-    assert hit.citation.doc == "can_driver", "the manifest key, not a filename"
-    assert hit.citation.page == 42
-    assert hit.citation.bbox == (10.0, 20.0, 100.0, 40.0)
+    assert found.id == "SWS_Can_00011"
+    assert found.source_doc == "can_driver", "the manifest key, not a filename"
+    assert found.page == 42
+    assert found.bbox == (10.0, 20.0, 100.0, 40.0)
 
 
 def test_a_requirement_that_crosses_a_page_break_cites_without_a_box(conn):
     """6% of the corpus has no bbox; the citation must still be usable."""
     db.upsert_requirement(conn, _requirement("SWS_Can_00777", bbox=None, page=51))
 
-    hit = lookup(conn, PROJECT, "sws_can_777")
+    found = lookup(conn, PROJECT, "sws_can_777")
 
-    assert hit is not None
-    assert hit.citation.page == 51
-    assert hit.citation.bbox is None
+    assert found is not None
+    assert found.page == 51
+    assert found.bbox is None
 
 
-def test_the_citation_id_is_the_stored_spelling_not_the_query(conn):
-    assert lookup(conn, PROJECT, "SWS_CAN_00011").citation.req_id == "SWS_Can_00011"
+def test_the_result_id_is_the_stored_spelling_not_the_query(conn):
+    assert lookup(conn, PROJECT, "SWS_CAN_00011").id == "SWS_Can_00011"

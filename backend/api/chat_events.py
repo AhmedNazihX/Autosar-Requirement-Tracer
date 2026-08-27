@@ -40,7 +40,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.embeddings import EmbeddingUsage
 from core.llm import LlmUsage
-from retrieval.lookup import Citation as EngineCitation
 
 #: The five tools the agent may call — ``events.ts`` ``TOOL_NAMES``. The
 #: frontend's type guard drops anything outside its union, so a sixth tool
@@ -273,33 +272,6 @@ def sse_frame(event: ChatEvent) -> str:
     a blank line cannot terminate its own frame.
     """
     return f"data: {ChatEventEnvelope.of(event).model_dump_json()}\n\n"
-
-
-def citation_event(
-    citation: EngineCitation,
-    *,
-    doc_title: str,
-    page_count: int,
-    section: str | None = None,
-    quote: str | None = None,
-) -> RequirementCitation:
-    """Bridge WP2's engine :class:`~retrieval.lookup.Citation` onto the wire.
-
-    Exists so no endpoint hand-builds a citation and drifts from the contract.
-    ``doc_title`` and ``page_count`` are the two fields the engine does not
-    carry: the title is a manifest fact and the page count is a property of the
-    PDF.
-    """
-    return RequirementCitation(
-        req_id=citation.req_id,
-        doc=citation.doc,
-        doc_title=doc_title,
-        page=citation.page,
-        bbox=citation.bbox,
-        page_count=page_count,
-        section=section,
-        quote=quote,
-    )
 
 
 # --------------------------------------------------------------------------

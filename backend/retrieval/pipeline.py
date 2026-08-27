@@ -55,7 +55,6 @@ from core.models import CodeUnit, Requirement
 from retrieval import bm25, dense, hybrid, self_query, translate
 from retrieval import rerank as rerank_stage
 from retrieval.chunks import CODE_DOC_TYPE, ChunkRef, parse_chunk_key
-from retrieval.lookup import Citation
 from retrieval.self_query import Filter, QueryFilter
 
 #: Results handed back to the agent. Spec §4 says five.
@@ -157,7 +156,6 @@ class RequirementResult:
     """One retrieved requirement, ready to cite."""
 
     requirement: Requirement
-    citation: Citation
     rank: int
     fused_score: float
     #: Best rank per index, collapsed across rewrites (``{"bm25": 2, "dense": 1}``).
@@ -323,7 +321,6 @@ def search_requirements(
     results = [
         RequirementResult(
             requirement=requirement,
-            citation=_citation(requirement),
             rank=rank,
             fused_score=fused_by_id[chunk_id].score,
             found_by=_collapse(fused_by_id[chunk_id].ranks),
@@ -709,15 +706,6 @@ def _collapse(ranks: dict[str, int]) -> dict[str, int]:
         if source not in best or rank < best[source]:
             best[source] = rank
     return best
-
-
-def _citation(requirement: Requirement) -> Citation:
-    return Citation(
-        req_id=requirement.id,
-        doc=requirement.source_doc,
-        page=requirement.page,
-        bbox=requirement.bbox,
-    )
 
 
 def _requirement_label(requirement: Requirement) -> str:

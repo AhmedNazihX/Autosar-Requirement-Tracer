@@ -97,4 +97,3 @@ models:
 
 limits:
   max_report_cost_usd: 2.0
-  report_cost_target_usd: 0.50

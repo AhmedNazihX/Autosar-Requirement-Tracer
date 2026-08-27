@@ -905,15 +905,6 @@ def get_report_run(conn: sqlite3.Connection, run_id: str) -> dict | None:
     return _row_to_report_run(row) if row is not None else None
 
 
-def list_report_runs(conn: sqlite3.Connection, project_id: str) -> list[dict]:
-    """Newest first, without the (potentially large) stored result."""
-    rows = conn.execute(
-        "SELECT * FROM report_runs WHERE project_id = ? ORDER BY created_at DESC, id DESC",
-        (project_id,),
-    ).fetchall()
-    return [{**_row_to_report_run(row), "result": None} for row in rows]
-
-
 # --------------------------------------------------------------------------
 # verdict_cache — keyed exactly (req_id, git_sha, model_id), per spec §5
 # --------------------------------------------------------------------------

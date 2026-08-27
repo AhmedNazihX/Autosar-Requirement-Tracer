@@ -41,7 +41,6 @@ from __future__ import annotations
 
 import re
 import sqlite3
-from dataclasses import dataclass
 
 from core import db
 from core.models import Requirement
@@ -72,34 +71,6 @@ class InvalidRequirementId(ValueError):
     Distinct from "no such requirement": this is a malformed request, and
     story S3.3.2 turns it into a 400 rather than a 404.
     """
-
-
-@dataclass(frozen=True)
-class Citation:
-    """What the frontend needs to show a requirement in the PDF pane.
-
-    Exactly spec §6's payload. ``doc`` is the **manifest key**
-    (``can_driver``), never a filename — that is the vocabulary
-    ``GET /documents/{doc}/view`` speaks and it survives a renamed PDF.
-
-    ``bbox`` is ``None`` for the ~6% of requirements whose text crosses a page
-    break: ingestion stores no rectangle rather than a wrong one, so the pane
-    opens the right page without a highlight instead of highlighting the wrong
-    paragraph.
-    """
-
-    req_id: str
-    doc: str
-    page: int
-    bbox: tuple[float, float, float, float] | None
-
-
-@dataclass(frozen=True)
-class RequirementHit:
-    """A resolved requirement together with its citation payload."""
-
-    requirement: Requirement
-    citation: Citation
 
 
 def fingerprint(raw: str) -> str:
@@ -145,12 +116,19 @@ ORDER BY id
 """
 
 
-def lookup(conn: sqlite3.Connection, project_id: str, raw_id: str) -> RequirementHit | None:
+def lookup(conn: sqlite3.Connection, project_id: str, raw_id: str) -> Requirement | None:
     """The requirement ``raw_id`` names, or ``None`` if there is no such one.
 
     Raises :class:`InvalidRequirementId` when ``raw_id`` could not name any
     requirement. Context chunks are never returned: they are prose with a
     synthetic id, and nothing should cite one.
+
+    What comes back is the *stored* record, never the caller's spelling:
+    citations render its id verbatim and finding B3 means the two often
+    differ. It carries everything a citation needs — ``source_doc`` is the
+    manifest key (never a filename), and ``bbox`` is ``None`` for the ~6% of
+    requirements whose text crosses a page break, so the pane opens the right
+    page without a highlight instead of highlighting the wrong paragraph.
     """
     probe = _validated_fingerprint(raw_id)
 
@@ -159,7 +137,7 @@ def lookup(conn: sqlite3.Connection, project_id: str, raw_id: str) -> Requiremen
     # copied out of a document or replayed from a stored citation.
     exact = db.get_requirement(conn, project_id, raw_id)
     if exact is not None and exact.doc_type == "requirement":
-        return _hit(exact)
+        return exact
 
     # Fallback: compare fingerprints. A scan, but of one project's
     # requirements only (1054 in this corpus) and only when the fast path
@@ -169,21 +147,5 @@ def lookup(conn: sqlite3.Connection, project_id: str, raw_id: str) -> Requiremen
     # did contain two ids sharing a fingerprint (this one contains none).
     for row in conn.execute(_CANDIDATE_IDS_SQL, (project_id,)):
         if fingerprint(row["id"]) == probe:
-            matched = db.get_requirement(conn, project_id, row["id"])
-            return _hit(matched) if matched is not None else None
+            return db.get_requirement(conn, project_id, row["id"])
     return None
-
-
-def _hit(requirement: Requirement) -> RequirementHit:
-    """Pair a requirement with its citation payload."""
-    return RequirementHit(
-        requirement=requirement,
-        citation=Citation(
-            # The *stored* spelling, never the caller's: citations render
-            # verbatim and finding B3 means the two often differ.
-            req_id=requirement.id,
-            doc=requirement.source_doc,
-            page=requirement.page,
-            bbox=requirement.bbox,
-        ),
-    )

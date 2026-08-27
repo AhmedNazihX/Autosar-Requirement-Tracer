@@ -124,16 +124,15 @@ def get_requirement(
     """One requirement by id, however loosely it is spelled (story S2.1.1)."""
     ready = _require_ready(state)
     try:
-        hit = lookup(ready.pool, ready.manifest.project_id, req_id)
+        requirement = lookup(ready.pool, ready.manifest.project_id, req_id)
     except InvalidRequirementId as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if hit is None:
+    if requirement is None:
         raise HTTPException(
             status_code=404,
             detail=f"No requirement {req_id!r} in this corpus.",
         )
 
-    requirement = hit.requirement
     titles = {entry.key: entry.title for entry in ready.manifest.documents}
     return RequirementResponse(
         req_id=requirement.id,
@@ -177,27 +176,27 @@ def view_document(
         return response
 
     try:
-        hit = lookup(ready.pool, ready.manifest.project_id, highlight)
+        found = lookup(ready.pool, ready.manifest.project_id, highlight)
     except InvalidRequirementId as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if hit is None:
+    if found is None:
         raise HTTPException(
             status_code=404, detail=f"No requirement {highlight!r} in this corpus."
         )
-    if hit.requirement.source_doc != entry.key:
+    if found.source_doc != entry.key:
         raise HTTPException(
             status_code=404,
             detail=(
-                f"{hit.requirement.id} is in {hit.requirement.source_doc!r}, "
+                f"{found.id} is in {found.source_doc!r}, "
                 f"not in {entry.key!r}."
             ),
         )
 
     return response.model_copy(
         update={
-            "page": hit.requirement.page,
-            "bbox": hit.requirement.bbox,
-            "highlight": hit.requirement.id,
+            "page": found.page,
+            "bbox": found.bbox,
+            "highlight": found.id,
         }
     )
 
@@ -260,15 +259,14 @@ def get_requirement_implementation(
     """
     ready = _require_ready(state)
     try:
-        hit = lookup(ready.pool, ready.manifest.project_id, req_id)
+        requirement = lookup(ready.pool, ready.manifest.project_id, req_id)
     except InvalidRequirementId as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if hit is None:
+    if requirement is None:
         raise HTTPException(
             status_code=404, detail=f"No requirement {req_id!r} in this corpus."
         )
 
-    requirement = hit.requirement
     canonical = Requirement.canonical_id(requirement.id)
     project_id = ready.manifest.project_id
     git_sha = ready.manifest.code.git_sha

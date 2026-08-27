@@ -273,20 +273,19 @@ def _lookup_tool(context: ToolContext) -> BaseTool:
         tool_call_id: Annotated[str, InjectedToolCallId],
     ) -> str:
         try:
-            hit = lookup(context.engine.conn, context.engine.project_id, req_id)
+            requirement = lookup(context.engine.conn, context.engine.project_id, req_id)
         except InvalidRequirementId as exc:
             return _fail(context, tool_call_id, f"{req_id!r} is not a requirement id: {exc}")
         except Exception as exc:  # noqa: BLE001 - a tool must not kill the turn
             return _fail(context, tool_call_id, _readable(exc))
 
-        if hit is None:
+        if requirement is None:
             context.side.record(tool_call_id, ToolOutcome(summary=f"{req_id}: not found"))
             return (
                 f"There is no requirement {req_id!r} in this corpus. Do not guess at "
                 "one; tell the user it is not in the ingested specifications."
             )
 
-        requirement = hit.requirement
         citations: list[Citation] = [context.citation_of(requirement)]
         citations.extend(context.upstream_of(requirement))
         context.side.record(

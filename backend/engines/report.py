@@ -165,13 +165,13 @@ def resolve_scope(
         requirements: list[Requirement] = []
         for raw_id in scope.req_ids:
             try:
-                hit = lookup(engine.conn, engine.project_id, raw_id)
+                found = lookup(engine.conn, engine.project_id, raw_id)
             except InvalidRequirementId:
-                hit = None
-            if hit is None:
+                found = None
+            if found is None:
                 unknown.append(raw_id)
             else:
-                requirements.append(hit.requirement)
+                requirements.append(found)
     else:
         requirements = db.list_requirements(
             engine.conn, engine.project_id, source_docs=_source_docs(engine.manifest, scope)

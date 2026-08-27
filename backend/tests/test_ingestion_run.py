@@ -155,7 +155,7 @@ FIXTURE_MANIFEST = {
         "title": "test/title",
         "embedding": "test/embedding-v1",
     },
-    "limits": {"max_report_cost_usd": 1.0, "report_cost_target_usd": 0.5},
+    "limits": {"max_report_cost_usd": 1.0},
 }
 
 

@@ -142,7 +142,6 @@ class LimitsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     max_report_cost_usd: float = Field(gt=0)
-    report_cost_target_usd: float = Field(gt=0)
 
 
 class ProjectManifest(BaseModel):

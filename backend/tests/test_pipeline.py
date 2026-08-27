@@ -101,7 +101,7 @@ def test_no_code_chunk_ever_comes_back_from_search_requirements(engine):
     assert all(not item.requirement.id.startswith("code:") for item in result.results)
 
 
-def test_each_result_carries_a_citation_ready_for_the_pdf_pane(engine):
+def test_each_result_carries_what_the_pdf_pane_needs(engine):
     built, _, _ = build(
         engine,
         translate_replies=[json_body({"queries": ["bus off"]}), json_body(NO_FILTER)],
@@ -110,11 +110,10 @@ def test_each_result_carries_a_citation_ready_for_the_pdf_pane(engine):
 
     result = pipeline.search_requirements(built, "bus off", top_n=1)
 
-    citation = result.results[0].citation
-    assert citation.req_id == result.results[0].requirement.id
-    assert citation.doc in {document.key for document in MANIFEST.documents}
-    assert citation.page == 42
-    assert citation.bbox == (10.0, 20.0, 100.0, 40.0)
+    requirement = result.results[0].requirement
+    assert requirement.source_doc in {document.key for document in MANIFEST.documents}
+    assert requirement.page == 42
+    assert requirement.bbox == (10.0, 20.0, 100.0, 40.0)
 
 
 def test_each_result_records_which_index_found_it(engine):

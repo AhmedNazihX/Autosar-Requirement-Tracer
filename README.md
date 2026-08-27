@@ -79,7 +79,7 @@ lying still cannot manufacture a source link (measured below).
 - Prompt-injection hardening with an adversarial set measured against **real
   models**, not only mocks.
 
-**1113 backend tests** pass (`make test`); `make lint` keeps
+**1112 backend tests** pass (`make test`); `make lint` keeps
 `dependencies.txt` current (`deps-check`) and runs ruff and the frontend's
 eslint; CI runs the same targets plus the frontend typecheck and production
 build. `make smoke` boots
@@ -455,7 +455,7 @@ Everything here is a real constraint on what this tool's answers are worth.
 ## Reproducing every number here
 
 ```bash
-make test                                              # 1113 unit tests, no network
+make test                                              # 1112 unit tests, no network
 make smoke                                             # boots both servers, 3 questions + 1 report
 cd backend && uv run python -m evaluation.judge_eval run        # judge confusion matrix
 cd backend && uv run python -m evaluation.ragas_eval run        # naive vs full pipeline

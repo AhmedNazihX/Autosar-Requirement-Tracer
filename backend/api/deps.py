@@ -18,8 +18,7 @@ turn for another's tokens.
 Startup never fails. A fresh clone has no ``data/`` at all, and the API still
 has to come up so ``GET /setup/status`` can say what is missing (story S3.6.1)
 — which it cannot do from a process that died. So every load path here degrades
-to a recorded reason, exactly as :mod:`retrieval.startup` already does for the
-BM25 index.
+to a recorded reason (``tests/test_deps.py`` pins each one).
 """
 
 from __future__ import annotations

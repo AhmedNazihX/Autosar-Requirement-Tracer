@@ -37,7 +37,6 @@ from api.chat_events import (
     TurnMeter,
     UpstreamCitation,
     UsageEvent,
-    citation_event,
     sse_frame,
 )
 from core.embeddings import EmbeddingUsage
@@ -209,23 +208,6 @@ def test_an_upstream_citation_is_display_only():
     )
     assert body["data"]["kind"] == "upstream"
     assert "page" not in body["data"], "an upstream chip is never clickable through"
-
-
-def test_citation_event_wraps_a_requirement_from_the_engine():
-    """The bridge from WP2's Citation to the wire, so no caller hand-builds one."""
-    from retrieval.lookup import Citation
-
-    event = citation_event(
-        Citation(req_id="SWS_Can_00011", doc="can_driver", page=37, bbox=None),
-        doc_title="Specification of CAN Driver",
-        page_count=203,
-        section="7.6 L-PDU transmission",
-        quote="Can_Write shall...",
-    )
-
-    assert isinstance(event, RequirementCitation)
-    assert event.req_id == "SWS_Can_00011"
-    assert event.page == 37
 
 
 # --------------------------------------------------------------------------
