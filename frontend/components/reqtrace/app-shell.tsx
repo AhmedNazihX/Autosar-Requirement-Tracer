@@ -186,10 +186,23 @@ export function AppShell({
     stop,
   } = useChatStream({ source, onSettled });
 
-  const exchanges = useMemo(
-    () => toExchanges([...(thread?.messages ?? []), ...unsaved]),
-    [thread, unsaved],
-  );
+  const exchanges = useMemo(() => {
+    const stored = thread?.messages ?? [];
+    // Drop any in-memory message the store has since caught up on. The local
+    // store writes *and* returns the message, so between its `setThread` and
+    // the `setUnsaved([])` that follows there is a frame where both hold it —
+    // and a duplicated question is a visible glitch. Matching on role+content
+    // against the tail is enough: the only messages in `unsaved` are the ones
+    // from the turn in flight.
+    const tail = stored.slice(-2);
+    const pending = unsaved.filter(
+      (one) =>
+        !tail.some(
+          (other) => other.role === one.role && other.content === one.content,
+        ),
+    );
+    return toExchanges([...stored, ...pending]);
+  }, [thread, unsaved]);
   const lastExchangeId = exchanges.at(-1)?.id ?? null;
 
   /* --------------------------------------------------------- source pane --- */
@@ -270,14 +283,24 @@ export function AppShell({
       const active = thread ?? (await threads.create());
       lastPromptRef.current = text;
       streamThreadRef.current = active.id;
-      const stored = await threads.append(active.id, {
-        role: "user",
-        content: text,
-        events: [],
-      });
-      // Could not be written — show it anyway. See `unsaved`.
-      setUnsaved(stored ? [] : [localMessage("user", text, [])]);
+      // Paint the message and open the stream *before* touching the store.
+      //
+      // The store write is bookkeeping; blocking on it delayed the user's own
+      // message by ~500 ms of round trip on every send, measured. In live mode
+      // it is not even a write — `POST /chat` is what persists a turn — so the
+      // await bought nothing at all and cost half a second of the thing the
+      // user is waiting to see.
+      setUnsaved([localMessage("user", text, [])]);
       send(active.id, text);
+
+      // Local mode really does write here, so drop the in-memory copy once the
+      // store holds the same message — otherwise it would render twice.
+      void threads
+        .append(active.id, { role: "user", content: text, events: [] })
+        .then((stored) => {
+          const last = stored?.messages.at(-1);
+          if (last?.role === "user" && last.content === text) setUnsaved([]);
+        });
     },
     [thread, threads, send],
   );
