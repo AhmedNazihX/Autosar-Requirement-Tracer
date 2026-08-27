@@ -24,6 +24,8 @@
 
 import { useEffect, useState } from "react";
 
+import { chatSourceKind } from "@/lib/chat-sources";
+
 import type { HighlightedFile } from "@/lib/code-highlight";
 import { highlightSnippet } from "@/lib/code-highlight-client";
 import type { CodeCitation } from "@/lib/events";
@@ -59,6 +61,11 @@ export type CodeFileState =
   | { phase: "failed"; message: string };
 
 export function useCodeFile(citation: CodeCitation | null): CodeFileState {
+  // Canned mode has no backend by definition — it is the demo that runs on a
+  // fresh clone with no index and no key. Fetching there turns the source pane
+  // into an error panel, which is a worse demo than the committed fixture it
+  // was showing before.
+  const live = chatSourceKind() === "live";
   // Keyed by the request that produced it, so a new citation shows as loading
   // without an effect writing state during render.
   const [result, setResult] = useState<{
@@ -71,7 +78,7 @@ export function useCodeFile(citation: CodeCitation | null): CodeFileState {
     : "";
 
   useEffect(() => {
-    if (!citation) return;
+    if (!citation || !live) return;
     let cancelled = false;
 
     const [start, end] = citation.line_span;
@@ -120,9 +127,9 @@ export function useCodeFile(citation: CodeCitation | null): CodeFileState {
     return () => {
       cancelled = true;
     };
-  }, [citation, token]);
+  }, [citation, token, live]);
 
-  if (!citation) return { phase: "idle" };
+  if (!citation || !live) return { phase: "idle" };
   if (result?.token === token) return result.state;
   return { phase: "loading" };
 }

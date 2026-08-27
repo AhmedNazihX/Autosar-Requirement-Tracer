@@ -258,7 +258,18 @@ between claiming the traceability report is trustworthy and showing it.
 It also directly exercises the `unverifiable` verdict the design insisted on
 allowing.
 
-### WP5 — Frontend Experience (~7h)
+### WP5 — Frontend Experience (~7h) — **DONE 2026-08-27**
+
+*(Completed and verified in a browser against the real corpus. F5.0 needed no
+work: the owner approved the canvas on 2026-08-26 and the components were built
+to it. Two endpoints spec §6 lists or implies had never been built and were
+added here: `GET /documents/{doc}/file` — §7 needs pdf.js to render the real
+page and §6 only defines the coordinates endpoint — and
+`GET /threads/{id}/export`, which §6 lists and WP3 left out. Four bugs were
+found only by running it: the code tab opened the fixture whatever the citation
+said; a dead backend swallowed the whole turn; the report drawer rendered at
+384 px with its verdict columns off-screen; and canned mode began showing fetch
+errors once the panes went live.)*
 
 **F5.0 Design canvas (gate for the rest of WP5)** — S5.0.1 /design mockups: main screen (sidebar+chat+split pane), PDF vs code source states, report flow (launch/progress/matrix), first-run + empty states, checkpoint rail. *Accept: user approves canvas; WP5 implements to it.*
 

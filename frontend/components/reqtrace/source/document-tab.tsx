@@ -11,6 +11,7 @@ import {
   ZoomInIcon,
 } from "lucide-react";
 
+import { chatSourceKind } from "@/lib/chat-sources";
 import type { RequirementCitation } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Cap, Meta } from "@/components/reqtrace/text";
@@ -70,6 +71,11 @@ const MIN_SCALE = 0.5;
 const MAX_SCALE = 2;
 
 function DocumentView({ citation }: { citation: RequirementCitation }) {
+  // See `useCodeFile`: canned mode has no backend to serve the PDF, so the
+  // pane shows what it always showed there — the extracted text, and a plain
+  // statement that the page is not rendered. Attempting the fetch would put a
+  // failure notice in the middle of the committed demo.
+  const live = chatSourceKind() === "live";
   const [page, setPage] = useState(citation.page);
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [status, setStatus] = useState<PdfStatus | null>(null);
@@ -163,14 +169,32 @@ function DocumentView({ citation }: { citation: RequirementCitation }) {
         </div>
       ) : null}
 
+      {!live ? (
+        <div className="flex flex-none items-start gap-2 border-b bg-muted px-3 py-2">
+          <InfoIcon className="mt-px size-3.5 flex-none text-muted-foreground" />
+          <p className="flex-1 text-[11.5px] leading-4 text-muted-foreground">
+            <span className="font-medium text-foreground">
+              The page itself is not rendered in the demo.
+            </span>{" "}
+            This is the committed conversation fixture, which runs with no
+            backend, no index and no API key — so there is no document to fetch.
+            Run the app against a backend to see the real page with the
+            highlight drawn on it. The requirement text below is real: it is
+            what ingestion extracted.
+          </p>
+        </div>
+      ) : null}
+
       <div className="min-h-0 flex-1 overflow-auto bg-muted px-6 pt-4 pb-6">
-        <PdfPage
-          doc={citation.doc}
-          page={page}
-          bbox={bbox}
-          scale={scale}
-          onStatus={setStatus}
-        />
+        {live ? (
+          <PdfPage
+            doc={citation.doc}
+            page={page}
+            bbox={bbox}
+            scale={scale}
+            onStatus={setStatus}
+          />
+        ) : null}
 
         <div className="mx-auto mt-4 flex max-w-[560px] flex-col gap-3 rounded-[3px] border bg-background p-5 shadow-sm">
           <div className="flex items-baseline justify-between gap-3 border-b pb-2">
