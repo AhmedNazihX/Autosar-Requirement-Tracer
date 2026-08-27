@@ -662,13 +662,22 @@ def run_ingestion(
     # -- 2. documents ------------------------------------------------------
     report.stage("docs", f"fetching {len(manifest.documents)} PDF(s)")
     docs_target = docs_dir(manifest)
+    # One start line per file, then byte progress through the reporter's
+    # ticker — a fresh ticker per file, because a ticker tracks one monotonic
+    # sequence and each download starts its bytes from zero.
+    tickers: dict[str, object] = {}
+
+    def download_progress(filename: str, done: int, total: int | None) -> None:
+        report.once(filename, f"      downloading {filename} ...")
+        if filename not in tickers:
+            tickers[filename] = report.ticker(f"downloading {filename}", steps=4)
+        tickers[filename]("", done, total)
+
     fetches: list[FetchResult] = fetch_documents(
         manifest,
         docs_target,
         downloader=download,
-        on_progress=lambda filename, done, total: report.once(
-            filename, f"      downloading {filename} ..."
-        ),
+        on_progress=download_progress,
         force=opts.force,
     )
     for fetched in fetches:

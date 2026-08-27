@@ -297,6 +297,24 @@ def test_the_first_run_builds_everything(corpus):
     assert summary.index_check.hits >= 1, "the smoke query must find something"
 
 
+def test_a_download_reports_byte_progress_not_just_a_start_line(corpus, capsys):
+    """The fetcher reports byte counts through ``on_chunk``; ``run.py`` used
+    to discard them, so a 100 MB download showed one line and then silence."""
+    manifest, _, source_pdf = corpus
+
+    run.run_ingestion(
+        manifest,
+        run.Options(stop_after="docs"),
+        reporter=run.Reporter(quiet=False),
+        downloader=FakeDownloader(source_pdf),
+        git_runner=FakeGit({}),
+        transport=FakeTransport(),
+    )
+
+    out = capsys.readouterr().out
+    assert "(100%)" in out, "byte progress must reach the reporter"
+
+
 def test_the_second_run_downloads_nothing_embeds_nothing_and_changes_nothing(corpus):
     """The acceptance criterion three of the composed stories share."""
     manifest, _, source_pdf = corpus

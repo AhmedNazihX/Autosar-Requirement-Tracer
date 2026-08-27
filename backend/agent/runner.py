@@ -51,7 +51,7 @@ from api.chat_events import (
     ToolStartEvent,
     TurnMeter,
 )
-from core.llm import Llm
+from core.llm import Llm, LlmUsage
 from core.usage_sniffer import CostSink
 
 #: What the user is told when the model or its transport fails. Deliberately
@@ -259,9 +259,7 @@ def _elapsed_ms(started: float | None) -> int:
     return 0 if started is None else max(int((time.perf_counter() - started) * 1000), 0)
 
 
-def _llm_usage(usage: dict[str, Any], chat: Llm):
-    from core.llm import LlmUsage
-
+def _llm_usage(usage: dict[str, Any], chat: Llm) -> LlmUsage:
     return LlmUsage(
         purpose=chat.purpose,
         calls=1,
