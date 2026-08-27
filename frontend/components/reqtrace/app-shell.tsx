@@ -34,6 +34,7 @@ import {
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { useBackendHealth } from "@/hooks/use-backend-health";
 import type { SetupStatus } from "@/hooks/use-setup-status";
+import { useReport } from "@/hooks/use-report";
 import { useThreads } from "@/hooks/use-threads";
 import { useViewport } from "@/hooks/use-viewport";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,10 @@ export function AppShell({
   const threadId = thread?.id ?? null;
 
   const [reportOpen, setReportOpen] = useState(false);
+  // Owned here, not in the drawer: the drawer closes whenever the user follows
+  // a row into the source pane, and Base UI unmounts a closed popup — so a
+  // hook inside it would throw the matrix away on the click meant to show it.
+  const report = useReport();
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(true);
   const [renamingTitle, setRenamingTitle] = useState<string | null>(null);
@@ -328,13 +333,17 @@ export function AppShell({
    * is worse than not drawing one.
    */
   const openReportRow = useCallback(
-    async (reqId: string, evidence: CodeCitation | null) => {
+    async (reqId: string, evidence: CodeCitation | null, tab: SourceTab) => {
+      // Close first. The drawer sits over the source pane, so opening a
+      // citation behind it would put the thing the user asked to see in the
+      // one place they cannot look. The run survives — it lives above.
+      setReportOpen(false);
       const citation = await fetchRequirementCitation(reqId);
       if (!citation) return;
       setPinned({
         key: transcriptKey,
-        target: { tab: "document", citation, companion: evidence },
-        tab: "document",
+        target: { tab, citation, companion: evidence },
+        tab,
       });
       setSourceOpen(true);
     },
@@ -479,7 +488,10 @@ export function AppShell({
       open={reportOpen}
       onOpenChange={setReportOpen}
       defaultModule={DEFAULT_REPORT_MODULE}
-      onOpenRow={(reqId, evidence) => void openReportRow(reqId, evidence)}
+      report={report}
+      onOpenRow={(reqId, evidence, tab) =>
+        void openReportRow(reqId, evidence, tab)
+      }
     />
   );
 

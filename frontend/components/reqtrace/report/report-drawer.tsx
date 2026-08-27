@@ -17,6 +17,7 @@ import {
   exportUrl,
   EXPORT_FORMATS,
   type Coverage,
+  type EvidenceItem,
   type ReportResult,
   type ReportRow,
   type ReportScope,
@@ -56,19 +57,32 @@ export function ReportDrawer({
   onOpenChange,
   onOpenRow,
   defaultModule,
+  report,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * The run, owned by the shell rather than by this component.
+   *
+   * Base UI unmounts a closed popup, so a hook living here would lose the
+   * matrix the moment the drawer closed — and the drawer now closes every time
+   * the user follows a row into the source pane. A 398-row run is cheap to
+   * repeat but not free to wait for, and losing it on the click that was
+   * supposed to show you something is the wrong behaviour twice over.
+   */
+  report: ReturnType<typeof useReport>;
   /**
    * A row click hands back the requirement id and the code its verdict cited
    * (or `null` when it cited none). The shell resolves the requirement and
    * pins both into the source pane — spec §7's "row click opens both tabs".
    */
-  onOpenRow: (reqId: string, evidence: CodeCitation | null) => void;
+  onOpenRow: (
+    reqId: string,
+    evidence: CodeCitation | null,
+    tab: "document" | "code",
+  ) => void;
   defaultModule: string;
 }) {
-  const report = useReport();
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -388,7 +402,11 @@ function Finished({
   status: string;
   result: ReportResult | null;
   error: string | null;
-  onOpenRow: (reqId: string, evidence: CodeCitation | null) => void;
+  onOpenRow: (
+    reqId: string,
+    evidence: CodeCitation | null,
+    tab: "document" | "code",
+  ) => void;
 }) {
   const [filters, setFilters] = useState<Set<Verdict>>(new Set());
   const rows = useMemo(
@@ -535,28 +553,21 @@ function Row({
   onOpenRow,
 }: {
   row: ReportRow;
-  onOpenRow: (reqId: string, evidence: CodeCitation | null) => void;
+  onOpenRow: (
+    reqId: string,
+    evidence: CodeCitation | null,
+    tab: "document" | "code",
+  ) => void;
 }) {
-  const first = row.evidence[0];
   return (
     <tr
       className="cursor-pointer border-b align-top transition-colors hover:bg-muted/60"
       onClick={() =>
         // Both tabs: the requirement's page, and — when the judge cited code —
         // the lines it cited. That pairing is what makes the matrix useful
-        // rather than a list of verdicts.
-        onOpenRow(
-          row.req_id,
-          first
-            ? {
-                kind: "code",
-                repo_path: first.file,
-                symbol: first.symbol,
-                line_span: first.lines,
-                git_sha: first.git_sha,
-              }
-            : null,
-        )
+        // rather than a list of verdicts. The row lands on the requirement;
+        // the evidence cell below lands on the code.
+        onOpenRow(row.req_id, codeCitationFor(row.evidence[0]), "document")
       }
     >
       <td className="px-3 py-2">
@@ -599,22 +610,47 @@ function Row({
         {row.confidence.toFixed(2)}
       </td>
       <td className="px-3 py-2">
-        {first ? (
-          <span className="font-mono text-[10.5px]">
-            {first.file.split("/").pop()}:{first.lines[0]}&ndash;{first.lines[1]}
-            {row.evidence.length > 1 ? (
-              <span className="text-muted-foreground">
-                {" "}
-                +{row.evidence.length - 1}
-              </span>
-            ) : null}
-          </span>
-        ) : (
+        {row.evidence.length === 0 ? (
           <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="flex flex-col items-start gap-1">
+            {/* Every cited span is its own control. Showing only the first and
+                a "+2" left the rest unreachable — the judge cited them, so the
+                reader should be able to open them. */}
+            {row.evidence.map((item) => (
+              <button
+                key={`${item.file}:${item.lines[0]}-${item.lines[1]}`}
+                type="button"
+                title={item.rationale}
+                onClick={(event) => {
+                  // Without this the row handler fires too and lands on the
+                  // document tab — the opposite of what was clicked.
+                  event.stopPropagation();
+                  onOpenRow(row.req_id, codeCitationFor(item), "code");
+                }}
+                className="rounded border border-source-border bg-source-bg px-1.5 py-px font-mono text-[10.5px] text-source transition-colors hover:brightness-110"
+              >
+                {item.file.split("/").pop()}:{item.lines[0]}–{item.lines[1]}
+              </button>
+            ))}
+          </div>
         )}
       </td>
     </tr>
   );
+}
+
+/** An evidence item as the citation the source pane opens. */
+function codeCitationFor(item: EvidenceItem | undefined): CodeCitation | null {
+  return item
+    ? {
+        kind: "code",
+        repo_path: item.file,
+        symbol: item.symbol,
+        line_span: item.lines,
+        git_sha: item.git_sha,
+      }
+    : null;
 }
 
 /** A display name for an SRS document, derived from its id — the same rule
