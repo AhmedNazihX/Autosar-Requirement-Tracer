@@ -236,6 +236,7 @@ Exports: [`docs/evaluations/canif-report.md`](docs/evaluations/canif-report.md),
 ## Where the decisions live
 
 - [`docs/specs/2026-08-26-reqtrace-design.md`](docs/specs/2026-08-26-reqtrace-design.md) — the approved design
+- [`docs/architecture/retrieval.md`](docs/architecture/retrieval.md) — what runs when a question arrives: exact lookup vs. hybrid search, and how BM25 and dense retrieval are fused
 - [`docs/findings/2026-08-26-corpus-and-toolchain-findings.md`](docs/findings/2026-08-26-corpus-and-toolchain-findings.md) — measured corpus, toolchain and security findings
 - [`docs/decisions/2026-08-26-implementation-decisions.md`](docs/decisions/2026-08-26-implementation-decisions.md) — the rulings made while implementing WP1
 - [`.claude/plans/reqtrace-workplan.md`](.claude/plans/reqtrace-workplan.md) — the work breakdown, WP1–WP7
