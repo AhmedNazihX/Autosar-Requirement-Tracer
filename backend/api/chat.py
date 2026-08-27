@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict, Field
@@ -38,7 +38,9 @@ from api import deps
 from api import reports as api_reports
 from api import threads as api_threads
 from api.chat_events import ChatEvent, ChatEventEnvelope, ErrorEvent, sse_frame
+from api.ratelimit import RateLimiter, client_key
 from core import db
+from core.config import get_settings
 
 router = APIRouter(tags=["chat"])
 
@@ -50,6 +52,15 @@ MAX_MESSAGE_CHARS = 8000
 #: history would grow the prompt without bound; a traceability conversation
 #: refers back a few turns at most, and every answer is re-grounded by tools.
 HISTORY_TURNS = 12
+
+#: The token bucket in front of this endpoint (story S6.3.1). Module-level
+#: because the limit is a property of the process, not of a request: one
+#: bucket per client, shared by every worker thread uvicorn runs. Sized from
+#: settings so a flood test can rebuild it with its own numbers.
+LIMITER = RateLimiter(
+    per_minute=get_settings().chat_rate_limit_per_minute,
+    burst=get_settings().chat_rate_limit_burst,
+)
 
 #: Sent when the corpus is not loaded. Names the fix, because at this point the
 #: user has a running backend and an empty index, which looks like a bug.
@@ -81,9 +92,28 @@ def chat(
     message is more useful than a status code it has to interpret, and
     ``chat-sources.ts`` turns a non-2xx into a generic error while an ``error``
     event carries a real sentence. The exceptions are a malformed body (422,
-    from validation) and an unindexed corpus, which is reported as an ``error``
-    event for the same reason.
+    from validation), a rate-limited client (429, below), and an unindexed
+    corpus — which is reported as an ``error`` event for the same reason.
     """
+    # Before anything else, including the readiness check: a client looping
+    # against an unindexed backend is the same runaway, and the point of the
+    # bucket is to make the cheap answer cheap.
+    wait = LIMITER.check(client_key(request))
+    if wait > 0:
+        # A status code rather than an `error` event, which is the exception to
+        # this endpoint's "always stream" rule: 429 is the one failure a
+        # well-behaved client is supposed to *act* on, and `Retry-After` tells
+        # it by how much. `chat-sources.ts` renders it as a message anyway.
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Too many questions at once. This is a local tool talking to a "
+                "paid model, so the backend paces requests rather than letting "
+                "a loop run up a bill."
+            ),
+            headers={"Retry-After": str(max(1, int(wait + 0.999)))},
+        )
+
     if not state.ready:
         return _stream([ErrorEvent(message=NOT_READY_MESSAGE, code="not_indexed")])
 

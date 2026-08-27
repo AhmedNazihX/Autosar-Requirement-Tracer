@@ -134,7 +134,10 @@ export function sseSource(): ChatSource {
         data: {
           message: describeHttpFailure(response.status),
           code: `http_${response.status}`,
-          retryable: response.status >= 500,
+          // 429 is retryable by construction: the bucket refills, so the
+          // same request succeeds a moment later. Without this the one
+          // failure the user is *meant* to just retry offers no Retry button.
+          retryable: response.status >= 500 || response.status === 429,
         },
       };
       return;
@@ -195,6 +198,16 @@ function describeHttpFailure(status: number): string {
       "The backend is running but has no /chat endpoint, so it is older than " +
       "this build of the UI. Restart it from the current backend/ directory. " +
       "Nothing was sent to a model."
+    );
+  }
+  if (status === 429) {
+    // The backend paces `POST /chat` (story S6.3.1) because each turn calls a
+    // paid model several times. A person never reaches this; a render loop or
+    // a held Retry does, which is exactly what the limit is for.
+    return (
+      "Too many questions at once — the backend is pacing requests so a retry " +
+      "loop cannot run up a model bill. Wait a moment and press Retry; your " +
+      "question is still here."
     );
   }
   if (status >= 500) {

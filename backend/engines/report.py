@@ -37,8 +37,9 @@ import io
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from core import db, pricing
 from core.config import Settings
@@ -47,7 +48,7 @@ from core.manifest import ProjectManifest
 from core.models import Requirement
 from engines import evidence
 from engines.evidence import EvidenceItem, Verdict
-from retrieval.lookup import InvalidRequirementId, lookup
+from retrieval.lookup import MAX_ID_LENGTH, InvalidRequirementId, lookup
 from retrieval.pipeline import Engine
 
 #: Characters per token, **measured on this corpus** rather than taken from
@@ -93,6 +94,23 @@ class ScopeError(ValueError):
 # --------------------------------------------------------------------------
 
 
+#: Longest ``module``/``document`` selector accepted. Both are manifest keys
+#: or module names — a dozen characters in this corpus — so this is generous.
+MAX_SELECTOR_CHARS = 64
+
+#: Most requirement ids one report may list explicitly. Above the size of the
+#: ingested corpus, so no legitimate scope is refused, and bounded so a body
+#: cannot be an arbitrary-length list.
+MAX_SCOPE_IDS = 2000
+
+#: One requirement id in a scope, held to the same length limit
+#: :func:`retrieval.lookup.lookup` enforces. The *shape* is not constrained
+#: here on purpose: `lookup` normalises loose spellings ("sws can 11") and
+#: reports the ones it cannot read, and a stricter regex at the edge would
+#: reject ids the engine can actually resolve.
+type ScopeId = Annotated[str, StringConstraints(max_length=MAX_ID_LENGTH)]
+
+
 class ReportScope(BaseModel):
     """What to report on.
 
@@ -105,9 +123,15 @@ class ReportScope(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    module: str | None = None
-    document: str | None = None
-    req_ids: list[str] | None = None
+    #: Both are matched against the manifest, so neither can name anything
+    #: outside the corpus — the caps are here so an absurd body is refused at
+    #: the edge with a 422 rather than carried to the matcher (story S6.3.1).
+    module: str | None = Field(default=None, max_length=MAX_SELECTOR_CHARS)
+    document: str | None = Field(default=None, max_length=MAX_SELECTOR_CHARS)
+    #: Each id is bounded by the same limit ``lookup`` enforces, and the list
+    #: by :data:`MAX_SCOPE_IDS` — a set larger than a corpus is a module or a
+    #: document, which are the selectors that exist for it.
+    req_ids: list[ScopeId] | None = Field(default=None, max_length=MAX_SCOPE_IDS)
     #: Ignore cached verdicts and judge everything again. The expensive
     #: option, and off by default for that reason.
     rejudge: bool = False

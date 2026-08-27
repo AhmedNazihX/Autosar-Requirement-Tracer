@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     #: effective default is unchanged.
     max_report_cost_usd: float | None = None
 
+    #: The ``POST /chat`` token bucket (story S6.3.1). The sustained rate a
+    #: runaway client is allowed, and how many requests may arrive back to
+    #: back before it binds. Defaults chosen against a *person*: nobody types
+    #: six questions in a row, and one every five seconds sustained is already
+    #: faster than an agent turn completes.
+    chat_rate_limit_per_minute: float = 12.0
+    chat_rate_limit_burst: float = 6.0
+
     #: Which corpus this backend serves. A path, not a project name, because
     #: every corpus-specific value (model IDs, globs, the pinned SHA) lives in
     #: that manifest — see ``core/manifest.py``. Relative to ``backend/``,
