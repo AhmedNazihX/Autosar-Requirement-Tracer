@@ -32,6 +32,7 @@ import {
   type ReportScope,
   type RunStatus,
 } from "@/lib/reports";
+import { parseSseFrame, sseBlocks } from "@/lib/sse";
 
 export type ReportPhase =
   | { phase: "idle" }
@@ -125,40 +126,29 @@ export function useReport(): {
           signal: controller.signal,
         });
         if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const blocks = buffer.split("\n\n");
-          buffer = blocks.pop() ?? "";
-          for (const block of blocks) {
-            const frame = parseFrame(block);
-            if (!frame) continue;
-            if (frame.type === "progress") {
-              const progress = frame.data;
-              setState((current) =>
-                current.phase === "running"
-                  ? { ...current, progress }
-                  : {
-                      // Re-attached to a run this tab did not launch.
-                      phase: "running",
-                      jobId: following,
-                      launch:
-                        launchRef.current ?? placeholderLaunch(following, progress.total),
-                      progress,
-                    },
-              );
-            } else if (frame.type === "error") {
-              setState({ phase: "failed", message: frame.data.message });
-              return;
-            } else {
-              await finish();
-              return;
-            }
+        for await (const block of sseBlocks(response.body)) {
+          const frame = parseSseFrame(block, isReportFrame);
+          if (!frame) continue;
+          if (frame.type === "progress") {
+            const progress = frame.data;
+            setState((current) =>
+              current.phase === "running"
+                ? { ...current, progress }
+                : {
+                    // Re-attached to a run this tab did not launch.
+                    phase: "running",
+                    jobId: following,
+                    launch:
+                      launchRef.current ?? placeholderLaunch(following, progress.total),
+                    progress,
+                  },
+            );
+          } else if (frame.type === "error") {
+            setState({ phase: "failed", message: frame.data.message });
+            return;
+          } else {
+            await finish();
+            return;
           }
         }
         // The stream closed without a terminal frame — the run may still have
@@ -197,17 +187,3 @@ function placeholderLaunch(jobId: string, total: number): LaunchResponse {
   };
 }
 
-function parseFrame(block: string) {
-  const payload = block
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!payload) return null;
-  try {
-    const parsed: unknown = JSON.parse(payload);
-    return isReportFrame(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}

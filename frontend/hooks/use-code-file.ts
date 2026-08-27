@@ -24,6 +24,7 @@
 
 import { useEffect, useState } from "react";
 
+import { annotationOf } from "@/lib/code-facts";
 import { chatSourceKind } from "@/lib/chat-sources";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
@@ -42,16 +43,6 @@ interface CodeSlice {
   last_line: number;
   total_lines: number;
   text: string;
-}
-
-const POSITIVE_ANNOTATION = /@req\s+\S+/;
-const NEGATIVE_ANNOTATION = /!req\s+\S+/;
-
-function annotationOf(line: string): HighlightedFile["lines"][number]["annotation"] {
-  // A `!req` on the same line wins: it is the stronger claim.
-  if (NEGATIVE_ANNOTATION.test(line)) return "negative";
-  if (POSITIVE_ANNOTATION.test(line)) return "positive";
-  return null;
 }
 
 export type CodeFileState =

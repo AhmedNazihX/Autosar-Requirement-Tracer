@@ -19,6 +19,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { parseSseFrame, sseBlocks } from "@/lib/sse";
+
 /** The `{type, data}` frames `api/setup.py::_frame` emits. */
 type IngestFrame =
   | { type: "line"; data: { text: string } }
@@ -77,32 +79,19 @@ export function useIngestLog(active: boolean): {
         if (!response.ok || !response.body) {
           throw new Error(`HTTP ${response.status}`);
         }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          // Frames are separated by a blank line, exactly as chat-sources
-          // parses the chat stream. Keep the trailing partial in the buffer.
-          const blocks = buffer.split("\n\n");
-          buffer = blocks.pop() ?? "";
-          for (const block of blocks) {
-            const frame = parseFrame(block);
-            if (!frame) continue;
-            if (frame.type === "line") {
-              setLines((previous) => [...previous, frame.data.text]);
-            } else if (frame.type === "succeeded") {
-              setOutcome("succeeded");
-            } else if (frame.type === "failed") {
-              setOutcome("failed");
-              setError(frame.data.text || "Ingestion failed.");
-            }
-            // An `idle` frame means no job has ever been started; the derived
-            // phase already says that, so there is nothing to record.
+        for await (const block of sseBlocks(response.body)) {
+          const frame = parseSseFrame(block, isFrame);
+          if (!frame) continue;
+          if (frame.type === "line") {
+            setLines((previous) => [...previous, frame.data.text]);
+          } else if (frame.type === "succeeded") {
+            setOutcome("succeeded");
+          } else if (frame.type === "failed") {
+            setOutcome("failed");
+            setError(frame.data.text || "Ingestion failed.");
           }
+          // An `idle` frame means no job has ever been started; the derived
+          // phase already says that, so there is nothing to record.
         }
       } catch (cause) {
         if (controller.signal.aborted) return;
@@ -121,17 +110,3 @@ export function useIngestLog(active: boolean): {
   return { lines, phase, error, reset };
 }
 
-function parseFrame(block: string): IngestFrame | null {
-  const payload = block
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!payload) return null;
-  try {
-    const parsed: unknown = JSON.parse(payload);
-    return isFrame(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}

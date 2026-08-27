@@ -20,6 +20,7 @@
  * same snippet in the file viewer.
  */
 
+import { styleFlags } from "./code-facts";
 import { reqtraceCodeTheme } from "./code-theme";
 import type { HighlightedToken } from "./code-highlight";
 
@@ -96,17 +97,10 @@ export async function highlightSnippet(
     theme: "reqtrace",
   });
   return tokens.map((line) =>
-    line.map((token) => {
-      // Shiki's FontStyle is a bitmask (Italic 1, Bold 2, Underline 4,
-      // Strikethrough 8). `NotSet` is -1, so mask only non-negative values —
-      // otherwise -1 reads as every style at once.
-      const style = token.fontStyle && token.fontStyle > 0 ? token.fontStyle : 0;
-      return {
-        content: token.content,
-        color: token.color,
-        italic: (style & 1) !== 0,
-        bold: (style & 2) !== 0,
-      };
-    }),
+    line.map((token) => ({
+      content: token.content,
+      color: token.color,
+      ...styleFlags(token.fontStyle),
+    })),
   );
 }

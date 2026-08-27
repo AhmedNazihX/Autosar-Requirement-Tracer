@@ -31,6 +31,7 @@
 
 import { isChatEvent, type ChatEvent } from "./events";
 import { CANNED_EXCHANGES } from "./fixtures/canned-conversation";
+import { parseSseFrame, sseBlocks } from "./sse";
 
 export interface ChatRequest {
   threadId: string;
@@ -143,26 +144,10 @@ export function sseSource(): ChatSource {
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        // SSE frames are separated by a blank line; `data:` lines carry the
-        // {type, data} envelope.
-        let split = buffer.indexOf("\n\n");
-        while (split !== -1) {
-          const frame = buffer.slice(0, split);
-          buffer = buffer.slice(split + 2);
-          const event = parseFrame(frame);
-          if (event) yield event;
-          split = buffer.indexOf("\n\n");
-        }
+      for await (const block of sseBlocks(response.body)) {
+        const event = parseSseFrame(block, isChatEvent);
+        if (event) yield event;
       }
     } catch (cause) {
       if (signal.aborted) return;
@@ -177,8 +162,6 @@ export function sseSource(): ChatSource {
         },
       };
       void cause;
-    } finally {
-      reader.releaseLock();
     }
   };
 }
@@ -224,23 +207,6 @@ function describeHttpFailure(status: number): string {
     );
   }
   return `The backend refused the request (HTTP ${status}).`;
-}
-
-function parseFrame(frame: string): ChatEvent | null {
-  const payload = frame
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trimStart())
-    .join("\n");
-  if (!payload) return null;
-  try {
-    const parsed: unknown = JSON.parse(payload);
-    // Anything off-contract is dropped rather than rendered. The event model in
-    // lib/events.ts is the contract; the wire does not get to widen it.
-    return isChatEvent(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 export type ChatSourceKind = "canned" | "live";
