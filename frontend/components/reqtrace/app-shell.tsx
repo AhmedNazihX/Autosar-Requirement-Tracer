@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import type { HighlightedFile } from "@/lib/code-highlight";
 import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
-import { toExchanges } from "@/lib/exchanges";
+import { toExchanges, type Exchange } from "@/lib/exchanges";
 import { fetchRequirementCitation } from "@/lib/requirements";
 import {
   targetForCitation,
@@ -30,6 +30,12 @@ import type { SetupStatus } from "@/hooks/use-setup-status";
 import { useThreads } from "@/hooks/use-threads";
 import { useViewport } from "@/hooks/use-viewport";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   ResizableHandle,
@@ -37,11 +43,6 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 import { CheckpointRail } from "./checkpoint-rail";
 import { ReportDrawer } from "./report/report-drawer";
@@ -112,6 +113,9 @@ export function AppShell({
     key: string;
     target: SourceTarget | null;
     tab: SourceTab;
+    /** Set only by a checkpoint restore: the turn the pane was rewound to, so
+     *  the pane can say so and offer a way back (story S5.4.1). */
+    fromTurn?: number;
   } | null>(null);
 
   /**
@@ -293,6 +297,36 @@ export function AppShell({
     setFlashExchangeId(id);
   }, []);
 
+  /**
+   * A checkpoint restore (story S5.4.1): scroll to the turn **and** put the
+   * source pane back to what that turn showed.
+   *
+   * The pane state is `Exchange.target`, which `lib/exchanges.ts` derives from
+   * the turn's stored `citation` events — so this is a replay of what was
+   * recorded, not a re-derivation from the current conversation. Spec §11 asks
+   * for exactly that, and it is why the rail can rewind a thread loaded from
+   * SQLite as faithfully as one that just streamed.
+   *
+   * A turn that cited nothing restores to an empty pane rather than leaving
+   * the previous turn's page up, which would attribute a source to a turn that
+   * had none.
+   */
+  const restoreCheckpoint = useCallback(
+    (exchange: Exchange) => {
+      scrollToExchange(exchange.id);
+      setPinned({
+        key: transcriptKey,
+        target: exchange.target,
+        tab: exchange.target?.tab ?? "document",
+        fromTurn: exchange.turn,
+      });
+      setSourceOpen(true);
+    },
+    [scrollToExchange, transcriptKey],
+  );
+
+  const returnToLatest = useCallback(() => setPinned(null), []);
+
   useEffect(() => {
     if (!flashExchangeId) return;
     const timer = setTimeout(() => setFlashExchangeId(null), 1200);
@@ -357,6 +391,11 @@ export function AppShell({
   const sourcePane = (
     <SourcePane
       target={sourceTarget}
+      restoredFrom={
+        pinned?.fromTurn != null && pinned.fromTurn < exchanges.length
+          ? { turn: pinned.fromTurn, onReturn: returnToLatest }
+          : null
+      }
       tab={sourceTab}
       onTabChange={changeSourceTab}
       onClose={() => setSourceOpen(false)}
@@ -430,16 +469,46 @@ export function AppShell({
             Generate report
           </Button>
 
-          <DisabledWithReason reason="Thread export is story F5.7.">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled
-              aria-label="Export thread"
-            >
-              <DownloadIcon />
-            </Button>
-          </DisabledWithReason>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Export thread"
+                  disabled={!threadId}
+                >
+                  <DownloadIcon />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              {/* Two formats, and the labels say what each is *for*. Markdown
+                  is the one a person reads; JSON is the raw event stream,
+                  which is what makes an exported thread replayable rather
+                  than merely readable (spec §11). */}
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/py/threads/${threadId}/export?fmt=md`}
+                    download
+                  >
+                    Markdown — readable, citations linked
+                  </a>
+                }
+              />
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/py/threads/${threadId}/export?fmt=json`}
+                    download
+                  >
+                    JSON — the raw event stream
+                  </a>
+                }
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <ThemeToggle />
           <span aria-hidden className="mx-0.5 h-[18px] w-px bg-border" />
@@ -459,7 +528,7 @@ export function AppShell({
               exchanges={exchanges}
               activeExchangeId={lastExchangeId}
               streamingExchangeId={isStreaming ? lastExchangeId : null}
-              onSelect={(exchange) => scrollToExchange(exchange.id)}
+              onSelect={restoreCheckpoint}
             />
           ) : null}
 
@@ -517,32 +586,6 @@ export function AppShell({
 
       {reportDrawer}
     </div>
-  );
-}
-
-/**
- * A control that is deliberately not wired yet, with the reason attached.
- *
- * The canvas's first-run cell states the rule: a disabled control says why it is
- * disabled. A disabled button swallows pointer events, so the tooltip has to be
- * anchored to a wrapper rather than to the button.
- */
-function DisabledWithReason({
-  reason,
-  children,
-}: {
-  reason: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={<span tabIndex={0} className="inline-flex" />}>
-        {children}
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-[260px]">
-        {reason}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 

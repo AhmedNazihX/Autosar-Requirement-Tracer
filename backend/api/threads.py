@@ -19,7 +19,8 @@ the frontend already falls back to the first user message.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from api import deps
@@ -170,6 +171,150 @@ def delete_thread(
     ready = _ready(state)
     _require(ready, thread_id)
     db.delete_thread(ready.pool, thread_id)
+
+
+# --------------------------------------------------------------------------
+# export (spec §6, story S5.7.1)
+# --------------------------------------------------------------------------
+
+EXPORT_FORMATS = ("md", "json")
+
+EXPORT_MEDIA_TYPES = {
+    "md": "text/markdown; charset=utf-8",
+    "json": "application/json",
+}
+
+
+@router.get("/{thread_id}/export", response_class=PlainTextResponse)
+def export_thread(
+    thread_id: str,
+    fmt: str = Query(default="md"),
+    state: deps.AppState = Depends(deps.state_of),
+) -> PlainTextResponse:
+    """A thread as Markdown (readable, citations linked) or JSON (raw events).
+
+    Spec §6 lists this endpoint and nothing built it — WP3 shipped thread CRUD
+    and the export was left to WP5's story S5.7.1, which is a frontend story.
+    It belongs here rather than in the browser for the same reason the report
+    export does: the events are the record, and an export a person can fetch
+    with ``curl`` outlives whichever tab happened to render it.
+
+    **JSON is the raw event stream, not a summary.** Spec §11 makes the events
+    the message: a thread's whole visible state is a function of them, so an
+    export that dropped them would not round-trip and could not be replayed.
+
+    **Markdown links citations at the page they point to.** The links are
+    root-relative, so they resolve against a running ReqTrace and are inert in
+    a plain text editor — which the header says, rather than baking in a
+    hostname that would be wrong on someone else's machine.
+    """
+    if fmt not in EXPORT_FORMATS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown format {fmt!r}; expected one of {', '.join(EXPORT_FORMATS)}",
+        )
+    ready = _ready(state)
+    _require(ready, thread_id)
+    thread = _load(ready, thread_id)
+
+    body = (
+        thread.model_dump_json(indent=2)
+        if fmt == "json"
+        else _to_markdown(thread)
+    )
+    return PlainTextResponse(
+        body,
+        media_type=EXPORT_MEDIA_TYPES[fmt],
+        headers={
+            "Content-Disposition": f'attachment; filename="thread-{thread_id}.{fmt}"'
+        },
+    )
+
+
+def _to_markdown(thread: Thread) -> str:
+    lines = [
+        f"# {thread.title}",
+        "",
+        f"Exported from ReqTrace · thread `{thread.id}` · {thread.updated_at}",
+        "",
+        "Links are relative to a running ReqTrace instance; in a plain editor "
+        "they will not resolve.",
+        "",
+    ]
+
+    for message in thread.messages:
+        if message.role == "user":
+            lines.extend([f"## {message.content.strip() or '(empty message)'}", ""])
+            continue
+
+        if message.content.strip():
+            lines.extend([message.content.strip(), ""])
+
+        tools = [
+            event["data"]
+            for event in message.events
+            if event.get("type") == "tool_start"
+        ]
+        if tools:
+            lines.append("**Tools:** " + ", ".join(f"`{one['tool']}`" for one in tools))
+            lines.append("")
+
+        citations = [
+            event["data"]
+            for event in message.events
+            if event.get("type") == "citation"
+        ]
+        if citations:
+            lines.append("**Sources:**")
+            lines.extend(f"- {_citation_line(one)}" for one in citations)
+            lines.append("")
+
+        usage = next(
+            (event["data"] for event in message.events if event.get("type") == "usage"),
+            None,
+        )
+        if usage:
+            lines.extend(
+                [
+                    f"*{usage['model']} · {usage['prompt_tokens']} in · "
+                    f"{usage['completion_tokens']} out · "
+                    f"${usage['cost_usd']:.4f}*",
+                    "",
+                ]
+            )
+
+        failure = next(
+            (event["data"] for event in message.events if event.get("type") == "error"),
+            None,
+        )
+        if failure:
+            lines.extend([f"> **The answer stopped:** {failure['message']}", ""])
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _citation_line(citation: dict) -> str:
+    """One source bullet. Upstream ids are never linked — nothing to open."""
+    kind = citation.get("kind")
+    if kind == "requirement":
+        page = citation.get("page")
+        target = f"/api/py/documents/{citation['doc']}/file#page={page}"
+        return (
+            f"[`{citation['req_id']}`]({target}) — {citation.get('doc_title', '')} "
+            f"p. {page}"
+        ).rstrip()
+    if kind == "code":
+        start, end = citation["line_span"]
+        target = f"/api/py/code/{citation['repo_path']}?lines={start}-{end}"
+        return (
+            f"[`{citation['repo_path']}:{start}-{end}`]({target}) — "
+            f"`{citation['symbol']}` at `{citation['git_sha'][:7]}`"
+        )
+    # Upstream: the SRS documents are not ingested, so there is no page.
+    return (
+        f"`{citation.get('req_id', '?')}` — upstream requirement in "
+        f"{citation.get('doc', 'an SRS document')}, not ingested"
+    )
 
 
 # --------------------------------------------------------------------------
