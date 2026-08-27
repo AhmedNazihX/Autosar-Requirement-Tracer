@@ -216,10 +216,7 @@ const localStore: ThreadStore = {
 /* The live world: SQLite behind `api/threads.py`, reached through the proxy. */
 
 class ThreadRequestError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  constructor(message: string) {
     super(message);
     this.name = "ThreadRequestError";
   }
@@ -242,7 +239,6 @@ async function request<T>(
   if (response.status === 204) return null;
   if (!response.ok) {
     throw new ThreadRequestError(
-      response.status,
       `${init?.method ?? "GET"} ${path} failed with HTTP ${response.status}`,
     );
   }
@@ -315,7 +311,7 @@ const apiStore: ThreadStore = {
         title: title === UNTITLED ? null : title,
       }),
     });
-    if (!wire) throw new ThreadRequestError(500, "POST /threads returned no thread");
+    if (!wire) throw new ThreadRequestError("POST /threads returned no thread");
     return toThread(wire);
   },
 

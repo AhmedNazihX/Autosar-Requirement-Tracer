@@ -152,10 +152,7 @@ export function coveredPct(coverage: Coverage): number {
 /* ----------------------------------------------------------------- calls -- */
 
 export class ReportError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  constructor(message: string) {
     super(message);
     this.name = "ReportError";
   }
@@ -182,7 +179,6 @@ export async function launchReport(scope: ReportScope): Promise<LaunchResponse> 
   });
   if (!response.ok) {
     throw new ReportError(
-      response.status,
       await readError(response, `The report could not be started (HTTP ${response.status}).`),
     );
   }
@@ -194,7 +190,6 @@ export async function getRun(jobId: string): Promise<RunView | null> {
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new ReportError(
-      response.status,
       await readError(response, `Could not read report ${jobId}.`),
     );
   }

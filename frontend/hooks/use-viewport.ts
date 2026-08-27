@@ -17,7 +17,6 @@
 import { useEffect, useState } from "react";
 
 export interface Viewport {
-  width: number | null;
   /** Source pane is an overlay rather than a column. */
   sourceIsOverlay: boolean;
   /** Thread sidebar is a 44 px icon rail rather than a 264 px column. */
@@ -27,7 +26,6 @@ export interface Viewport {
 }
 
 const WIDE: Viewport = {
-  width: null,
   sourceIsOverlay: false,
   sidebarIsRail: false,
   railIsPopover: false,
@@ -35,7 +33,6 @@ const WIDE: Viewport = {
 
 function measure(width: number): Viewport {
   return {
-    width,
     sourceIsOverlay: width < 1280,
     sidebarIsRail: width < 1100,
     railIsPopover: width < 900,

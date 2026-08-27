@@ -204,8 +204,6 @@ export type ChatEvent =
   | { type: "done"; data: DoneEventData }
   | { type: "error"; data: ErrorEventData };
 
-export type ChatEventType = ChatEvent["type"];
-
 /** Type guard used by the SSE source to reject anything off-contract. */
 export function isChatEvent(value: unknown): value is ChatEvent {
   if (typeof value !== "object" || value === null) return false;
