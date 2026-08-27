@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.llm import Llm, LlmError, LlmUsage, system, user
-from retrieval.prompting import fence
+from retrieval.prompting import clip, fence
 
 #: Results returned to the caller. Spec §4 says five.
 DEFAULT_TOP_N = 5
@@ -55,8 +55,6 @@ MAX_CANDIDATES = 40
 #: prompt around 3-4k tokens rather than 15k, while still showing every normal
 #: requirement in full.
 MAX_CANDIDATE_CHARS = 1200
-
-TRUNCATION_MARKER = " …[truncated]"
 
 #: Delimiters, exposed so the tests — and story S6.1.1 — can assert the fences
 #: are actually present rather than trusting the prompt string.
@@ -244,12 +242,6 @@ def _render(candidates: Sequence[Candidate]) -> str:
         heading = f"[{position}]"
         if candidate.label:
             heading = f"{heading} {candidate.label}"
-        blocks.append(f"{heading}\n{_clip(candidate.text)}")
+        blocks.append(f"{heading}\n{clip(candidate.text, MAX_CANDIDATE_CHARS)}")
     return "\n\n".join(blocks)
 
-
-def _clip(text: str) -> str:
-    stripped = text.strip()
-    if len(stripped) <= MAX_CANDIDATE_CHARS:
-        return stripped
-    return stripped[:MAX_CANDIDATE_CHARS] + TRUNCATION_MARKER

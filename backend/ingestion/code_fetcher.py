@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Literal
 
 from core.manifest import CodeConfig, ProjectManifest
+from core.models import is_git_sha
 
 #: ``(step, done, total_or_None)`` — the same shape as the PDF fetcher's hook.
 ProgressCallback = Callable[[str, int, int | None], None]
@@ -59,7 +60,6 @@ GitRunner = Callable[[Sequence[str], Path], str]
 FetchAction = Literal["cloned", "skipped", "rechecked_out"]
 
 _TIMEOUT_SECONDS = 600
-_HEX = "0123456789abcdef"
 
 #: Progress steps reported for a cold fetch, in order.
 _COLD_STEPS = ("init", "remote", "fetch", "checkout", "verify", "scan")
@@ -189,9 +189,6 @@ def _git_dir(repo_dir: Path) -> Path | None:
     return None
 
 
-def _is_sha(value: str) -> bool:
-    return len(value) == 40 and all(c in _HEX for c in value.lower())
-
 
 def read_head_sha(repo_dir: Path) -> str | None:
     """The commit ``repo_dir``'s HEAD points at, read without invoking git.
@@ -210,7 +207,7 @@ def read_head_sha(repo_dir: Path) -> str | None:
     except (OSError, UnicodeDecodeError):
         return None
 
-    if _is_sha(head):
+    if is_git_sha(head):
         return head.lower()
     if not head.startswith("ref:"):
         return None
@@ -220,7 +217,7 @@ def read_head_sha(repo_dir: Path) -> str | None:
         loose = (git_dir / ref).read_text(encoding="utf-8").strip()
     except (OSError, UnicodeDecodeError):
         loose = ""
-    if _is_sha(loose):
+    if is_git_sha(loose):
         return loose.lower()
 
     try:
@@ -231,7 +228,7 @@ def read_head_sha(repo_dir: Path) -> str | None:
         if line.startswith(("#", "^")):
             continue
         parts = line.split()
-        if len(parts) == 2 and parts[1] == ref and _is_sha(parts[0]):
+        if len(parts) == 2 and parts[1] == ref and is_git_sha(parts[0]):
             return parts[0].lower()
     return None
 

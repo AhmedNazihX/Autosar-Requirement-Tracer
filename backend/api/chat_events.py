@@ -34,23 +34,12 @@ multi-line ``data:`` payload would risk.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.embeddings import EmbeddingUsage
 from core.llm import LlmUsage
-
-#: The five tools the agent may call — ``events.ts`` ``TOOL_NAMES``. The
-#: frontend's type guard drops anything outside its union, so a sixth tool
-#: would vanish silently rather than fail loudly. Keep the two lists equal.
-TOOL_NAMES: tuple[str, ...] = (
-    "lookup_requirement",
-    "search_requirements",
-    "search_code",
-    "check_implementation",
-    "generate_traceability_report",
-)
 
 ToolName = Literal[
     "lookup_requirement",
@@ -60,9 +49,16 @@ ToolName = Literal[
     "generate_traceability_report",
 ]
 
+#: The five tools the agent may call, derived from the one definition above —
+#: mirrored by ``events.ts`` ``TOOL_NAMES``, whose type guard drops anything
+#: outside its union, so a sixth tool would vanish silently rather than fail
+#: loudly. Keep the Python and TS lists equal; within Python, this tuple, the
+#: injection eval and the ``TOOL_BUILDERS`` registry (guarded by a test) all
+#: follow ``ToolName``.
+TOOL_NAMES: tuple[str, ...] = get_args(ToolName)
+
 #: The four verdicts of ``events.ts`` ``VERDICTS``. Consumed by WP4's judge;
 #: defined here so both sides of the wire name them once.
-Verdict = Literal["implemented", "partial", "missing", "unverifiable"]
 
 #: Fields that are required-but-nullable on the wire. ``exclude_none`` would
 #: drop them, and the frontend distinguishes ``null`` from absent: a ``bbox``

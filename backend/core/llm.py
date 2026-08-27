@@ -53,17 +53,16 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ValidationError
 
-from core.config import Settings, get_settings
+from core.config import Settings
 from core.manifest import ProjectManifest
-
-#: OpenAI-compatible endpoint. Locked by CLAUDE.md; not configurable per call.
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-#: The environment variable and the file it belongs in, named in every error
-#: about a missing key so the message is actionable on its own.
-API_KEY_ENV_VAR = "OPENROUTER_API_KEY"
-API_KEY_ENV_FILE = "backend/.env"
-API_KEY_ENV_EXAMPLE = "backend/.env.example"
+from core.openrouter import (
+    API_KEY_ENV_EXAMPLE,  # noqa: F401 - re-exported; tests and callers import from here
+    API_KEY_ENV_FILE,  # noqa: F401 - re-exported
+    API_KEY_ENV_VAR,  # noqa: F401 - re-exported
+    OPENROUTER_BASE_URL,
+    missing_key_message,
+)
+from core.openrouter import configured_key as _configured_key
 
 #: The purposes a chat model can be built for — each one a field of the
 #: manifest's ``models`` block. ``embedding`` is excluded on purpose: it is
@@ -228,14 +227,9 @@ class Structured[T: BaseModel]:
 def _resolve_key(api_key: str | None, settings: Settings | None) -> str:
     if api_key:
         return api_key
-    resolved = settings if settings is not None else get_settings()
-    key = (resolved.openrouter_api_key or "").strip()
+    key = _configured_key(settings)
     if not key:
-        raise LlmError(
-            f"{API_KEY_ENV_VAR} is not set, so no model call can be made. Put a key in "
-            f"{API_KEY_ENV_FILE} (copy {API_KEY_ENV_EXAMPLE} and fill in "
-            f"{API_KEY_ENV_VAR}=sk-or-...)."
-        )
+        raise LlmError(missing_key_message("no model call can be made"))
     return key
 
 

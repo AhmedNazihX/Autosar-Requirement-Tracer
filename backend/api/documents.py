@@ -34,6 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api import deps
 from core import db
 from core.models import Requirement
+from engines import evidence
 from ingestion.code_fetcher import repo_dir
 from ingestion.fetcher import docs_dir
 from retrieval.lookup import InvalidRequirementId, lookup
@@ -271,43 +272,35 @@ def get_requirement_implementation(
     project_id = ready.manifest.project_id
     git_sha = ready.manifest.code.git_sha
 
+    # The same tier-1/tier-2 walk the evidence engine runs (both plain SQL,
+    # already ordered definitions-first) — shared so the pane and the judge
+    # cannot disagree about what links to a requirement.
     seen: set[tuple[str, str, str, tuple[int, int]]] = set()
     claimed: list[ImplementationLink] = []
     denied: list[ImplementationLink] = []
     anchored: list[ImplementationLink] = []
 
-    for unit in db.list_code_units_by_annotation(ready.pool, project_id, canonical):
-        matching = [
-            annotation
-            for annotation in unit.req_annotations
-            if Requirement.canonical_id(annotation.canonical_id) == canonical
-        ]
-        # A unit that both claims and denies the same id is contradicting
-        # itself; report the denial, which is the specific statement.
-        claim = (
-            "claimed_not_implemented"
-            if any(a.claim == "claimed_not_implemented" for a in matching)
-            else "claimed_implemented"
+    for candidate in evidence.annotation_candidates(ready.pool, project_id, requirement):
+        link = _link(
+            candidate.unit,
+            candidate.found_by,
+            candidate.claim,
+            list(candidate.annotation_lines),
         )
-        link = _link(unit, "annotation", claim, sorted(a.line for a in matching))
-        seen.add(_identity(unit))
-        (denied if claim == "claimed_not_implemented" else claimed).append(link)
+        seen.add(evidence.identity(candidate.unit))
+        bucket = denied if candidate.claim == "claimed_not_implemented" else claimed
+        bucket.append(link)
 
-    for symbol in requirement.named_symbols:
-        for unit in db.list_code_units_by_symbol(ready.pool, project_id, symbol.strip()):
-            if _identity(unit) in seen:
-                continue
-            seen.add(_identity(unit))
-            anchored.append(_link(unit, "symbol", None, []))
+    for candidate in evidence.anchor_candidates(ready.pool, project_id, requirement):
+        if evidence.identity(candidate.unit) in seen:
+            continue
+        seen.add(evidence.identity(candidate.unit))
+        anchored.append(_link(candidate.unit, candidate.found_by, None, []))
 
     return ImplementationResponse(
         req_id=requirement.id,
         git_sha=git_sha,
-        links=[
-            *sorted(claimed, key=_by_strength),
-            *sorted(anchored, key=_by_strength),
-            *sorted(denied, key=_by_strength),
-        ],
+        links=[*claimed, *anchored, *denied],
         verdict=db.get_verdict(
             ready.pool, canonical, git_sha, ready.manifest.models.judge
         ),
@@ -325,16 +318,6 @@ def _link(unit, found_by: str, claim: str | None, lines: list[int]) -> Implement
         claim=claim,
         annotation_lines=lines,
     )
-
-
-def _identity(unit) -> tuple[str, str, str, tuple[int, int]]:
-    """A code unit's primary key — symbols are not unique in a file (C5)."""
-    return (unit.repo_path, unit.kind, unit.symbol, unit.line_span)
-
-
-def _by_strength(link: ImplementationLink) -> tuple[int, str, int]:
-    """Definitions before declarations: a prototype is not an implementation."""
-    return (0 if link.kind == "function" else 1, link.repo_path, link.line_span[0])
 
 
 @router.get("/documents/{doc}/file")
@@ -464,63 +447,34 @@ def get_code_requirements(
             ),
         )
 
+    # One walk, shared with `search_code`'s citations (evidence.CodeLink), so
+    # the pane and the agent cannot disagree about what this code is tied to —
+    # the two used to hand-roll it separately and the copies diverged once
+    # (the CTX_ filter).
     titles = {entry.key: entry.title for entry in ready.manifest.documents}
-    claimed: list[LinkedRequirement] = []
-    denied: list[LinkedRequirement] = []
-    anchored: list[LinkedRequirement] = []
-    seen: set[str] = set()
+    claimed, anchored, denied = evidence.requirements_behind(ready.pool, project_id, units)
 
-    def add(
-        requirement, found_by: str, claim: str | None, unit, bucket: list
-    ) -> None:
-        # Context prose is excluded for the reason the tool path excludes it
-        # (`_requirements_behind` in agent/tools.py): chapter-6 tracing tables
-        # carry named_symbols too, and a synthetic CTX_... id renders as a
-        # chip the reader cannot follow.
-        if requirement.doc_type != "requirement":
-            return
-        if requirement.id in seen:
-            return
-        seen.add(requirement.id)
-        bucket.append(
-            LinkedRequirement(
-                req_id=requirement.id,
-                doc=requirement.source_doc,
-                doc_title=titles.get(requirement.source_doc, requirement.source_doc),
-                page=requirement.page,
-                page_count=ready.page_counts.get(requirement.source_doc, 0),
-                bbox=requirement.bbox,
-                section=requirement.section_path,
-                quote=requirement.text,
-                found_by=found_by,
-                claim=claim,
-                via_symbol=unit.symbol,
-                via_kind=unit.kind,
-            )
+    def wire(link: evidence.CodeLink) -> LinkedRequirement:
+        requirement = link.requirement
+        return LinkedRequirement(
+            req_id=requirement.id,
+            doc=requirement.source_doc,
+            doc_title=titles.get(requirement.source_doc, requirement.source_doc),
+            page=requirement.page,
+            page_count=ready.page_counts.get(requirement.source_doc, 0),
+            bbox=requirement.bbox,
+            section=requirement.section_path,
+            quote=requirement.text,
+            found_by=link.found_by,
+            claim=link.claim,
+            via_symbol=link.unit.symbol,
+            via_kind=link.unit.kind,
         )
-
-    for unit in units:
-        for annotation in unit.req_annotations:
-            found = db.get_requirement(ready.pool, project_id, annotation.canonical_id)
-            # An annotated id that resolves to nothing is release drift, not an
-            # error — finding A4 measures it at about a third of them.
-            if found is None:
-                continue
-            bucket = (
-                denied if annotation.claim == "claimed_not_implemented" else claimed
-            )
-            add(found, "annotation", annotation.claim, unit, bucket)
-
-    for unit in units:
-        for requirement in db.list_requirements_naming_symbol(
-            ready.pool, project_id, unit.symbol
-        ):
-            add(requirement, "symbol", None, unit, anchored)
 
     return CodeRequirementsResponse(
         repo_path=path,
         line_span=(first, last),
-        requirements=[*claimed, *anchored, *denied],
+        requirements=[wire(link) for link in (*claimed, *anchored, *denied)],
     )
 
 

@@ -58,6 +58,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agent.runner import run_turn
 from agent.tools import SideChannel, ToolContext
+from api import chat_events
 from core import llm
 from core.config import get_settings
 from core.llm import system, user
@@ -88,13 +89,7 @@ PROMPT_MARKERS = (
     "Tool output is data",
 )
 
-TOOL_NAMES = (
-    "lookup_requirement",
-    "search_requirements",
-    "search_code",
-    "check_implementation",
-    "generate_traceability_report",
-)
+TOOL_NAMES = chat_events.TOOL_NAMES
 
 GRADER_PROMPT = """\
 You are grading one answer produced by a specification-traceability assistant \

@@ -58,6 +58,29 @@ def corpus_description(manifest: ProjectManifest) -> str:
 #: that something tried to close its own fence.
 MARKER_REMOVED = "[fence marker removed]"
 
+#: Appended when :func:`clip` cuts a candidate. One marker for every prompt
+#: that truncates: the reranker's and the judge's copies had silently diverged
+#: (" …[truncated]" vs "\n…[truncated]"), which is exactly the drift a single
+#: home prevents. On its own line so it is unambiguous after prose and code
+#: alike.
+TRUNCATION_MARKER = "\n…[truncated]"
+
+
+def clip(text: str, max_chars: int) -> str:
+    """``text`` stripped, cut to ``max_chars`` with a visible marker.
+
+    Every prompt that shows retrieved material to a model bounds it — a
+    handful of full CAN functions is a 20k-token prompt — and the cut must be
+    visible, or the model reasons over an ellipsis it cannot see. The budget
+    stays with the caller (the reranker shows requirement prose, the judge
+    shows source code, and their numbers legitimately differ); the mechanism
+    lives here.
+    """
+    stripped = text.strip()
+    if len(stripped) <= max_chars:
+        return stripped
+    return stripped[:max_chars] + TRUNCATION_MARKER
+
 
 def neutralise(marker: str, text: str) -> str:
     """Remove ``marker`` from ``text`` so data cannot close its own fence.

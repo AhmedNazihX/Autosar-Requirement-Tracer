@@ -217,54 +217,24 @@ def _requirements_behind(
 ) -> list[RequirementCitation]:
     """The requirements this code is tied to, best evidence first.
 
-    Two link kinds, and they are not equal evidence:
+    The walk itself is :func:`engines.evidence.requirements_behind`, shared
+    with the pane's ``GET /code/{path}/requirements`` so the two can never
+    disagree. What is the *agent's* decision, and stays here: a ``!req`` link
+    is deliberately never cited — it says the developers believe the
+    requirement is *not* implemented here, so offering it under an answer
+    about what this code does would invert its meaning. It remains visible in
+    the pane's own list, labelled; this is about what the answer asserts.
 
-    * a ``@req`` annotation — the developers wrote that this code implements
-      that requirement;
-    * a named symbol — the requirement's own text names a symbol defined here.
-
-    A ``!req`` is deliberately never cited. It says the developers believe the
-    requirement is *not* implemented here, so offering it under an answer about
-    what this code does would invert its meaning. It is still visible in the
-    pane's own list, labelled — this is about what the answer asserts.
-
-    Context prose is excluded for the reason ``search_requirements`` excludes
-    it: a synthetic ``CTX_...`` id renders as a chip the reader cannot follow.
-
-    Free — both lookups are SQL against the index, and no model is called.
+    Free — SQL against the index, no model call.
     """
-    conn, project_id = context.engine.conn, context.engine.project_id
-    claimed: list[Requirement] = []
-    anchored: list[Requirement] = []
-    seen: set[str] = set()
-
-    def add(requirement: Requirement | None, bucket: list[Requirement]) -> None:
-        if requirement is None or requirement.doc_type != "requirement":
-            return
-        if requirement.id in seen:
-            return
-        seen.add(requirement.id)
-        bucket.append(requirement)
-
-    denied: set[str] = {
-        annotation.canonical_id
-        for unit in units
-        for annotation in unit.req_annotations
-        if annotation.claim == "claimed_not_implemented"
-    }
-    for unit in units:
-        for annotation in unit.req_annotations:
-            if annotation.canonical_id in denied:
-                continue
-            add(db.get_requirement(conn, project_id, annotation.canonical_id), claimed)
-    for unit in units:
-        for requirement in db.list_requirements_naming_symbol(conn, project_id, unit.symbol):
-            if Requirement.canonical_id(requirement.id) in denied:
-                continue
-            add(requirement, anchored)
-
-    ordered = [*claimed, *anchored][:MAX_LINKED_REQUIREMENTS]
-    return [context.citation_of(requirement) for requirement in ordered]
+    claimed, anchored, _denied = evidence.requirements_behind(
+        context.engine.conn, context.engine.project_id, units
+    )
+    ordered = [link.requirement for link in (*claimed, *anchored)]
+    return [
+        context.citation_of(requirement)
+        for requirement in ordered[:MAX_LINKED_REQUIREMENTS]
+    ]
 
 
 def _lookup_tool(context: ToolContext) -> BaseTool:
@@ -773,9 +743,10 @@ def _candidate_count(stages: Sequence[pipeline.StageLog]) -> int:
 
 #: name -> builder. Story S4.3.2 added the last two, by adding two lines here;
 #: that is the entire extension mechanism, and CLAUDE.md caps the abstraction
-#: at this dict on purpose. The set must stay equal to ``TOOL_NAMES`` in
-#: ``api/chat_events.py`` and in ``frontend/lib/events.ts``, whose type guard
-#: silently drops a tool it does not know.
+#: at this dict on purpose. The set must stay equal to ``ToolName`` in
+#: ``api/chat_events.py`` (a test asserts it) and to ``TOOL_NAMES`` in
+#: ``frontend/lib/events.ts``, whose type guard silently drops a tool it does
+#: not know.
 TOOL_BUILDERS: dict[str, Callable[[ToolContext], BaseTool]] = {
     "lookup_requirement": _lookup_tool,
     "search_requirements": _search_requirements_tool,

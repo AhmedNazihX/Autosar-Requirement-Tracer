@@ -30,7 +30,7 @@ import httpx
 import pytest
 
 from core.manifest import load_manifest
-from retrieval import rerank
+from retrieval import prompting, rerank
 from retrieval.rerank import Candidate
 from tests.support_llm import fake_llm, json_body, openrouter_body
 
@@ -265,7 +265,7 @@ def test_a_long_candidate_is_truncated_in_the_prompt():
 
     prompt = fake.prompt_of(0)
     assert len(prompt) < 5_000
-    assert rerank.TRUNCATION_MARKER in prompt
+    assert prompting.TRUNCATION_MARKER in prompt
 
 
 def test_the_number_wanted_is_stated_in_the_prompt():

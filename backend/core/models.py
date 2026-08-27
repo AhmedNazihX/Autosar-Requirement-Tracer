@@ -44,6 +44,17 @@ AnnotationMarker = Literal["@", "!"]
 AnnotationClaim = Literal["claimed_implemented", "claimed_not_implemented"]
 
 
+
+def is_git_sha(value: str) -> bool:
+    """Whether ``value`` is a full 40-character hex commit SHA.
+
+    The one definition of the rule: the ``CodeUnit`` model, the manifest and
+    the code fetcher all validate the same pin, and three private copies of
+    this predicate had already been written before it was shared (finding D2).
+    """
+    return len(value) == 40 and all(c in "0123456789abcdef" for c in value.lower())
+
+
 class Requirement(BaseModel):
     """A single normalized requirement (or context chunk) from an SWS document.
 
@@ -165,7 +176,7 @@ class CodeUnit(BaseModel):
     @field_validator("git_sha")
     @classmethod
     def _git_sha_hex40(cls, v: str) -> str:
-        if len(v) != 40 or any(c not in "0123456789abcdef" for c in v.lower()):
+        if not is_git_sha(v):
             raise ValueError(f"git_sha must be a 40-character hex SHA, got {v!r}")
         return v
 

@@ -54,6 +54,7 @@ from __future__ import annotations
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -63,7 +64,7 @@ from core.models import AnnotationClaim, CodeUnit, Requirement
 from retrieval import pipeline
 from retrieval.lookup import InvalidRequirementId, lookup
 from retrieval.pipeline import Engine, PipelineUsage, StageLog
-from retrieval.prompting import fence
+from retrieval.prompting import clip, fence
 
 #: Candidates the judge is shown. Spec §5 says "≤8 total"; the budget is spent
 #: annotations first, then anchors, then semantic fill.
@@ -78,8 +79,6 @@ SEMANTIC_TOP_N = 5
 #: implements a requirement, and eight full functions would be a 20k-token
 #: prompt on every row of a 398-row report.
 MAX_CANDIDATE_CHARS = 2400
-
-TRUNCATION_MARKER = "\n…[truncated]"
 
 #: Delimiters, named so story S6.1.1 can assert the fences exist rather than
 #: trust the prompt string.
@@ -137,6 +136,14 @@ class EvidenceItem(BaseModel):
     git_sha: str
 
 
+#: The four verdict statuses, defined once for everyone who speaks them: the
+#: wire type in ``api/chat_events.py``, the report's coverage counters and the
+#: judge evaluation all import these rather than restating the list. Spec's
+#: rule stands: ``unverifiable`` is a first-class answer, never forced binary.
+VerdictStatus = Literal["implemented", "partial", "missing", "unverifiable"]
+VERDICT_STATUSES: tuple[str, ...] = get_args(VerdictStatus)
+
+
 class Verdict(BaseModel):
     """The evidence engine's answer about one requirement.
 
@@ -147,7 +154,7 @@ class Verdict(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    status: str = Field(pattern="^(implemented|partial|missing|unverifiable)$")
+    status: str = Field(pattern=f"^({'|'.join(VERDICT_STATUSES)})$")
     evidence: list[EvidenceItem] = Field(default_factory=list)
     confidence: float = Field(ge=0.0, le=1.0)
     #: One sentence a human can read without opening the code.
@@ -197,15 +204,21 @@ class EvidenceCheck:
 # --------------------------------------------------------------------------
 
 
-def annotation_candidates(engine: Engine, requirement: Requirement) -> list[Candidate]:
+def annotation_candidates(
+    conn, project_id: str, requirement: Requirement
+) -> list[Candidate]:
     """Claimed evidence for ``requirement``, with file and line, both polarities.
 
     Ordered definitions-first: an ``@req`` on a header prototype is a claim
     about an API, not about an implementation, and the judge should meet the
     stronger candidate before it runs out of context.
+
+    Takes a connection rather than an :class:`Engine` because this tier is
+    plain SQL — which is also what lets ``api/documents.py`` serve the same
+    links without building an engine per request.
     """
     canonical = Requirement.canonical_id(requirement.id)
-    units = db.list_code_units_by_annotation(engine.conn, engine.project_id, canonical)
+    units = db.list_code_units_by_annotation(conn, project_id, canonical)
 
     candidates: list[Candidate] = []
     for unit in units:
@@ -240,16 +253,19 @@ def annotation_candidates(engine: Engine, requirement: Requirement) -> list[Cand
 # --------------------------------------------------------------------------
 
 
-def anchor_candidates(engine: Engine, requirement: Requirement) -> list[Candidate]:
+def anchor_candidates(
+    conn, project_id: str, requirement: Requirement
+) -> list[Candidate]:
     """Exact ``named_symbols`` lookups — the free half of tier 2.
 
     60–62% of requirements name a C symbol (finding B5), and when they do it
     is the single most reliable pointer into the code there is: no embedding,
-    no ranking, no model.
+    no ranking, no model. Plain SQL, hence a connection rather than an
+    :class:`Engine` — see :func:`annotation_candidates`.
     """
     candidates: list[Candidate] = []
     for symbol in requirement.named_symbols:
-        for unit in db.list_code_units_by_symbol(engine.conn, engine.project_id, symbol.strip()):
+        for unit in db.list_code_units_by_symbol(conn, project_id, symbol.strip()):
             candidates.append(Candidate(unit=unit, found_by=BY_SYMBOL))
     return sorted(candidates, key=lambda c: _unit_order(c.unit))
 
@@ -305,20 +321,106 @@ def gather_candidates(
 
     def take(items: Sequence[Candidate]) -> None:
         for candidate in items:
-            key = _identity(candidate.unit)
+            key = identity(candidate.unit)
             if key in seen or len(candidates) >= limit:
                 continue
             seen.add(key)
             candidates.append(candidate)
 
-    take(annotation_candidates(engine, requirement))
-    take(anchor_candidates(engine, requirement))
+    take(annotation_candidates(engine.conn, engine.project_id, requirement))
+    take(anchor_candidates(engine.conn, engine.project_id, requirement))
     if not include_semantic or len(candidates) >= limit:
         return candidates, PipelineUsage(), ()
 
     semantic, usage, stages = semantic_candidates(engine, requirement)
     take(semantic)
     return candidates, usage, stages
+
+
+# --------------------------------------------------------------------------
+# the reverse direction: code -> the requirements it is tied to
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CodeLink:
+    """One requirement a piece of code is tied to, and through what.
+
+    ``found_by`` is :data:`BY_ANNOTATION` or :data:`BY_SYMBOL` — the two free
+    link kinds, and they are not equal evidence: an annotation is the
+    developers saying so, a named symbol is the requirement's own text
+    pointing here.
+    """
+
+    requirement: Requirement
+    unit: CodeUnit
+    found_by: FoundBy
+    claim: AnnotationClaim | None
+
+
+def requirements_behind(
+    conn, project_id: str, units: Sequence[CodeUnit]
+) -> tuple[list[CodeLink], list[CodeLink], list[CodeLink]]:
+    """``(claimed, anchored, denied)`` for the code in ``units``.
+
+    Tiers 1 and 2 read the other way, and — like the forward direction — in
+    exactly one place: ``search_code``'s citations and the pane's
+    ``GET /code/{path}/requirements`` both used to hand-roll this walk, and
+    the copies had already diverged once (the ``CTX_`` filter).
+
+    The rules, shared by both callers:
+
+    * context prose never links — a synthetic ``CTX_...`` id renders as a chip
+      the reader cannot follow;
+    * a requirement appears once, under the first unit that names it;
+    * a ``!req`` anywhere wins: a requirement denied by any unit lands in
+      ``denied`` and nowhere else, the same "the denial is the specific
+      statement" rule :func:`annotation_candidates` applies. Callers that
+      must never cite a denial (the agent) simply drop the third list;
+      callers that must not hide it (the pane) show it last, labelled.
+
+    An annotated id that resolves to nothing is release drift, not an error —
+    finding A4 measures it at about a third of them.
+    """
+    denied_ids = {
+        annotation.canonical_id
+        for unit in units
+        for annotation in unit.req_annotations
+        if annotation.claim == "claimed_not_implemented"
+    }
+    claimed: list[CodeLink] = []
+    anchored: list[CodeLink] = []
+    denied: list[CodeLink] = []
+    seen: set[str] = set()
+
+    def add(
+        requirement: Requirement | None,
+        unit: CodeUnit,
+        found_by: FoundBy,
+        claim: AnnotationClaim | None,
+        bucket: list[CodeLink],
+    ) -> None:
+        if requirement is None or requirement.doc_type != "requirement":
+            return
+        if requirement.id in seen:
+            return
+        seen.add(requirement.id)
+        bucket.append(CodeLink(requirement, unit, found_by, claim))
+
+    for unit in units:
+        for annotation in unit.req_annotations:
+            found = db.get_requirement(conn, project_id, annotation.canonical_id)
+            if annotation.canonical_id in denied_ids:
+                add(found, unit, BY_ANNOTATION, "claimed_not_implemented", denied)
+            else:
+                add(found, unit, BY_ANNOTATION, annotation.claim, claimed)
+    for unit in units:
+        for requirement in db.list_requirements_naming_symbol(conn, project_id, unit.symbol):
+            if Requirement.canonical_id(requirement.id) in denied_ids:
+                continue
+            add(requirement, unit, BY_SYMBOL, None, anchored)
+
+    return claimed, anchored, denied
 
 
 # --------------------------------------------------------------------------
@@ -672,7 +774,7 @@ def _render(candidates: Sequence[Candidate], max_chars: int, *, blind: bool = Fa
             lines = ", ".join(str(line) for line in candidate.annotation_lines)
             head += f"\n    {_CLAIM_LABEL[candidate.claim]} (line {lines})"
         text = redact_annotations(unit) if blind else unit.text
-        blocks.append(f"{head}\n{_clip(text, max_chars)}")
+        blocks.append(f"{head}\n{clip(text, max_chars)}")
     return "\n\n".join(blocks)
 
 
@@ -692,12 +794,6 @@ def redact_annotations(unit: CodeUnit) -> str:
         text = text.replace(annotation.raw, REDACTED_MARKER)
     return text
 
-
-def _clip(text: str, max_chars: int) -> str:
-    stripped = text.strip()
-    if len(stripped) <= max_chars:
-        return stripped
-    return stripped[:max_chars] + TRUNCATION_MARKER
 
 
 def _resolve(
@@ -729,7 +825,7 @@ def _resolve(
     return resolved
 
 
-def _identity(unit: CodeUnit) -> tuple[str, str, str, tuple[int, int]]:
+def identity(unit: CodeUnit) -> tuple[str, str, str, tuple[int, int]]:
     """A code unit's primary key — symbols are not unique in a file (C5)."""
     return (unit.repo_path, unit.kind, unit.symbol, unit.line_span)
 

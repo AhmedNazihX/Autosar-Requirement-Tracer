@@ -513,7 +513,9 @@ and for a re-pin that invalidates every verdict at once.
 - **D1:** `starlette.testclient` emits an httpx/httpx2 deprecation warning;
   fixing it needs an unapproved library.
 - **D2:** the 40-hex `git_sha` validator is duplicated verbatim in
-  `models.py` and `manifest.py` — extract a shared helper.
+  `models.py` and `manifest.py` — extract a shared helper. **Resolved
+  2026-08-27** — `core.models.is_git_sha` is the one definition; the manifest
+  and the code fetcher import it.
 - **D2:** `manifest.resolve()` has no test exercising real path joining.
 - **D2:** `bbox`/`char_span` stored as JSON text, so not SQL-queryable;
   `verdict_cache`/`embedding_cache` payloads are unvalidated JSON blobs.

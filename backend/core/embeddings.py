@@ -48,11 +48,15 @@ from dataclasses import dataclass, replace
 import openai
 
 from core import db
-from core.config import Settings, get_settings
+from core.config import Settings
 from core.manifest import ProjectManifest
-
-#: OpenAI-compatible endpoint. Locked by CLAUDE.md; not configurable per call.
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+from core.openrouter import (
+    API_KEY_ENV_FILE,  # noqa: F401 - re-exported; tests and callers import from here
+    API_KEY_ENV_VAR,  # noqa: F401 - re-exported
+    OPENROUTER_BASE_URL,
+    configured_key,
+    missing_key_message,
+)
 
 #: Inputs per request. The API takes a list; 64 is conservative enough to keep
 #: a single failure cheap to retry and large enough that the whole corpus is
@@ -63,12 +67,6 @@ DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_BACKOFF_SECONDS = 0.5
 DEFAULT_BACKOFF_CAP_SECONDS = 20.0
 DEFAULT_TIMEOUT_SECONDS = 120.0
-
-#: The environment variable and the file it belongs in, named in every error
-#: about a missing key so the message is actionable on its own.
-API_KEY_ENV_VAR = "OPENROUTER_API_KEY"
-API_KEY_ENV_FILE = "backend/.env"
-API_KEY_ENV_EXAMPLE = "backend/.env.example"
 
 #: HTTP statuses worth retrying: rate limits, request timeouts and the 5xx
 #: family. Anything else (401, 400, 404) is a fault retrying cannot fix.
@@ -98,14 +96,16 @@ def api_key(settings: Settings | None = None) -> str:
     Called at request time only — never at import — so a fresh clone with no
     key can still boot the API and run ingestion with ``--skip-embeddings``.
     """
-    resolved = settings if settings is not None else get_settings()
-    key = (resolved.openrouter_api_key or "").strip()
+    key = configured_key(settings)
     if not key:
         raise EmbeddingError(
-            f"{API_KEY_ENV_VAR} is not set, so no embedding can be computed. "
-            f"Put a key in {API_KEY_ENV_FILE} (copy {API_KEY_ENV_EXAMPLE} and fill in "
-            f"{API_KEY_ENV_VAR}=sk-or-...), or re-run with --skip-embeddings to build "
-            "the SQLite registry and the BM25 index without vectors."
+            missing_key_message(
+                "no embedding can be computed",
+                alternative=(
+                    ", or re-run with --skip-embeddings to build the SQLite "
+                    "registry and the BM25 index without vectors"
+                ),
+            )
         )
     return key
 

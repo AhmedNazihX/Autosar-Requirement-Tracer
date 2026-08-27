@@ -27,7 +27,6 @@ than the setup screen claiming readiness the current process cannot deliver.
 
 from __future__ import annotations
 
-import json
 import queue
 import threading
 import uuid
@@ -39,7 +38,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
-from api import deps
+from api import deps, sse
+from api.sse import HEARTBEAT_SECONDS
 from core import paths
 from core.config import get_settings
 from core.manifest import ProjectManifest
@@ -49,11 +49,6 @@ from ingestion.code_fetcher import repo_dir
 router = APIRouter(prefix="/setup", tags=["setup"])
 
 JobStatus = Literal["idle", "running", "succeeded", "failed"]
-
-#: How long a stalled events stream waits before emitting a keep-alive comment.
-#: Without one, a proxy or browser may drop an idle connection during the long
-#: quiet stretch while PDFs download.
-HEARTBEAT_SECONDS = 15.0
 
 
 # --------------------------------------------------------------------------
@@ -334,27 +329,24 @@ def ingest_events() -> StreamingResponse:
         if job.view().status != "running":
             yield _frame(job.view().status, job.view().error or "")
             return
-        while True:
-            try:
-                item = job.events.get(timeout=HEARTBEAT_SECONDS)
-            except queue.Empty:
-                # A comment frame: keeps the connection alive through the long
-                # quiet stretch while PDFs download, and clients ignore it.
-                yield ": keep-alive\n\n"
-                continue
-            if item is None:
-                view = job.view()
-                yield _frame(view.status, view.error or "")
-                return
-            yield _frame("line", item)
+        def final() -> str:
+            view = job.view()
+            return _frame(view.status, view.error or "")
+
+        yield from sse.follow(
+            job.events,
+            item_frame=lambda item: _frame("line", item),
+            final_frame=final,
+            heartbeat=HEARTBEAT_SECONDS,
+        )
 
     return StreamingResponse(
         body(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+        media_type=sse.SSE_MEDIA_TYPE,
+        headers=sse.SSE_HEADERS,
     )
 
 
 def _frame(kind: str, text: str) -> str:
-    """One SSE frame, in the same ``{type, data}`` envelope the chat uses."""
-    return f"data: {json.dumps({'type': kind, 'data': {'text': text}})}\n\n"
+    """This stream's payload shape, on the shared envelope."""
+    return sse.frame(kind, {"text": text})

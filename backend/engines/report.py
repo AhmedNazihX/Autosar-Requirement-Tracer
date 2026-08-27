@@ -47,6 +47,7 @@ from core.llm import Llm
 from core.manifest import ProjectManifest
 from core.models import Requirement
 from engines import evidence
+from engines.evidence import VERDICT_STATUSES as STATUSES
 from engines.evidence import EvidenceItem, Verdict
 from retrieval.lookup import MAX_ID_LENGTH, InvalidRequirementId, lookup
 from retrieval.pipeline import Engine
@@ -77,7 +78,6 @@ CHARS_PER_TOKEN = 2.8
 ESTIMATED_COMPLETION_TOKENS = 180
 
 #: Statuses in the order a coverage table should read them.
-STATUSES = ("implemented", "partial", "missing", "unverifiable")
 
 
 class ScopeError(ValueError):

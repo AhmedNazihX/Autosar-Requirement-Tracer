@@ -59,7 +59,9 @@ def test_annotation_scan_finds_the_claimed_evidence_with_its_line(parts):
     """S4.1.1's acceptance: the fixture annotation is found, with file:line."""
     engine, _, _ = build_engine(parts)
 
-    found = evidence.annotation_candidates(engine, requirement_of(parts, "SWS_CANIF_00023"))
+    found = evidence.annotation_candidates(
+        engine.conn, engine.project_id, requirement_of(parts, "SWS_CANIF_00023")
+    )
 
     assert [(c.unit.repo_path, c.unit.kind, c.annotation_lines) for c in found] == [
         ("communication/CanIf/src/CanIf.c", "function", (122,)),
@@ -74,7 +76,9 @@ def test_annotation_scan_keeps_the_not_implemented_claim(parts):
     make the report assert implementation the developers denied."""
     engine, _, _ = build_engine(parts)
 
-    found = evidence.annotation_candidates(engine, requirement_of(parts, "SWS_CANIF_00329"))
+    found = evidence.annotation_candidates(
+        engine.conn, engine.project_id, requirement_of(parts, "SWS_CANIF_00329")
+    )
 
     assert [c.claim for c in found] == ["claimed_not_implemented"]
     assert found[0].unit.symbol == "CanIf_Transmit"
@@ -84,7 +88,9 @@ def test_annotation_scan_puts_the_definition_before_the_prototype(parts):
     """A header prototype is not an implementation, so it must not lead."""
     engine, _, _ = build_engine(parts)
 
-    found = evidence.annotation_candidates(engine, requirement_of(parts, "SWS_CANIF_00023"))
+    found = evidence.annotation_candidates(
+        engine.conn, engine.project_id, requirement_of(parts, "SWS_CANIF_00023")
+    )
 
     assert [c.unit.kind for c in found] == ["function", "prototype"]
 
@@ -92,7 +98,12 @@ def test_annotation_scan_puts_the_definition_before_the_prototype(parts):
 def test_annotation_scan_is_empty_for_an_unannotated_requirement(parts):
     engine, _, _ = build_engine(parts)
 
-    assert evidence.annotation_candidates(engine, requirement_of(parts, "SWS_Can_00011")) == []
+    assert (
+        evidence.annotation_candidates(
+            engine.conn, engine.project_id, requirement_of(parts, "SWS_Can_00011")
+        )
+        == []
+    )
 
 
 # --------------------------------------------------------------------------
@@ -112,7 +123,9 @@ def test_named_symbol_yields_the_function(parts):
     """
     engine, _, _ = build_engine(parts)
 
-    found = evidence.anchor_candidates(engine, requirement_of(parts, "SWS_Can_00272"))
+    found = evidence.anchor_candidates(
+        engine.conn, engine.project_id, requirement_of(parts, "SWS_Can_00272")
+    )
 
     assert [(c.unit.symbol, c.found_by) for c in found] == [
         ("CanIf_ControllerBusOff", evidence.BY_SYMBOL)
@@ -124,7 +137,12 @@ def test_a_named_symbol_with_no_implementation_finds_nothing_and_does_not_raise(
     snapshot. That is the corpus' most common outcome, not an error."""
     engine, _, _ = build_engine(parts)
 
-    assert evidence.anchor_candidates(engine, requirement_of(parts, "SWS_Can_00011")) == []
+    assert (
+        evidence.anchor_candidates(
+            engine.conn, engine.project_id, requirement_of(parts, "SWS_Can_00011")
+        )
+        == []
+    )
 
 
 def test_gather_puts_annotations_first_then_anchors_then_semantic(parts):

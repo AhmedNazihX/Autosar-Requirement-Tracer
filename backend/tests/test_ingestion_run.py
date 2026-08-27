@@ -528,7 +528,7 @@ def test_a_missing_key_is_reported_before_anything_is_fetched(corpus, monkeypatc
     """The first-run path: fail in a tenth of a second, not after three minutes."""
     manifest, manifest_path, source_pdf = corpus
     monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
-    monkeypatch.setattr("core.embeddings.get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr("core.openrouter.get_settings", lambda: Settings(_env_file=None))
     downloader = FakeDownloader(source_pdf)
     monkeypatch.setattr("ingestion.run.urllib_downloader", downloader)
 

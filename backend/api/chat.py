@@ -34,7 +34,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agent.runner import run_turn
 from agent.tools import SideChannel, ToolContext
-from api import deps
+from api import deps, sse
 from api import reports as api_reports
 from api import threads as api_threads
 from api.chat_events import ChatEvent, ChatEventEnvelope, ErrorEvent, sse_frame
@@ -268,6 +268,6 @@ def _stream(events: list[ChatEvent]) -> StreamingResponse:
 
     return StreamingResponse(
         body(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+        media_type=sse.SSE_MEDIA_TYPE,
+        headers=sse.SSE_HEADERS,
     )

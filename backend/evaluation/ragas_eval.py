@@ -65,12 +65,11 @@ from core import llm
 from core.config import get_settings
 from core.llm import system, user
 from core.manifest import ProjectManifest, load_manifest
+from core.openrouter import OPENROUTER_BASE_URL
 from evaluation.judge_eval import open_engine
 from retrieval import pipeline
 from retrieval.pipeline import Engine
 from retrieval.prompting import fence
-
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 DEFAULT_SET_PATH = (
     Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "ragas_golden_set.json"

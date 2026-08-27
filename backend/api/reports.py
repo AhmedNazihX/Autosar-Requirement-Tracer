@@ -33,7 +33,6 @@ must match them rather than invent a second shape.
 
 from __future__ import annotations
 
-import json
 import queue
 import threading
 import uuid
@@ -45,7 +44,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from api import deps
+from api import deps, sse
+from api.sse import HEARTBEAT_SECONDS
 from core import db, llm
 from core.config import get_settings
 from engines import report
@@ -54,10 +54,6 @@ from engines.report import EXPORT_FORMATS, MEDIA_TYPES, ReportResult, ReportScop
 router = APIRouter(tags=["reports"])
 
 RunStatus = Literal["running", "succeeded", "aborted", "failed", "cancelled"]
-
-#: Keeps an idle SSE connection alive through the long quiet stretch while a
-#: judge call is in flight. Same reason as ``api.setup.HEARTBEAT_SECONDS``.
-HEARTBEAT_SECONDS = 15.0
 
 #: Finished runs kept in the in-process registry. The result is in SQLite
 #: either way; this only bounds how many live progress records are retained.
@@ -445,8 +441,8 @@ def run_events(run_id: str, state: deps.AppState = Depends(deps.state_of)) -> St
     """Stream ``{done, total, current}`` until the run ends."""
     return StreamingResponse(
         event_body(REGISTRY.get(run_id), run_id, state),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+        media_type=sse.SSE_MEDIA_TYPE,
+        headers=sse.SSE_HEADERS,
     )
 
 
@@ -482,16 +478,12 @@ def event_body(run: _Run | None, run_id: str, state: deps.AppState) -> Iterator[
         yield _frame("done", _terminal(view.status, None, view))
         return
 
-    while True:
-        try:
-            item = run.events.get(timeout=HEARTBEAT_SECONDS)
-        except queue.Empty:
-            yield ": keep-alive\n\n"
-            continue
-        if item is None:
-            yield _frame("done", _terminal(run.view().status, None, run.view()))
-            return
-        yield _frame("progress", item.model_dump())
+    yield from sse.follow(
+        run.events,
+        item_frame=lambda item: _frame("progress", item.model_dump()),
+        final_frame=lambda: _frame("done", _terminal(run.view().status, None, run.view())),
+        heartbeat=HEARTBEAT_SECONDS,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -554,6 +546,5 @@ def _terminal(status: str, stored_result: dict | None, view: RunView | None = No
     return payload
 
 
-def _frame(kind: str, data: dict) -> str:
-    """One SSE frame, in the ``{type, data}`` envelope the chat stream uses."""
-    return f"data: {json.dumps({'type': kind, 'data': data})}\n\n"
+#: The shared envelope, under the name this module always used.
+_frame = sse.frame

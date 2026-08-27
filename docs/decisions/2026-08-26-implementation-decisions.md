@@ -333,7 +333,8 @@ directions. That closes the one item I had flagged as having bypassed review.
 
 Deferred minors: `liveEvents` not thread-scoped; the single-slot
 `streamThreadRef` race (unreachable today); duplicated font-style decode
-across `code-highlight.ts`/`code-highlight-client.ts`; unused `targetKey`
+across `code-highlight.ts`/`code-highlight-client.ts` (resolved 2026-08-27 —
+shared as `lib/code-facts.ts::styleFlags`); unused `targetKey`
 and `EMPTY_RENDER_STATE`; the sidebar labelling `CANIF_FIXTURE_SHA` as
 coming from `project.yaml` (true only by coincidence); `aria-live` on the
 whole transcript; and the fixture never exercising an out-of-order

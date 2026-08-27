@@ -58,6 +58,7 @@ from core.config import get_settings
 from core.manifest import ProjectManifest, load_manifest
 from core.models import Requirement
 from engines import report
+from engines.evidence import VERDICT_STATUSES as STATUSES
 from engines.report import ReportScope
 from retrieval import bm25, vector_store
 from retrieval.pipeline import Engine
@@ -98,7 +99,6 @@ UNSCORED: dict[str, frozenset[str]] = {
     NEGATIVE: frozenset({"partial"}),
 }
 
-STATUSES = ("implemented", "partial", "missing", "unverifiable")
 
 
 # --------------------------------------------------------------------------

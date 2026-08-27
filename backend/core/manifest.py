@@ -20,6 +20,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from core.models import is_git_sha
+
 
 class ManifestError(Exception):
     """Raised when a project manifest fails to load or fails validation.
@@ -116,7 +118,7 @@ class CodeConfig(BaseModel):
     @field_validator("git_sha")
     @classmethod
     def _git_sha_hex40(cls, v: str) -> str:
-        if len(v) != 40 or any(c not in "0123456789abcdef" for c in v.lower()):
+        if not is_git_sha(v):
             raise ValueError("expected a 40-character hex SHA")
         return v
 
