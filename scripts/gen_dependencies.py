@@ -21,7 +21,6 @@ Usage: python3 scripts/gen_dependencies.py [--check]
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -82,35 +81,23 @@ PY_PROVENANCE = {
 }
 
 
-def run(cmd: list[str], cwd: Path) -> str:
-    return subprocess.run(
-        cmd, cwd=cwd, capture_output=True, text=True, check=True
-    ).stdout
-
-
 def python_section() -> list[str]:
     data = tomllib.loads((BACKEND / "pyproject.toml").read_text())
     project = data["project"]
     groups = data.get("dependency-groups") or {}
 
-    # Resolved versions come from the venv, so they are what actually runs.
-    resolved = json.loads(
-        run(
-            [
-                "uv",
-                "run",
-                "python",
-                "-c",
-                "import json,importlib.metadata as m;"
-                "print(json.dumps(sorted(({d.metadata['Name']:d.version} "
-                "for d in m.distributions()), key=lambda x: list(x)[0].lower())))",
-            ],
-            BACKEND,
-        )
-    )
-    flat = {}
-    for entry in resolved:
-        flat.update(entry)
+    # Resolved versions come from uv.lock, not the installed venv. The lock
+    # is committed and identical on every platform; a venv is not — the lock's
+    # platform markers install different package sets per machine (greenlet's
+    # marker covers x86_64/aarch64 but not macOS arm64), which made `--check`
+    # pass on a laptop and fail in CI. Reading the lock keeps this file a pure
+    # function of the committed manifests, like the Node section below.
+    lock = tomllib.loads((BACKEND / "uv.lock").read_text())
+    flat = {
+        pkg["name"]: pkg["version"]
+        for pkg in lock.get("package", [])
+        if not _is_root(pkg)
+    }
 
     lines = [
         "BACKEND — Python",
@@ -139,10 +126,12 @@ def python_section() -> list[str]:
     )
     lines += [
         "",
-        f"resolved transitively ({len(transitive)}):",
+        f"resolved transitively ({len(transitive)}) — locked for every platform;",
+        "a given install may omit platform-conditional entries (e.g. the",
+        "Windows-only colorama):",
     ]
     lines += [f"  {n:<34} {v}" for n, v in transitive]
-    lines += ["", f"total installed: {len(flat)} packages"]
+    lines += ["", f"total locked: {len(flat)} packages"]
     return lines
 
 
@@ -194,6 +183,12 @@ def node_section() -> list[str]:
     lines += [f"  {n:<44} {v}" for n, v in transitive]
     lines += ["", f"total resolved: {len(declared) + len(transitive)} packages"]
     return lines
+
+
+def _is_root(pkg: dict) -> bool:
+    """The workspace's own package (source = virtual/editable) is not a dep."""
+    source = pkg.get("source") or {}
+    return "virtual" in source or "editable" in source
 
 
 def _normalize(name: str) -> str:

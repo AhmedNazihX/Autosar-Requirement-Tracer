@@ -15,6 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # First and dependency-free: the generator reads backend/uv.lock and
+      # frontend/package-lock.json directly (no venv, no node_modules), so a
+      # stale dependencies.txt names itself in seconds. This is the drift that
+      # survived two work packages before it was enforced.
+      - name: dependencies.txt is current
+        run: make deps-check
+
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -27,20 +34,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # `deps-check` reads resolved versions out of the backend venv, so the
-      # sync has to happen first. It reads the frontend *lockfile* directly and
-      # does not need node_modules.
       - name: Sync backend
         run: cd backend && uv sync --frozen
 
       - name: Install frontend
         run: cd frontend && npm ci
-
-      # Called out as its own step so a stale dependencies.txt names itself in
-      # the job list rather than hiding inside a generic "lint" failure. This is
-      # the drift that survived two work packages before it was enforced.
-      - name: dependencies.txt is current
-        run: make deps-check
 
       - name: Lint
         run: make lint
