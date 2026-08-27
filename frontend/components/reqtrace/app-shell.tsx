@@ -21,6 +21,7 @@ import {
 import { getPaneLayout, setPaneLayout } from "@/lib/threads";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { useBackendHealth } from "@/hooks/use-backend-health";
+import type { SetupStatus } from "@/hooks/use-setup-status";
 import { useThreads } from "@/hooks/use-threads";
 import { useViewport } from "@/hooks/use-viewport";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,16 @@ import { ThreadSidebar } from "./thread-sidebar";
  * is no store and no context — the only reducer is the pure one that turns a
  * message's event array into its render state.
  */
-export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
+export function AppShell({
+  codeFile,
+  setup = null,
+}: {
+  codeFile: HighlightedFile;
+  /** The readiness snapshot `BootGate` already fetched. Passed down rather
+   *  than re-fetched: two components asking the same question can disagree,
+   *  and the sidebar footer states index counts a user will believe. */
+  setup?: SetupStatus | null;
+}) {
   const viewport = useViewport();
   const { health, recheck } = useBackendHealth();
   const threads = useThreads();
@@ -285,6 +295,7 @@ export function AppShell({ codeFile }: { codeFile: HighlightedFile }) {
         loading={threads.loading}
         collapsed={sidebarCollapsed}
         health={health}
+        setup={setup}
         onRecheckHealth={recheck}
         onSelect={(id) => void threads.select(id)}
         onCreate={() => void threads.create()}

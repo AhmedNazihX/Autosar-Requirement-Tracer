@@ -11,13 +11,22 @@
  * Selection is by build-time env so the UI stays exactly as the canvas drew it
  * (no dev-only toggle on screen):
  *
- *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=canned   (default)
- *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live     POST /api/py/chat
+ *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live     (default) POST /api/py/chat
+ *   NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=canned   replay the committed fixture
  *
- * `POST /chat` exists as of WP3 (story S3.3.1), so the live source works
- * against a running backend. `canned` stays the default so the committed demo
- * conversation renders with no backend and no API key at all; set
- * NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=live to drive the real one.
+ * **`live` became the default in WP5.** Until then the backend did not exist
+ * and the fixture was the only thing to show. It does now, and a build whose
+ * default is a fixture makes the real application the thing you have to opt
+ * into — while `GET /setup/status` plus the setup screen (story S5.6.1)
+ * already handle every reason the backend might not be usable, which is the
+ * job `canned` was standing in for.
+ *
+ * `canned` is kept, and kept working: it is the only way to see all five event
+ * types with no backend, no index and no API key, which is worth having for a
+ * demo on a machine that has none of them.
+ *
+ * `lib/threads.ts` reads :func:`chatSourceKind` too, so threads and chat are
+ * never in different worlds — see the note there.
  */
 
 import { isChatEvent, type ChatEvent } from "./events";
@@ -218,9 +227,9 @@ function parseFrame(frame: string): ChatEvent | null {
 export type ChatSourceKind = "canned" | "live";
 
 export function chatSourceKind(): ChatSourceKind {
-  return process.env.NEXT_PUBLIC_REQTRACE_CHAT_SOURCE === "live"
-    ? "live"
-    : "canned";
+  return process.env.NEXT_PUBLIC_REQTRACE_CHAT_SOURCE === "canned"
+    ? "canned"
+    : "live";
 }
 
 export function pickChatSource(): ChatSource {
