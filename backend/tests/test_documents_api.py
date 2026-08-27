@@ -322,3 +322,107 @@ def test_the_pdf_endpoint_has_no_path_to_traverse(client, attempt: str):
 
     assert response.status_code == 404
     assert b"root:" not in response.content
+
+
+# --------------------------------------------------------------------------
+# GET /requirements/{id}/implementation
+#
+# Connects the two halves of a citation: clicking a requirement used to open
+# its page and leave the code pane empty, so the user had to work out which
+# part of the snapshot the requirement corresponded to — the one job this
+# product exists to do for them.
+# --------------------------------------------------------------------------
+
+
+def test_an_annotated_requirement_links_to_the_code_that_claims_it(client):
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_CANIF_00023/implementation").json()
+
+    assert body["req_id"] == "SWS_CANIF_00023"
+    annotation = [one for one in body["links"] if one["found_by"] == "annotation"]
+    assert [one["symbol"] for one in annotation] == ["CanIf_Transmit", "CanIf_Transmit"]
+    assert all(one["claim"] == "claimed_implemented" for one in annotation)
+    assert annotation[0]["annotation_lines"] == [122]
+
+
+def test_the_definition_leads_and_the_prototype_follows(client):
+    """A header prototype is not an implementation, so it must never be the
+    link the source pane opens first."""
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_CANIF_00023/implementation").json()
+
+    assert [one["kind"] for one in body["links"][:2]] == ["function", "prototype"]
+
+
+def test_a_named_symbol_links_even_with_no_annotation(client):
+    """60% of requirements name a C symbol (finding B5); that is a real link
+    and costs nothing to follow."""
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_CanTp_00079/implementation").json()
+
+    assert [(one["symbol"], one["found_by"]) for one in body["links"]] == [
+        ("CanTp_MainFunction", "symbol")
+    ]
+
+
+def test_an_annotation_outranks_the_symbol_that_names_the_same_unit(client):
+    """`SWS_Can_00272` both annotates and names `CanIf_ControllerBusOff`. It is
+    one link, labelled with the stronger of the two — not two links."""
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_Can_00272/implementation").json()
+
+    busoff = [one for one in body["links"] if one["symbol"] == "CanIf_ControllerBusOff"]
+    assert len(busoff) == 1
+    assert busoff[0]["found_by"] == "annotation"
+
+
+def test_a_not_implemented_claim_is_returned_but_never_leads(client):
+    """`!req` is a real link and hiding it would overstate coverage — but it
+    is a claim *against* implementation, so it must not open as the answer."""
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_CANIF_00329/implementation").json()
+
+    denied = [one for one in body["links"] if one["claim"] == "claimed_not_implemented"]
+    assert denied, "the !req link must still be reported"
+    assert body["links"][-1]["claim"] == "claimed_not_implemented"
+
+
+def test_a_requirement_with_no_code_links_to_nothing(client):
+    """Finding A1: most CAN Driver requirements have no implementation here.
+    An empty list is the honest answer, not an error."""
+    http, _, _ = client
+
+    body = http.get("/requirements/SWS_Can_00011/implementation").json()
+
+    assert body["links"] == []
+    assert body["verdict"] is None
+
+
+def test_the_endpoint_never_judges(client):
+    """Opening a citation must not start spending money. A verdict comes back
+    only if one was already cached."""
+    http, state, _ = client
+    body = http.get("/requirements/SWS_CANIF_00023/implementation").json()
+    assert body["verdict"] is None
+
+    db.put_verdict(
+        state.pool,
+        "SWS_CANIF_00023",
+        MANIFEST.code.git_sha,
+        MANIFEST.models.judge,
+        {"status": "implemented", "evidence": [], "confidence": 0.9},
+        MANIFEST.project_id,
+    )
+
+    again = http.get("/requirements/SWS_CANIF_00023/implementation").json()
+    assert again["verdict"]["status"] == "implemented"
+
+
+def test_an_unknown_requirement_is_a_404(client):
+    http, _, _ = client
+    assert http.get("/requirements/SWS_Can_99999/implementation").status_code == 404

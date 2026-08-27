@@ -19,6 +19,23 @@ import { DocumentTab } from "./document-tab";
  *
  * Tab state is lifted, because a citation click has to be able to switch tabs.
  */
+/**
+ * A dot on a tab that has something in it.
+ *
+ * Clicking a requirement now fills the code tab too, and without a marker
+ * nobody finds out: the document opens, the code sits behind an unchanged
+ * label, and the connection the pane just made is invisible.
+ */
+function Loaded() {
+  return (
+    <span
+      aria-hidden
+      className="ml-0.5 size-1 flex-none rounded-full bg-source"
+      data-slot="tab-loaded"
+    />
+  );
+}
+
 export function SourcePane({
   target,
   tab,
@@ -63,6 +80,7 @@ export function SourcePane({
           >
             <FileTextIcon className="size-3.5" />
             Document
+            {requirement ? <Loaded /> : null}
           </TabsTrigger>
           <TabsTrigger
             value="code"
@@ -70,6 +88,7 @@ export function SourcePane({
           >
             <CodeIcon className="size-3.5" />
             Code
+            {code ? <Loaded /> : null}
           </TabsTrigger>
         </TabsList>
         <span className="flex-1" />

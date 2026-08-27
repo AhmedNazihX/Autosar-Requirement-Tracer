@@ -25,12 +25,15 @@ A miss is a clean 404 with a sentence, never a stack trace.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from api import deps
+from core import db
+from core.models import Requirement
 from ingestion.code_fetcher import repo_dir
 from ingestion.fetcher import docs_dir
 from retrieval.lookup import InvalidRequirementId, lookup
@@ -193,6 +196,143 @@ def view_document(
             "highlight": hit.requirement.id,
         }
     )
+
+
+class ImplementationLink(BaseModel):
+    """One code unit tied to a requirement, and how the tie was made."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    repo_path: str
+    symbol: str
+    kind: str
+    line_span: tuple[int, int]
+    git_sha: str
+    #: ``annotation`` — a developer comment in this unit names the requirement.
+    #: ``symbol`` — the requirement's own text names this function.
+    found_by: Literal["annotation", "symbol"]
+    #: Only for ``found_by="annotation"``: what that comment claimed. ``!req``
+    #: is carried through rather than dropped, because a developer saying a
+    #: requirement is *not* implemented here is a link worth showing.
+    claim: str | None = None
+    annotation_lines: list[int] = Field(default_factory=list)
+
+
+class ImplementationResponse(BaseModel):
+    """Where a requirement is implemented, as far as free evidence can say."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    req_id: str
+    git_sha: str
+    links: list[ImplementationLink]
+    #: A verdict **only if one is already cached**. This endpoint never judges.
+    verdict: dict | None = None
+
+
+@router.get("/requirements/{req_id}/implementation", response_model=ImplementationResponse)
+def get_requirement_implementation(
+    req_id: str, state: deps.AppState = Depends(deps.state_of)
+) -> ImplementationResponse:
+    """The code tied to a requirement — for free, and without judging it.
+
+    This exists so the two halves of a citation can be opened together. Before
+    it, clicking a requirement opened its page and left the code pane empty,
+    and the user had to work out for themselves which part of the snapshot the
+    requirement corresponded to — which is the one job this product exists to
+    do for them.
+
+    **It costs nothing and it never calls a model.** Both link kinds are plain
+    SQL: tier-1 annotations (``@req``/``!req`` comments naming the requirement)
+    and tier-2 anchors (the C symbols the requirement's own text names). A
+    verdict is returned only when one is *already* in the cache — opening a
+    citation must never start spending money, and a judged verdict is what
+    ``check_implementation`` and the report are for.
+
+    Ordering is by strength of claim: code the developers say implements this,
+    then code the requirement names, then code the developers explicitly say
+    does *not* implement it. The last group is still returned — it is a real
+    link and hiding it would overstate coverage — but it never leads.
+    """
+    ready = _require_ready(state)
+    try:
+        hit = lookup(ready.pool, ready.manifest.project_id, req_id)
+    except InvalidRequirementId as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if hit is None:
+        raise HTTPException(
+            status_code=404, detail=f"No requirement {req_id!r} in this corpus."
+        )
+
+    requirement = hit.requirement
+    canonical = Requirement.canonical_id(requirement.id)
+    project_id = ready.manifest.project_id
+    git_sha = ready.manifest.code.git_sha
+
+    seen: set[tuple[str, str, str, tuple[int, int]]] = set()
+    claimed: list[ImplementationLink] = []
+    denied: list[ImplementationLink] = []
+    anchored: list[ImplementationLink] = []
+
+    for unit in db.list_code_units_by_annotation(ready.pool, project_id, canonical):
+        matching = [
+            annotation
+            for annotation in unit.req_annotations
+            if Requirement.canonical_id(annotation.canonical_id) == canonical
+        ]
+        # A unit that both claims and denies the same id is contradicting
+        # itself; report the denial, which is the specific statement.
+        claim = (
+            "claimed_not_implemented"
+            if any(a.claim == "claimed_not_implemented" for a in matching)
+            else "claimed_implemented"
+        )
+        link = _link(unit, "annotation", claim, sorted(a.line for a in matching))
+        seen.add(_identity(unit))
+        (denied if claim == "claimed_not_implemented" else claimed).append(link)
+
+    for symbol in requirement.named_symbols:
+        for unit in db.list_code_units_by_symbol(ready.pool, project_id, symbol.strip()):
+            if _identity(unit) in seen:
+                continue
+            seen.add(_identity(unit))
+            anchored.append(_link(unit, "symbol", None, []))
+
+    return ImplementationResponse(
+        req_id=requirement.id,
+        git_sha=git_sha,
+        links=[
+            *sorted(claimed, key=_by_strength),
+            *sorted(anchored, key=_by_strength),
+            *sorted(denied, key=_by_strength),
+        ],
+        verdict=db.get_verdict(
+            ready.pool, canonical, git_sha, ready.manifest.models.judge
+        ),
+    )
+
+
+def _link(unit, found_by: str, claim: str | None, lines: list[int]) -> ImplementationLink:
+    return ImplementationLink(
+        repo_path=unit.repo_path,
+        symbol=unit.symbol,
+        kind=unit.kind,
+        line_span=unit.line_span,
+        git_sha=unit.git_sha,
+        found_by=found_by,
+        claim=claim,
+        annotation_lines=lines,
+    )
+
+
+def _identity(unit) -> tuple[str, str, str, tuple[int, int]]:
+    """A code unit's primary key — symbols are not unique in a file (C5)."""
+    return (unit.repo_path, unit.kind, unit.symbol, unit.line_span)
+
+
+def _by_strength(link: ImplementationLink) -> tuple[int, str, int]:
+    """Definitions before declarations: a prototype is not an implementation."""
+    return (0 if link.kind == "function" else 1, link.repo_path, link.line_span[0])
 
 
 @router.get("/documents/{doc}/file")

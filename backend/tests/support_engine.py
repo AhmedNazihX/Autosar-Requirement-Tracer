@@ -186,6 +186,10 @@ NAMED_SYMBOLS: dict[str, list[str]] = {
     "SWS_Can_00110": ["Can_MainFunction_Write"],
     "SWS_Can_00255": ["Can_SetBaudrate"],
     "SWS_CANIF_00023": ["CanIf_MainFunction"],
+    # Names a symbol that exists and carries no annotation — the tier-2-only
+    # case, which is 574 requirements in the real corpus and was otherwise
+    # unrepresented here.
+    "SWS_CanTp_00079": ["CanTp_MainFunction"],
 }
 
 #: ``(repo_path, symbol, kind) -> [(canonical_id, marker, line)]`` — the

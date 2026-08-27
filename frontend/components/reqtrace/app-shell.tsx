@@ -13,7 +13,11 @@ import type { HighlightedFile } from "@/lib/code-highlight";
 import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
 import { toExchanges, type Exchange } from "@/lib/exchanges";
-import { fetchRequirementCitation } from "@/lib/requirements";
+import {
+  bestCodeLink,
+  fetchImplementation,
+  fetchRequirementCitation,
+} from "@/lib/requirements";
 import {
   targetForCitation,
   type SourceTab,
@@ -235,12 +239,53 @@ export function AppShell({
     [threadId],
   );
 
+  /**
+   * Open a citation — and, for a requirement, the code tied to it.
+   *
+   * Clicking a requirement used to open its page and leave the code pane
+   * empty, so the reader had to work out for themselves which part of the
+   * snapshot the requirement corresponded to. Connecting the two is the one
+   * job this product exists to do for them.
+   *
+   * The pane opens immediately on the document and the link is filled in when
+   * it resolves: the page is the thing the user asked for, and it must not
+   * wait on a second request. The lookup is free — annotations and named
+   * symbols are SQL, and a verdict is returned only if already cached — so
+   * this cannot start a judge call however often a citation is clicked.
+   */
   const openCitation = useCallback(
     (citation: RequirementCitation | CodeCitation) => {
       const target = targetForCitation(citation);
       if (!target) return;
-      setPinned({ key: transcriptKey, target, tab: target.tab });
+      const key = transcriptKey;
+      setPinned({ key, target, tab: target.tab });
       setSourceOpen(true);
+
+      if (citation.kind !== "requirement") return;
+      void fetchImplementation(citation.req_id).then((implementation) => {
+        const link = bestCodeLink(implementation);
+        if (!link) return;
+        setPinned((current) =>
+          // Only if the user has not moved on. Filling the companion of a
+          // citation they have already navigated away from would swap the
+          // code pane under them.
+          current?.target?.citation === citation
+            ? {
+                ...current,
+                target: {
+                  ...current.target,
+                  companion: {
+                    kind: "code",
+                    repo_path: link.repo_path,
+                    symbol: link.symbol,
+                    line_span: link.line_span,
+                    git_sha: link.git_sha,
+                  },
+                },
+              }
+            : current,
+        );
+      });
     },
     [transcriptKey],
   );
