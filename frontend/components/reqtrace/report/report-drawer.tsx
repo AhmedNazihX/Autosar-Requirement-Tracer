@@ -126,6 +126,12 @@ export function ReportDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        // The drawer draws its own close button, in the header row below,
+        // aligned with the title and the "New report" action. The primitive's
+        // default one is absolutely positioned in the corner, so leaving it on
+        // put two X buttons two pixels apart. The source-pane overlay in
+        // `app-shell.tsx` turns it off for the same reason.
+        showCloseButton={false}
         // The width override has to carry the same `data-[side=right]:`
         // qualifier the base class uses, or it loses on specificity and the
         // drawer silently renders at `max-w-sm` — 384 px, with the verdict and
