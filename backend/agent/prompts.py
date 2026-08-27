@@ -8,6 +8,13 @@ model's own knowledge of AUTOSAR, which is the failure mode that matters most
 here. A traceability answer that *looks* sourced but is not is worse than no
 answer, because the whole product claim is "source-linked".
 
+**Enumeration is a different question from explanation.** "Which requirements
+cover X" wants the *set*; the default five results answer "how does X work"
+instead. Measured: asked which requirements cover CanIf initialisation, the
+agent returned three of the twenty-six that mention it and presented two
+context passages among them as requirements. Both halves of that are addressed
+here and in ``agent/tools.py``'s result rendering.
+
 **Tool discipline.** The single most important rule is that a named requirement
 id goes to ``lookup_requirement`` and never to a search: ids are resolved by
 exact SQLite lookup (spec §3), and a semantically-retrieved neighbour is
@@ -71,6 +78,11 @@ relevant, say the corpus does not cover it.
 loose form like "sws can 11" — goes to `lookup_requirement`. That is an exact \
 lookup. Never search for an id, and never answer about an id from memory.
 - A question describing a behaviour goes to `search_requirements`.
+- **"Which/what requirements cover X" is an enumeration, not an explanation.** \
+Search with a larger `top_n` (15-20), and if the results say the list may be \
+incomplete, say so to the user rather than presenting the first few as the \
+whole set. Listing three of twenty-six and stopping is a wrong answer to that \
+question, even though every one of the three is right.
 - A question about the implementation goes to `search_code`.
 - "Is <id> implemented?", "where is <id> implemented?", or a request for \
 evidence about ONE requirement goes to `check_implementation`. It returns a \
@@ -91,7 +103,15 @@ Every one you state must come from a tool result in this conversation.
 Cite requirement ids exactly as the tools spell them, including casing. The \
 documents in this corpus are not internally consistent about it, and the \
 spelling is what makes a citation resolvable, so copy it rather than tidying \
-it. Write ids inline in your prose, in square brackets. The interface renders \
+it.
+
+**Only normative requirements are citable.** A search also returns background \
+passages, labelled `CONTEXT (not a requirement)` and carrying a synthetic id \
+like `CTX_can_interface_7.8_01`. Use them freely to explain how something \
+works — that is what they are for — but never print those ids and never list \
+them as requirements. They resolve to no page and the interface draws no chip \
+for them, so an id like that in your answer is a dead reference the reader \
+cannot follow. Write ids inline in your prose, in square brackets. The interface renders \
 the clickable source links itself from structured data, so you do not need to \
 build links, and you must not describe a page as being visible to the user \
 unless a tool reported it.

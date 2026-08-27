@@ -612,3 +612,69 @@ def test_the_report_tool_says_so_when_it_cannot_launch(context):
 
     assert "could not complete" in payload
     assert not ctx.side.outcome("call_1").ok
+
+
+# --------------------------------------------------------------------------
+# requirements vs context in the payload
+#
+# Measured defect: asked "which requirements cover CanIf initialisation", the
+# agent answered with two `CTX_*` ids presented as bulleted requirements. They
+# carry no citation chip and resolve to no page, so they were dead references
+# in the middle of the answer — and the cause was that the payload rendered a
+# context passage and a requirement identically.
+# --------------------------------------------------------------------------
+
+
+def test_context_passages_are_labelled_apart_from_requirements(context):
+    ctx, _ = make(
+        context,
+        translate_replies=[json_body({"queries": ["bus off"]}), json_body(NO_FILTER)],
+        rerank_replies=[json_body({"order": [1, 2, 3, 4, 5]})],
+    )
+
+    payload = call(ctx, "search_requirements", query="how is bus-off reported?")
+
+    assert "REQUIREMENT [SWS_" in payload
+    if "CTX_" in payload:
+        assert "CONTEXT (not a requirement)" in payload
+        assert "never cite it as a requirement and never print its id" in payload
+
+
+def test_the_payload_counts_requirements_and_passages_separately(context):
+    """The model needs to know how many actual requirements it has, not how
+    many results — those are different numbers whenever context is retrieved."""
+    ctx, _ = make(
+        context,
+        translate_replies=[json_body({"queries": ["bus off"]}), json_body(NO_FILTER)],
+        rerank_replies=[json_body({"order": [1, 2, 3]})],
+    )
+
+    payload = call(ctx, "search_requirements", query="how is bus-off reported?")
+
+    assert "normative requirement(s) and" in payload
+    assert "background passage(s), best first." in payload
+
+
+def test_a_saturated_result_set_says_the_list_may_be_incomplete(context):
+    """"Which requirements cover X" is an enumeration: returning the top N
+    without saying it is a top N answers a different question."""
+    ctx, _ = make(
+        context,
+        translate_replies=[json_body({"queries": ["bus off"]}), json_body(NO_FILTER)],
+        rerank_replies=[json_body({"order": [1]})],
+    )
+
+    payload = call(ctx, "search_requirements", query="bus off", top_n=1)
+
+    assert "not the complete set" in payload
+    assert "larger top_n" in payload
+
+
+def test_the_tool_description_tells_the_model_when_to_widen_the_search(context):
+    """`top_n` existed all along and nothing pointed the model at it, so an
+    enumeration question silently got the five-result default."""
+    ctx, _ = make(context)
+    tool = tool_named(ctx, "search_requirements")
+
+    assert "top_n" in tool.description
+    assert "enumeration" in tool.description

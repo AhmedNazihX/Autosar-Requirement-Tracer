@@ -270,7 +270,16 @@ Search the AUTOSAR specifications for requirements about a topic, by meaning as 
 well as by keyword. Use this when the user describes a behaviour rather than \
 naming an id. Optionally narrow by module (Can, CanIf, CanTp, CanSM) or by \
 document section. Returns the most relevant requirements with their ids, \
-documents, pages and verbatim text.\
+documents, pages and verbatim text.
+
+`top_n` defaults to 5, which suits "how does X work". When the user asks WHICH \
+or WHAT requirements cover something — an enumeration, not an explanation — \
+that default will silently under-answer them: pass a larger `top_n` (15-20) so \
+the answer can list the whole set rather than a sample of it.
+
+Results include normative requirements AND background context passages from \
+the same documents. They are labelled, and they are not interchangeable — see \
+the labels in the result.\
 """
 
 
@@ -325,16 +334,53 @@ def _search_requirements_tool(context: ToolContext) -> BaseTool:
                 "Say so plainly rather than offering a guess."
             )
 
-        blocks = []
+        # Requirements and context are labelled apart, and the header counts
+        # them. Without this they render identically — `CTX_can_interface_7.8_01`
+        # looks exactly like `SWS_CANIF_00085` — and the model presents context
+        # prose as a requirement. Measured: asked which requirements cover CanIf
+        # initialisation, it answered with two CTX ids as bulleted
+        # "requirements", which carry no citation chip and mean nothing to a
+        # reader.
+        requirements = [
+            item for item in result.results if item.requirement.doc_type == "requirement"
+        ]
+        passages = [
+            item for item in result.results if item.requirement.doc_type != "requirement"
+        ]
+
+        blocks = [
+            f"Found {len(requirements)} normative requirement(s) and "
+            f"{len(passages)} background passage(s), best first."
+        ]
         for item in result.results:
             requirement = item.requirement
+            is_requirement = requirement.doc_type == "requirement"
+            label = "REQUIREMENT" if is_requirement else "CONTEXT (not a requirement)"
             head = (
-                f"{item.rank}. [{requirement.id}] {requirement.source_doc} "
-                f"page {requirement.page}"
+                f"{item.rank}. {label} [{requirement.id}] "
+                f"{requirement.source_doc} page {requirement.page}"
             )
             if requirement.section_path:
                 head += f" · {requirement.section_path}"
+            if not is_requirement:
+                head += (
+                    "\n   Background prose, with a synthetic id. Use it to explain, "
+                    "never cite it as a requirement and never print its id."
+                )
             blocks.append(f"{head}\n{_fence(REQUIREMENT_FENCE, requirement.text)}")
+
+        # Keyed on the result count, not the requirement count: what the caller
+        # needs to know is that the list was cut off at `top_n`, and it was cut
+        # off across both kinds. Keying on requirements alone stays silent
+        # exactly when context filled the slots — the case where the answer is
+        # most likely to be short.
+        if len(result.results) >= top_n:
+            blocks.append(
+                f"This is the top {top_n} by relevance, not the complete set — "
+                "there may be more. If the user asked which requirements cover "
+                "something, say the list may be incomplete or search again with a "
+                "larger top_n."
+            )
         return "\n\n".join(blocks)
 
     return StructuredTool.from_function(
