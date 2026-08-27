@@ -502,13 +502,14 @@ The ceiling is therefore not the binding constraint at this corpus size. It
 exists for the whole-corpus scope (1054 requirements, extrapolating to ~$0.36)
 and for a re-pin that invalidates every verdict at once.
 
-## E. Deferred minors (from reviews — triage before merge)
+## E. Deferred minors (from reviews — triage before merge; statuses updated 2026-08-27)
 
 - **D1:** `make lint` runs only backend ruff, silently skipping the
-  frontend's working `npm run lint`.
+  frontend's working `npm run lint`. **Resolved** — `make lint` now runs
+  deps-check + ruff + eslint (`Makefile`), and CI runs it on every push.
 - **D1:** `frontend/app/page.tsx` hardcodes `bg-zinc-50`/`dark:bg-black`
-  instead of the semantic tokens the same commit wired up. WP5 replaces this
-  page anyway — just do not inherit the pattern.
+  instead of the semantic tokens the same commit wired up. **Resolved** — WP5
+  replaced the page; neither token remains.
 - **D1:** `starlette.testclient` emits an httpx/httpx2 deprecation warning;
   fixing it needs an unapproved library.
 - **D2:** the 40-hex `git_sha` validator is duplicated verbatim in
@@ -523,7 +524,10 @@ and for a re-pin that invalidates every verdict at once.
   `page_for_char`'s duplicate-`char_start` path is covered only by a test
   that skips on a fresh clone.
 - **D3:** `README.md` says `../projects/…` while `regenerate.py` prints
-  `projects/…`; one is wrong depending on cwd.
+  `projects/…`; one is wrong depending on cwd. **Resolved 2026-08-27** — both
+  now print the same `../projects/…` command (and the command itself was fixed
+  from the no-op `-m ingestion.fetcher` to `-m ingestion.run --stop-after
+  docs`).
 - **D3:** `test_golden_fixtures.py` does manifest and JSON I/O at import
   time, so a missing manifest is a collection error, not a test failure.
 - **D3:** 6 non-pristine warnings (5 PyMuPDF SWIG, 1 Starlette).

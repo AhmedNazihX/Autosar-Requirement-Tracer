@@ -1,5 +1,9 @@
 # ReqTrace — Requirements-to-Code Traceability Chatbot
 
+> **Status: COMPLETE 2026-08-27.** All seven work packages are done and merged
+> to `main`. This plan is kept as the record of what was built and in what
+> order; `CLAUDE.md` and `README.md` describe the shipped state.
+
 ## Context
 
 Sprint 2 course project (`125.md`): a domain-specialised chatbot with advanced RAG (query translation + structured retrieval), ≥3 tool calls, and a polished UI. Budget ~20–25h. Bonus bar: ≥2 medium + 1 hard optional tasks.
@@ -49,8 +53,8 @@ backend/
   retrieval/    hybrid.py (BM25+dense+RRF), translate.py (multi-query), 
                 self_query.py (typed filters), rerank.py (LLM listwise)
   engines/      evidence.py (3-tier check), report.py (batch job + SSE progress)
-  agent/        agent.py, tools.py (5 tools), prompts.py
-  api/          main.py, chat.py (SSE), documents.py, reports.py, security.py
+  agent/        runner.py, tools.py (5 tools), prompts.py
+  api/          main.py, chat.py (SSE), documents.py, reports.py, ratelimit.py
   tests/        fixtures/golden/, test_*.py, injection_set/
 projects/autosar-can/project.yaml
 docs/specs/2026-08-26-reqtrace-design.md   # write the approved design here first
@@ -120,7 +124,7 @@ dropped `Can`, which has no implementation in the permitted repository.
 Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-findings.md`.)* WP3 ships the agent with the 3 retrieval tools; the 2 evidence/report tools register in WP4 (S4.3.2). Each story lists its deliverable and acceptance criterion.
 *(Audited 2026-08-26 by coverage-review agent: 2 gaps + 3 partials found and fixed — read endpoints S3.3.2, setup backend F3.6, error-handling S3.3.3/S5.2.5, context chunks S1.3.5, cache-invalidation acceptance S4.2.1.)*
 
-### WP1 — Platform & Corpus Foundation (~6h)
+### WP1 — Platform & Corpus Foundation (~6h) — **DONE 2026-08-26**
 
 **F1.1 Project scaffold & dev environment**
 - S1.1.1 Backend scaffold: uv project, Python 3.12 pin, FastAPI skeleton w/ `/health`, pytest+ruff. *Accept: `uv run pytest` green, `/health` responds.*
@@ -150,7 +154,7 @@ Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-finding
 - S1.5.2 Chroma collection per `project_id` w/ metadata; BM25 built at startup from SQLite. *Accept: startup <5s; smoke query returns known chunk.*
 - S1.5.3 Ingestion CLI `python -m ingestion.run projects/autosar-can/project.yaml` end-to-end. *Accept (WP1 gate): sqlite shows N requirements; 5 spot-checked by hand against the PDFs.*
 
-### WP2 — Retrieval & RAG Engine (~4h)
+### WP2 — Retrieval & RAG Engine (~4h) — **DONE 2026-08-26**
 
 **F2.1 Exact lookup** — S2.1.1 ID normalization (`sws_can_11` → `SWS_Can_00011`) + SQLite hit + citation payload `{req_id, doc, page, bbox}`. *Accept: unit tests incl. malformed IDs.*
 
@@ -166,7 +170,7 @@ Everything measured is in `docs/findings/2026-08-26-corpus-and-toolchain-finding
 
 **F2.6 Pipeline assembly** — S2.6.1 `search_requirements(query, filters?)` and `search_code(query|symbol)` as callable, stage-instrumented functions (each stage's IO loggable — feeds RAGAS). *Accept: integration test over fixture index.*
 
-### WP3 — Agent & Chat API (~5h)
+### WP3 — Agent & Chat API (~5h) — **DONE 2026-08-26**
 
 **F3.1 LLM client & cost metering (bonus: medium)** — S3.1.1 OpenRouter client wrapper capturing tokens+cost per call, tagged by purpose (chat/judge/rerank/embed/title). *Accept: usage events emitted per message.*
 

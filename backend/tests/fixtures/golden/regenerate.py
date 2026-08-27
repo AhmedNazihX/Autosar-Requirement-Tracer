@@ -4,7 +4,8 @@
 
 Reads the frozen page list from ``fixtures.json`` and re-extracts exactly
 those pages from the PDFs in ``data/docs/`` (fetch them first with
-``uv run python -m ingestion.fetcher projects/autosar-can/project.yaml``).
+``uv run python -m ingestion.run ../projects/autosar-can/project.yaml
+--stop-after docs``).
 
 This script touches **only** ``*.blocks.json``. The ``*.expected.json``
 files are hand-labeled ground truth and are never generated from code — see
@@ -52,8 +53,8 @@ def main() -> int:
         pdf_path = pdf_dir / document.filename
         if not pdf_path.is_file():
             raise SystemExit(
-                f"{pdf_path} is missing — run "
-                "'uv run python -m ingestion.fetcher projects/autosar-can/project.yaml' first"
+                f"{pdf_path} is missing — run 'uv run python -m ingestion.run "
+                "../projects/autosar-can/project.yaml --stop-after docs' first"
             )
         parsed = parse_pdf(pdf_path)
         digest = sha256_file(pdf_path)

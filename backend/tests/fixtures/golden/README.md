@@ -118,7 +118,7 @@ mistakes all survive verbatim.
 
 ```
 cd backend
-uv run python -m ingestion.fetcher ../projects/autosar-can/project.yaml   # once
+uv run python -m ingestion.run ../projects/autosar-can/project.yaml --stop-after docs   # once
 uv run python tests/fixtures/golden/regenerate.py
 ```
 

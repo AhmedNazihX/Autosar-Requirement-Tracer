@@ -79,8 +79,10 @@ lying still cannot manufacture a source link (measured below).
 - Prompt-injection hardening with an adversarial set measured against **real
   models**, not only mocks.
 
-**1109 backend tests** pass (`make test`); ruff and the frontend's lint,
-typecheck and production build are clean (`make lint`). `make smoke` boots
+**1112 backend tests** pass (`make test`); `make lint` keeps
+`dependencies.txt` current (`deps-check`) and runs ruff and the frontend's
+eslint; CI runs the same targets plus the frontend typecheck and production
+build. `make smoke` boots
 both servers and uses the app end to end for real.
 
 ## Quickstart
@@ -115,13 +117,26 @@ fresh clone must run ingestion before there is anything to search.
 ```bash
 make dev     # backend on :8000, frontend on :3000
 make test    # backend suite
-make lint    # ruff + eslint
+make lint    # deps-check + ruff + eslint (CI adds typecheck + build)
 ```
 
 The frontend reaches the backend only through the Next.js proxy
 (`/api/py/*` → `localhost:8000`), so there is no CORS configuration. The API
 boots even with no database or an unreadable one, and reports that instead of
 dying.
+
+There is also a zero-cost demo mode: `NEXT_PUBLIC_REQTRACE_CHAT_SOURCE=canned
+npm run dev` (from `frontend/`) replays a committed fixture conversation with
+no backend, no index and no API key — see `frontend/README.md`.
+
+Guardrails: `make install` also installs the repo's git pre-commit hook
+(`.githooks/pre-commit`, via `make install-hooks`), which runs `make
+deps-check` and ruff before every commit. CI (`.github/workflows/ci.yml`)
+runs the same make targets on every push, plus the frontend typecheck and
+production build. [`dependencies.txt`](dependencies.txt) is a generated
+inventory of both dependency trees with a provenance note per direct
+dependency — regenerate it with `make deps` after any dependency change;
+`make deps-check` (in lint, the hook and CI) fails on drift.
 
 ## What the numbers say, including the awkward ones
 
@@ -252,6 +267,8 @@ by retrieval alone. The naive arm is not a strawman: `search_requirements` has
 documented since WP2 that `rewrites=0, extract_filters=False, use_rerank=False`
 reduces it to the baseline, and that is exactly what is passed.
 
+| Metric | Naive top-k | Full pipeline | Δ (full − naive) |
+| --- | --- | --- | --- |
 | Faithfulness | 0.922 | 0.913 | -0.009 |
 | Answer relevancy | 0.846 | 0.734 | -0.112 |
 | Context precision | 0.899 | 0.876 | -0.023 |
@@ -438,7 +455,7 @@ Everything here is a real constraint on what this tool's answers are worth.
 ## Reproducing every number here
 
 ```bash
-make test                                              # 1109 unit tests, no network
+make test                                              # 1112 unit tests, no network
 make smoke                                             # boots both servers, 3 questions + 1 report
 cd backend && uv run python -m evaluation.judge_eval run        # judge confusion matrix
 cd backend && uv run python -m evaluation.ragas_eval run        # naive vs full pipeline

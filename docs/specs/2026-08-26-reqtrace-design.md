@@ -1,7 +1,8 @@
 # ReqTrace — Requirements-to-Code Traceability Chatbot: Design
 
 Status: approved 2026-08-26 (brainstormed and reviewed section-by-section;
-amended same day after a design-grill session — see §12)
+amended same day after a design-grill session — see §11; corpus scope
+amended during WP2 from 2 to 4 SWS documents, recorded in the workplan)
 
 ## 1. Purpose
 
@@ -23,10 +24,12 @@ LangChain + OpenRouter, Next.js UI.
 
 Real documents and real code — no synthesized corpus:
 
-- **Requirements:** AUTOSAR SWS *CAN Driver* and *CAN Interface* PDFs, fetched
-  at ingestion time directly from autosar.org (no registration). Requirement
-  IDs follow `[SWS_Can_00011]`; each requirement cites upstream `SRS_*` IDs,
-  giving two-level traceability.
+- **Requirements:** AUTOSAR SWS PDFs — *CAN Driver*, *CAN Interface*, *CAN
+  Transport Layer* and *CAN State Manager* (originally 2 documents; grown to 4
+  during WP2, see `.claude/plans/reqtrace-workplan.md`) — fetched at ingestion
+  time directly from autosar.org (no registration). Requirement IDs follow
+  `[SWS_Can_00011]`; each requirement cites upstream `SRS_*` IDs, giving
+  two-level traceability.
 - **Code:** `github.com/openAUTOSAR/classic-platform` (Arctic Core lineage,
   C, GPL-2.0 — finding A6), scoped to `communication/`; the manifest's
   `include_globs` are `CanIf`, `CanTp`, `CanSM`, `CanNm`, `PduR` and `Com`.
@@ -129,6 +132,11 @@ persisted with coverage stats; export to Markdown/CSV/JSON.
 - Setup: `GET /setup/status`; `POST /setup/ingest`;
   `GET /setup/ingest/events` (SSE ingestion progress — backend for the
   first-run experience)
+- Added during implementation (WP4–WP7):
+  `GET /requirements/{req_id}/implementation` (three-tier evidence for the
+  source pane); `GET /code/{path}/requirements` (requirements tied to a code
+  span); `GET /documents/{doc}/file` (the PDF itself, for in-browser render);
+  `GET /reports` (list runs); `DELETE /reports/{run_id}`; `GET /health`
 
 Frontend reaches the backend through a Next.js `rewrites()` proxy
 (`/api/py/:path*` → `localhost:8000`) — no CORS configuration.
@@ -221,5 +229,5 @@ The quality bar is an app with very good UX, not a homework demo:
 
 Single code language supported at a time; spec/code version drift (feature,
 but must be framed); LLM judge fallibility (`unverifiable` verdict + human-
-readable rationale as mitigations); scoped ingestion (2 SWS documents, not
+readable rationale as mitigations); scoped ingestion (4 SWS documents, not
 the full AUTOSAR release).

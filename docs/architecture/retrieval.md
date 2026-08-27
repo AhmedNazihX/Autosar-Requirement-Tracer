@@ -3,7 +3,8 @@
 How ReqTrace decides between an exact lookup and a search, and what "hybrid"
 actually does once a search starts.
 
-Written 2026-08-27, against the code as merged after WP5. Every number here is
+Written 2026-08-27 against the code as merged after WP5; amended the same day
+for the two WP7 pipeline changes (§4) and the measured RAGAS result (§8). Every number here is
 a named constant or a line in the source; where the two ever disagree, **the
 code is right and this file is stale**. The authorities are
 `docs/specs/2026-08-26-reqtrace-design.md` §3–§4 for the design and
@@ -119,6 +120,19 @@ it and regardless of what that index happened to store.
 (`pipeline.py`, the `conditions=` and `bm25_predicate=` arguments). A filter
 that narrowed only one index would silently bias fusion toward the other.
 
+**Two WP7 amendments, both bought with a RAGAS failure each (§8).** First, an
+*inferred* filter that matches nothing is dropped and the search retried
+unfiltered, recorded as `dropped_filter` in the stage log — the eval caught the
+pipeline returning zero results for a requirement that exists because a
+self-inferred section filter emptied the conjunction. A **caller-supplied**
+filter is never dropped: "no CanSM requirement matches" is a true answer to a
+question that named CanSM. Second, an inferred *module* filter applies only
+when the question actually names that module
+(`self_query.question_names_module` — by symbol prefix, document title, or the
+bare name as a word), after "CAN controller state" was filtered to CanSM. `Can`
+is matched case-sensitively, because this corpus writes the module `Can`, the
+bus `CAN` and the English verb `can`.
+
 ---
 
 ## 5. The pipeline is shorter for some callers
@@ -163,17 +177,23 @@ this come back?".
 
 ---
 
-## 8. What is not yet answered
+## 8. What the measurement said (S7.2, run 2026-08-27)
 
-Which of these stages earns its cost is an **open, measurable question**, not a
-settled one. The pipeline takes `rewrites=0`, `extract_filters=False` and
+Which of these stages earns its cost was an open question until story S7.2 ran
+it. The pipeline takes `rewrites=0`, `extract_filters=False` and
 `use_rerank=False`, which reduce it to exactly the naive single-query top-k
-baseline — so the comparison needs no second code path.
+baseline — so the comparison needed no second code path.
 
-Running that comparison is story S7.2 (RAGAS: faithfulness, answer relevancy,
-context precision/recall, full pipeline vs. baseline). Until it runs, treat the
-stage list as a design intent that has been *built and instrumented* but not
-yet *shown* to beat the simpler thing.
+The answer was uncomfortable and is reported in full in the README ("What the
+numbers say") and `docs/evaluations/ragas-eval.json`: **the naive baseline
+beats the full pipeline on every metric** over the 25-question golden set
+(hit rate 1.000 vs 0.920). The set is lookup-shaped — each question written
+*from* one requirement, so BM25 alone nails it — and contains none of the
+enumeration questions expansion and rerank exist for. The run also found the
+two real filtering bugs whose fixes are documented in §4 above. Treat the
+stage list as *built, instrumented, and measured to cost more than it returns
+on lookup-style questions*; extending the golden set with enumeration
+questions alongside the lookups is the remaining open work.
 
 ---
 
