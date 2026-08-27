@@ -32,7 +32,6 @@ declared, runtime:
   chromadb               chromadb>=1.5.9          -> 1.5.9         # vector store, one collection per project (spec §3)
   fastapi                fastapi>=0.141.1         -> 0.141.1       # backend framework (spec §3)
   langchain              langchain>=1.3.17        -> 1.3.17        # the locked agent framework (spec §3); create_agent runs the tool-calling loop
-  langchain-community    langchain-community<0.4  -> 0.3.31      
   langchain-openai       langchain-openai>=1.6.0  -> 1.6.0         # ChatOpenAI pointed at OpenRouter — the one chat client (WP2/WP3)
   openai                 openai>=2.16.0           -> 2.54.0        # OpenAI-compatible SDK pointed at OpenRouter (spec §3)
   pydantic               pydantic>=2.13.4         -> 2.13.4        # the Requirement/CodeUnit models (spec §2)
@@ -51,7 +50,7 @@ declared, dev:
   pytest-asyncio         pytest-asyncio>=1.4.0    -> 1.4.0         # async tests
   ruff                   ruff>=0.16.4             -> 0.16.4        # lint
 
-resolved transitively (119) — locked for every platform;
+resolved transitively (120) — locked for every platform;
 a given install may omit platform-conditional entries (e.g. the
 Windows-only colorama):
   aiohappyeyeballs                   2.7.1
@@ -98,6 +97,7 @@ Windows-only colorama):
   jsonschema                         4.26.0
   jsonschema-specifications          2025.9.1
   kubernetes                         36.0.3
+  langchain-community                0.3.31
   langchain-core                     1.6.0
   langchain-protocol                 0.0.18
   langgraph                          1.2.11
