@@ -1,4 +1,4 @@
-.PHONY: dev install install-hooks test lint deps deps-check
+.PHONY: dev install install-hooks test smoke lint deps deps-check
 
 dev:
 	@trap 'kill 0' EXIT INT TERM; \
@@ -19,6 +19,13 @@ install-hooks:
 
 test:
 	cd backend && uv run pytest
+
+# The end-to-end smoke test (story S7.1.1). Boots whatever is not already
+# running, asks three real questions through the frontend proxy, runs a scoped
+# report to completion, then stops what it started. Unlike `test`, this one
+# reaches OpenRouter and costs a few cents.
+smoke:
+	python3 scripts/e2e_smoke.py
 
 # deps-check runs here on purpose. The instruction to regenerate
 # dependencies.txt was already written down in CLAUDE.md and was still missed

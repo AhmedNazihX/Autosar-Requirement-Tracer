@@ -83,6 +83,83 @@ def extractor(*replies, **kwargs):
     return fake_llm(MANIFEST, *replies, purpose="translate", **kwargs)
 
 
+def inferred(conn, question: str, **fields) -> self_query.Filter:
+    """:func:`resolve` as the *inferred* path calls it — with the question."""
+    return self_query.resolve(
+        QueryFilter(**fields),
+        manifest=MANIFEST,
+        conn=conn,
+        project_id=PROJECT,
+        question=question,
+    )
+
+
+# --------------------------------------------------------------------------
+# the module guard (F7.2 — measured, then guarded)
+# --------------------------------------------------------------------------
+
+
+def test_an_inferred_module_the_question_never_mentions_is_dropped(conn):
+    """The failure the RAGAS eval measured, in one test.
+
+    Asked "what happens to the CAN controller state after a bus-off is
+    detected?", the extractor answered ``module=CanSM`` — the word "state",
+    and CanSM is the state manager. The answer is in the CAN Driver document,
+    which that filter excludes outright, so the search returned five CanSM
+    requirements and missed the one requirement that answers the question.
+
+    A filter narrows a search. One inferred from a keyword coincidence
+    narrows it to the wrong place, and a wrong filter is worse than none.
+    """
+    resolved = inferred(
+        conn, "What happens to the CAN controller state after a bus-off is detected?",
+        module="CanSM",
+    )
+
+    assert resolved.module is None
+    assert any(field == "module" for field, _ in resolved.dropped), "dropped silently"
+
+
+def test_an_inferred_module_the_question_names_by_symbol_is_kept(conn):
+    """`CanSM_SetBaudrate` names its module beyond argument."""
+    resolved = inferred(
+        conn, "Under what configuration is CanSM_SetBaudrate not provided?", module="CanSM"
+    )
+
+    assert resolved.module == "CanSM"
+
+
+def test_an_inferred_module_the_question_names_by_title_is_kept(conn):
+    """People write "CAN Interface", not "CanIf"."""
+    resolved = inferred(
+        conn, "How does the CAN Interface report a bus-off condition?", module="CanIf"
+    )
+
+    assert resolved.module == "CanIf"
+
+
+def test_a_bare_can_does_not_name_the_can_module(conn):
+    """"CAN" is the bus, and a prefix of three other module names.
+
+    Reading it as the Can module would filter out CanIf, CanTp and CanSM on
+    the strength of a word that appears in nearly every question this corpus
+    can be asked.
+    """
+    resolved = inferred(conn, "How does the CAN bus signal an error?", module="Can")
+
+    assert resolved.module is None
+
+
+def test_the_module_named_in_its_own_spelling_is_kept(conn):
+    """`Can` is the module; `CAN` is the bus. Only the first names it."""
+    assert inferred(conn, "which scheduled functions does Can have?", module="Can").module == "Can"
+
+
+def test_a_caller_supplied_module_is_never_guarded(conn):
+    """The guard is for a model's guess. A caller means what they asked for."""
+    assert resolve(conn, module="CanSM").module == "CanSM"
+
+
 # --------------------------------------------------------------------------
 # resolving a filter against the corpus
 # --------------------------------------------------------------------------

@@ -293,7 +293,7 @@ errors once the panes went live.)*
 **F6.2 Adversarial test set** — S6.2.1 ~8 adversarial fixtures (poisoned code comment, poisoned doc chunk, prompt extraction, tool-forcing) asserted schema-bound/refused in pytest; suite also runs F3.4's 2 out-of-domain fixtures (owned there). *Accept: suite green.*
 **F6.3 API hardening** — S6.3.1 input validation (ID regex, length caps), token-bucket rate limit on SSE, path-allowlist on `/code/{path}` (traversal rejected). *Accept: traversal + flood tests.*
 
-### WP7 — Quality, Eval & Delivery (~3h)
+### WP7 — Quality, Eval & Delivery (~3h) — **DONE 2026-08-27**
 
 **F7.1 E2E smoke** — S7.1.1 script boots both servers, runs 3 canned questions + 1 scoped report to completion. *Accept: exits 0.*
 **F7.2 RAGAS eval (bonus: hard #2, cuttable)** — S7.2.1 ~25 golden Q&A authored from the SWS docs; S7.2.2 eval script: faithfulness, answer relevancy, context precision/recall; naive top-k baseline vs full pipeline. *Accept: README table with both columns.*
