@@ -29,6 +29,21 @@ export interface UseChatStreamOptions {
 export interface UseChatStreamResult {
   /** Events for the in-flight message only. Empty when idle. */
   events: ChatEvent[];
+  /**
+   * The thread `events` belong to, or `null` before the first send.
+   *
+   * Returned because `events` outlive the stream: they are cleared by the
+   * *next* send, not when one finishes, so between two sends they still
+   * describe the thread they arrived for. A caller rendering them against a
+   * different thread would be showing another conversation's answer — and,
+   * because that made the transcript non-empty, would suppress the
+   * empty-thread prompts and render nothing at all in their place.
+   *
+   * Exposed rather than cleared on thread change: clearing would mean setting
+   * state from an effect, which this codebase's React rejects (see
+   * `frontend/AGENTS.md`). The caller derives instead.
+   */
+  threadId: string | null;
   isStreaming: boolean;
   /** Rejects nothing; failures arrive as `error` events. */
   send: (threadId: string, message: string) => void;
@@ -41,6 +56,7 @@ export function useChatStream({
   onSettled,
 }: UseChatStreamOptions): UseChatStreamResult {
   const [events, setEvents] = useState<ChatEvent[]>([]);
+  const [eventsThreadId, setEventsThreadId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -66,6 +82,7 @@ export function useChatStream({
     abortRef.current = controller;
 
     setEvents([]);
+    setEventsThreadId(threadId);
     setIsStreaming(true);
 
     void (async () => {
@@ -115,5 +132,5 @@ export function useChatStream({
     setIsStreaming(false);
   }, []);
 
-  return { events, isStreaming, send, stop };
+  return { events, threadId: eventsThreadId, isStreaming, send, stop };
 }

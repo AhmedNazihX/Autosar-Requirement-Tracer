@@ -13,6 +13,10 @@ import type { HighlightedFile } from "@/lib/code-highlight";
 import { pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
 import { toExchanges, type Exchange } from "@/lib/exchanges";
+
+/** Stable identity, so a thread with no live events does not churn the memos
+ *  that depend on `liveEvents` on every render. */
+const EMPTY_EVENTS: readonly ChatEvent[] = [];
 import {
   bestCodeLink,
   bestRequirementLink,
@@ -150,7 +154,10 @@ export function AppShell({
    * than merely reassuring. It clears the moment a write succeeds — the store
    * is the source of truth again as soon as there is one.
    */
-  const [unsaved, setUnsaved] = useState<StoredMessage[]>([]);
+  const [unsaved, setUnsaved] = useState<{
+    threadId: string | null;
+    messages: StoredMessage[];
+  }>({ threadId: null, messages: [] });
 
   const transcriptRef = useRef<HTMLDivElement>(null);
   const streamThreadRef = useRef<string | null>(null);
@@ -174,12 +181,15 @@ export function AppShell({
       void threads
         .append(target, { role: "assistant", content: text, events })
         .then((stored) => {
-          if (stored) setUnsaved([]);
+          if (stored) setUnsaved({ threadId: null, messages: [] });
           else
-            setUnsaved((current) => [
-              ...current,
-              localMessage("assistant", text, events),
-            ]);
+            setUnsaved((current) => ({
+              threadId: target,
+              messages: [
+                ...(current.threadId === target ? current.messages : []),
+                localMessage("assistant", text, events),
+              ],
+            }));
         });
 
       // An `error` event renders inline AND as a toast. The toast is what makes
@@ -196,11 +206,31 @@ export function AppShell({
   );
 
   const {
-    events: liveEvents,
-    isStreaming,
+    events: streamEvents,
+    threadId: streamThreadId,
+    isStreaming: streamIsStreaming,
     send,
     stop,
   } = useChatStream({ source, onSettled });
+
+  /**
+   * The in-flight message, but only when it belongs to the thread on screen.
+   *
+   * `useChatStream` clears its events on the *next* send rather than when a
+   * stream ends, so after any finished turn they still describe the thread
+   * they arrived for. Rendering them against a new thread showed another
+   * conversation's answer; worse, it made the transcript count as non-empty,
+   * so `ChatPane` suppressed the empty-thread prompts and drew nothing in
+   * their place — a blank pane on every new thread after the first.
+   *
+   * Derived rather than reset in an effect, which is what
+   * `frontend/AGENTS.md` requires. The stream itself is deliberately left
+   * running: it persists against its own thread id, so switching away no
+   * longer loses the answer, it just stops showing it here.
+   */
+  const isThisThread = streamThreadId === threadId;
+  const liveEvents = isThisThread ? streamEvents : EMPTY_EVENTS;
+  const isStreaming = streamIsStreaming && isThisThread;
 
   const exchanges = useMemo(() => {
     const stored = thread?.messages ?? [];
@@ -211,14 +241,19 @@ export function AppShell({
     // against the tail is enough: the only messages in `unsaved` are the ones
     // from the turn in flight.
     const tail = stored.slice(-2);
-    const pending = unsaved.filter(
+    // Held messages belong to the thread they were typed in. Without this
+    // check, switching threads mid-turn carried the other conversation's
+    // question across — and made the new thread non-empty, which suppressed
+    // the empty-thread prompts.
+    const held = unsaved.threadId === threadId ? unsaved.messages : [];
+    const pending = held.filter(
       (one) =>
         !tail.some(
           (other) => other.role === one.role && other.content === one.content,
         ),
     );
     return toExchanges([...stored, ...pending]);
-  }, [thread, unsaved]);
+  }, [thread, threadId, unsaved]);
   const lastExchangeId = exchanges.at(-1)?.id ?? null;
 
   /* --------------------------------------------------------- source pane --- */
@@ -375,7 +410,10 @@ export function AppShell({
       // it is not even a write — `POST /chat` is what persists a turn — so the
       // await bought nothing at all and cost half a second of the thing the
       // user is waiting to see.
-      setUnsaved([localMessage("user", text, [])]);
+      setUnsaved({
+        threadId: active.id,
+        messages: [localMessage("user", text, [])],
+      });
       send(active.id, text);
 
       // Local mode really does write here, so drop the in-memory copy once the
@@ -384,7 +422,8 @@ export function AppShell({
         .append(active.id, { role: "user", content: text, events: [] })
         .then((stored) => {
           const last = stored?.messages.at(-1);
-          if (last?.role === "user" && last.content === text) setUnsaved([]);
+          if (last?.role === "user" && last.content === text)
+            setUnsaved({ threadId: null, messages: [] });
         });
     },
     [thread, threads, send],
