@@ -40,7 +40,7 @@ from langchain_core.tools import BaseTool, InjectedToolCallId, StructuredTool
 from api.chat_events import CodeCitation, RagStage, RequirementCitation, UpstreamCitation
 from core import db
 from core.llm import Llm
-from core.models import Requirement
+from core.models import CodeUnit, Requirement
 from engines import evidence
 from engines.report import ReportScope, ScopeError
 from retrieval import pipeline
@@ -202,6 +202,69 @@ SWS_CANIF_00023, sws_can_11. Use this whenever the user names a requirement id \
 to answer "what does <id> require?". Returns the requirement's verbatim text, \
 its document, page and section, and the upstream requirements it traces to.\
 """
+
+
+
+#: Most requirement chips one `search_code` answer may carry. A single unit can
+#: be tied to dozens — 47 for `CanIf_RxIndication` in the real corpus — and a
+#: wall of chips is no more usable than none. The order below puts the
+#: best-evidenced first, so a cut here drops the weakest links.
+MAX_LINKED_REQUIREMENTS = 5
+
+
+def _requirements_behind(
+    context: ToolContext, units: Sequence[CodeUnit]
+) -> list[RequirementCitation]:
+    """The requirements this code is tied to, best evidence first.
+
+    Two link kinds, and they are not equal evidence:
+
+    * a ``@req`` annotation — the developers wrote that this code implements
+      that requirement;
+    * a named symbol — the requirement's own text names a symbol defined here.
+
+    A ``!req`` is deliberately never cited. It says the developers believe the
+    requirement is *not* implemented here, so offering it under an answer about
+    what this code does would invert its meaning. It is still visible in the
+    pane's own list, labelled — this is about what the answer asserts.
+
+    Context prose is excluded for the reason ``search_requirements`` excludes
+    it: a synthetic ``CTX_...`` id renders as a chip the reader cannot follow.
+
+    Free — both lookups are SQL against the index, and no model is called.
+    """
+    conn, project_id = context.engine.conn, context.engine.project_id
+    claimed: list[Requirement] = []
+    anchored: list[Requirement] = []
+    seen: set[str] = set()
+
+    def add(requirement: Requirement | None, bucket: list[Requirement]) -> None:
+        if requirement is None or requirement.doc_type != "requirement":
+            return
+        if requirement.id in seen:
+            return
+        seen.add(requirement.id)
+        bucket.append(requirement)
+
+    denied: set[str] = {
+        annotation.canonical_id
+        for unit in units
+        for annotation in unit.req_annotations
+        if annotation.claim == "claimed_not_implemented"
+    }
+    for unit in units:
+        for annotation in unit.req_annotations:
+            if annotation.canonical_id in denied:
+                continue
+            add(db.get_requirement(conn, project_id, annotation.canonical_id), claimed)
+    for unit in units:
+        for requirement in db.list_requirements_naming_symbol(conn, project_id, unit.symbol):
+            if Requirement.canonical_id(requirement.id) in denied:
+                continue
+            add(requirement, anchored)
+
+    ordered = [*claimed, *anchored][:MAX_LINKED_REQUIREMENTS]
+    return [context.citation_of(requirement) for requirement in ordered]
 
 
 def _lookup_tool(context: ToolContext) -> BaseTool:
@@ -411,7 +474,7 @@ def _search_code_tool(context: ToolContext) -> BaseTool:
         except Exception as exc:  # noqa: BLE001 - a tool must not kill the turn
             return _fail(context, tool_call_id, _readable(exc))
 
-        citations = [
+        citations: list[Citation] = [
             CodeCitation(
                 repo_path=item.unit.repo_path,
                 symbol=item.unit.symbol,
@@ -420,6 +483,13 @@ def _search_code_tool(context: ToolContext) -> BaseTool:
             )
             for item in result.results
         ]
+        # Code first, then the specification. Order is load-bearing: the source
+        # pane opens on a turn's *first* citation
+        # (`frontend/lib/source-target.ts`), and for "where is X defined?" the
+        # code is the answer — the requirement is the context for it.
+        citations.extend(
+            _requirements_behind(context, [item.unit for item in result.results])
+        )
         context.side.record(
             tool_call_id,
             ToolOutcome(

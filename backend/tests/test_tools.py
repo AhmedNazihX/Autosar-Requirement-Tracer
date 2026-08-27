@@ -332,6 +332,60 @@ def test_search_code_fences_the_source_it_shows(context):
     assert payload.count("<<<SOURCE>>>") == 2
 
 
+def test_search_code_cites_the_requirements_its_code_is_tied_to(context):
+    """"Where is X defined?" must reach the specification, not only the code.
+
+    `search_code` was the one tool citing a single side. The source pane
+    resolves the other half itself, but it does so into a tab the user is not
+    looking at — so a question answered entirely from code left the
+    specification invisible unless the reader thought to switch tabs. Emitting
+    the requirement as its own chip puts the link in the transcript, where the
+    reader already is.
+    """
+    ctx, _ = make(context)
+
+    call(ctx, "search_code", symbol="CanIf_ControllerBusOff")
+
+    citations = ctx.side.outcome("call_1").citations
+    assert any(isinstance(one, CodeCitation) for one in citations)
+    requirements = [one for one in citations if isinstance(one, RequirementCitation)]
+    assert [one.req_id for one in requirements] == ["SWS_Can_00272"]
+
+
+def test_search_code_puts_its_code_citation_first(context):
+    """The pane opens on the first citation, and the code is the answer here.
+
+    `targetForEvents` (frontend/lib/source-target.ts) takes the first citation
+    of a turn, so this ordering is what keeps "where is X defined?" opening on
+    the Code tab rather than jumping to a PDF page.
+    """
+    ctx, _ = make(context)
+
+    call(ctx, "search_code", symbol="CanIf_ControllerBusOff")
+
+    citations = ctx.side.outcome("call_1").citations
+    assert isinstance(citations[0], CodeCitation)
+
+
+def test_search_code_never_cites_a_requirement_the_code_denies(context):
+    """A `!req` says the developers believe this code does NOT implement it.
+
+    Citing it under an answer about what the code *is* would invert its
+    meaning — the same rule `bestRequirementLink` applies in the pane.
+    """
+    ctx, _ = make(context)
+
+    call(ctx, "search_code", symbol="CanIf_Transmit")
+
+    cited = {
+        one.req_id
+        for one in ctx.side.outcome("call_1").citations
+        if isinstance(one, RequirementCitation)
+    }
+    assert "SWS_CANIF_00023" in cited, "the claimed requirement should be cited"
+    assert "SWS_CANIF_00329" not in cited, "a !req was cited as evidence"
+
+
 def test_search_code_reports_the_line_span_the_pane_scrolls_to(context):
     ctx, _ = make(context)
     payload = call(ctx, "search_code", symbol="CanIf_ControllerBusOff")
