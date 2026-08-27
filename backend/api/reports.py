@@ -33,6 +33,7 @@ must match them rather than invent a second shape.
 
 from __future__ import annotations
 
+import logging
 import queue
 import threading
 import uuid
@@ -50,6 +51,8 @@ from core import db, llm
 from core.config import get_settings
 from engines import report
 from engines.report import EXPORT_FORMATS, MEDIA_TYPES, ReportResult, ReportScope, ScopeError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["reports"])
 
@@ -365,7 +368,15 @@ def _record(
             actual_cost_usd=cost,
             result=result.model_dump(mode="json") if result is not None else None,
         )
-    except Exception:  # noqa: BLE001 - a failed write must not fail the run
+    except Exception as exc:  # noqa: BLE001 - a failed write must not fail the run
+        # The result stays servable from the in-process registry; what was
+        # lost is the durable record a restart would have read.
+        logger.warning(
+            "report run %s finished but its record could not be written (%s: %s)",
+            run_id,
+            type(exc).__name__,
+            exc,
+        )
         return
 
 
@@ -375,7 +386,7 @@ def _record(
 
 
 @router.get("/reports", response_model=list[RunView])
-def list_runs(state: deps.AppState = Depends(deps.state_of)) -> list[RunView]:
+def list_runs() -> list[RunView]:
     """The runs this process knows about, newest first.
 
     In-process only. A run from before a restart lives in ``report_runs`` and
@@ -392,7 +403,7 @@ def get_run(run_id: str, state: deps.AppState = Depends(deps.state_of)) -> RunVi
 
 
 @router.delete("/reports/{run_id}", response_model=RunView)
-def cancel_run(run_id: str, state: deps.AppState = Depends(deps.state_of)) -> RunView:
+def cancel_run(run_id: str) -> RunView:
     """Stop a run that is still going.
 
     Not in spec §6, and added deliberately: a scope of 398 requirements spends

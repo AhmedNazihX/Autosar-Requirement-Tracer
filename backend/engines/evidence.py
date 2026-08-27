@@ -51,6 +51,7 @@ model that will not answer — each is a returned verdict, because this runs
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -65,6 +66,8 @@ from retrieval import pipeline
 from retrieval.lookup import InvalidRequirementId, lookup
 from retrieval.pipeline import Engine, PipelineUsage, StageLog
 from retrieval.prompting import clip, fence
+
+logger = logging.getLogger(__name__)
 
 #: Candidates the judge is shown. Spec §5 says "≤8 total"; the budget is spent
 #: annotations first, then anchors, then semantic fill.
@@ -285,7 +288,15 @@ def semantic_candidates(
         return [], PipelineUsage(), ()
     try:
         result = pipeline.search_code(engine, query=query, top_n=top_n, use_rerank=False)
-    except Exception:  # noqa: BLE001 - one row must not end a 398-row report
+    except Exception as exc:  # noqa: BLE001 - one row must not end a 398-row report
+        # The one degradation nothing else surfaces: the judge silently gets
+        # a worse candidate set. Leave the trail the verdict cannot carry.
+        logger.warning(
+            "semantic candidates unavailable for %s; judging on the cheap tiers only (%s: %s)",
+            requirement.id,
+            type(exc).__name__,
+            exc,
+        )
         return [], PipelineUsage(), ()
     return (
         [Candidate(unit=item.unit, found_by=BY_SEMANTIC) for item in result.results],

@@ -10,6 +10,7 @@ follow loop would never execute — so the stream is stepped directly through
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -256,6 +257,23 @@ def test_a_finished_run_is_persisted_and_readable_after_the_registry_forgets(wir
     assert body["status"] == "succeeded"
     assert len(body["result"]["rows"]) == 2
     assert db.get_report_run(state.pool, job_id)["actual_cost_usd"] is not None
+
+
+def test_a_record_write_failure_never_fails_the_run(wired, monkeypatch, caplog):
+    """The run's result stays servable from the registry; losing the durable
+    record is survivable but must not be invisible."""
+    client, script, state, _ = wired
+    script(*[verdict()] * 2)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("core.db.finish_report_run", boom)
+    with caplog.at_level(logging.WARNING, logger="api.reports"):
+        job_id = client.post("/reports", json={"scope": {"module": "CanIf"}}).json()["job_id"]
+
+    assert client.get(f"/reports/{job_id}").json()["status"] == "succeeded"
+    assert any(job_id in record.getMessage() for record in caplog.records)
 
 
 def test_an_unknown_run_is_a_404(wired):

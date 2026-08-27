@@ -14,6 +14,7 @@ suite call OpenRouter for real — the suite got 50% slower and nothing failed.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import httpx
@@ -277,16 +278,18 @@ def test_an_already_titled_thread_is_never_retitled(wired):
     assert http.get("/threads/thr_t").json()["title"] == "My name"
 
 
-def test_a_failing_titler_leaves_the_thread_untitled(wired):
+def test_a_failing_titler_leaves_the_thread_untitled_and_says_so(wired, caplog):
     http, state, _ = wired
     http.post("/threads", json={"id": "thr_t"})
 
-    result = threads.autotitle(
-        state, "thr_t", "q", titler(httpx.Response(503, json={"error": {"message": "x"}}))
-    )
+    with caplog.at_level(logging.WARNING, logger="api.threads"):
+        result = threads.autotitle(
+            state, "thr_t", "q", titler(httpx.Response(503, json={"error": {"message": "x"}}))
+        )
 
     assert result is None
     assert http.get("/threads/thr_t").json()["title"] == threads.UNTITLED
+    assert any("thr_t" in record.getMessage() for record in caplog.records)
 
 
 def test_no_titler_means_no_network_call_and_no_title(wired):

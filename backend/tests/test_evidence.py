@@ -7,6 +7,8 @@ suite is a decision the test made rather than one a model happened to reach.
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 import pytest
 
@@ -179,6 +181,27 @@ def test_gather_caps_candidates_at_the_spec_limit(parts):
     )
 
     assert len(candidates) == 2
+
+
+def test_a_semantic_search_failure_degrades_loudly_not_silently(parts, monkeypatch, caplog):
+    """The judge falls back to the cheap tiers — a worse answer, and the one
+    failure nothing else surfaces. It must at least leave a trail."""
+    engine, _, _ = build_engine(parts)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("chroma exploded")
+
+    monkeypatch.setattr(evidence.pipeline, "search_code", boom)
+    with caplog.at_level(logging.WARNING, logger="engines.evidence"):
+        found, usage, stages = evidence.semantic_candidates(
+            engine, requirement_of(parts, "SWS_Can_00011")
+        )
+
+    assert found == [] and stages == ()
+    assert any(
+        "semantic" in record.getMessage() and "SWS_Can_00011" in record.getMessage()
+        for record in caplog.records
+    ), "the degraded verdict must be traceable to its cause"
 
 
 def test_gather_skips_the_paid_semantic_pass_when_the_cheap_tiers_suffice(parts):

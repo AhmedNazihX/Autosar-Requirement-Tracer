@@ -25,6 +25,7 @@ idempotent about thread existence.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -41,6 +42,8 @@ from api.chat_events import ChatEvent, ChatEventEnvelope, ErrorEvent, sse_frame
 from api.ratelimit import RateLimiter, client_key
 from core import db
 from core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
@@ -242,7 +245,16 @@ def _persist(
             content=_answer_text(events),
             parent_message_id=user_id,
         )
-    except Exception:  # noqa: BLE001 - the answer was already delivered
+    except Exception as exc:  # noqa: BLE001 - the answer was already delivered
+        # The user has their answer on screen; what was lost is the stored
+        # copy. That is survivable — the frontend keeps the transcript — but
+        # it must not be invisible.
+        logger.warning(
+            "the answer for thread %s was delivered but could not be persisted (%s: %s)",
+            thread_id,
+            type(exc).__name__,
+            exc,
+        )
         return
     # Story S3.5.3: name the thread from its first message. Best-effort — a
     # failure here leaves it untitled, which the sidebar already handles.

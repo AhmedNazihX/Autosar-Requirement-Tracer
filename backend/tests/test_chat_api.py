@@ -19,6 +19,7 @@ What is pinned down:
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import httpx
@@ -320,6 +321,24 @@ def test_the_assistant_content_is_the_joined_tokens(wired):
 
     stored = db.list_messages(wired["parts"]["conn"], THREAD)
     assert stored[1]["content"] == "Hello there."
+
+
+def test_a_persist_failure_never_takes_down_the_delivered_answer(wired, monkeypatch, caplog):
+    """The transcript must never depend on persistence succeeding — but a
+    turn the user paid for vanishing from the thread must leave a trail."""
+    wired["script"](says("Hello."))
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("core.db.create_message", boom)
+    with caplog.at_level(logging.WARNING, logger="api.chat"):
+        response = post(wired["state"], "hello")
+
+    kinds = [event["type"] for event in frames(response)]
+    assert kinds[-1] == "done", "the answer was already delivered"
+    assert db.list_messages(wired["parts"]["conn"], THREAD) == []
+    assert any(THREAD in record.getMessage() for record in caplog.records)
 
 
 def test_a_failed_turn_is_still_stored(wired):

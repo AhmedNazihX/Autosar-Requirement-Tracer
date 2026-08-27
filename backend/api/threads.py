@@ -19,6 +19,8 @@ the frontend already falls back to the first user message.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -27,6 +29,8 @@ from api import deps
 from core import db, llm
 from core.llm import system, user
 from retrieval.prompting import fence
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/threads", tags=["threads"])
 
@@ -410,7 +414,13 @@ def autotitle(
                 ),
             ]
         )
-    except Exception:  # noqa: BLE001 - a title is never worth failing a turn
+    except Exception as exc:  # noqa: BLE001 - a title is never worth failing a turn
+        logger.warning(
+            "autotitle failed for thread %s; leaving it untitled (%s: %s)",
+            thread_id,
+            type(exc).__name__,
+            exc,
+        )
         return None
 
     title = _clean_title(completion.text)
