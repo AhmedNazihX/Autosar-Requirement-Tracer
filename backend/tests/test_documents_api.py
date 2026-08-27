@@ -45,6 +45,13 @@ def client(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(documents, "repo_dir", lambda manifest: snapshot)
 
+    # The PDF endpoint reads `data/docs/`, which is gitignored and absent on a
+    # fresh clone — point it at a tmp directory holding one stand-in file.
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "AUTOSAR_CP_SWS_CANInterface.pdf").write_bytes(b"%PDF-1.7\nstand-in\n")
+    monkeypatch.setattr(documents, "docs_dir", lambda manifest: docs)
+
     state = deps.AppState(
         manifest=MANIFEST,
         pool=parts["conn"],
@@ -258,3 +265,60 @@ def test_every_read_endpoint_reports_an_unindexed_corpus_as_503():
         response = http.get(path)
         assert response.status_code == 503, path
         assert "no index" in response.json()["detail"]
+
+
+# --------------------------------------------------------------------------
+# GET /documents/{doc}/file  (story S5.3.1)
+# --------------------------------------------------------------------------
+
+
+def test_the_pdf_is_served_inline_for_pdfjs(client):
+    """Spec §7 needs the bytes; `/view` returns coordinates only."""
+    http, _, _ = client
+
+    response = http.get("/documents/can_interface/file")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    # Inline, not an attachment: pdf.js reads it, the browser must not offer
+    # to save it.
+    assert response.headers["content-disposition"].startswith("inline")
+    assert response.content.startswith(b"%PDF")
+
+
+def test_an_unknown_document_key_is_a_404_naming_the_known_ones(client):
+    http, _, _ = client
+
+    response = http.get("/documents/nope/file")
+
+    assert response.status_code == 404
+    assert "can_interface" in response.json()["detail"]
+
+
+def test_a_document_whose_pdf_was_never_fetched_says_to_ingest(client):
+    """`data/` is gitignored, so this is the fresh-clone case, not an error."""
+    http, _, _ = client
+
+    response = http.get("/documents/can_driver/file")
+
+    assert response.status_code == 404
+    assert "ingestion" in response.json()["detail"].lower()
+
+
+@pytest.mark.parametrize(
+    "attempt",
+    ["../../etc/passwd", "..%2F..%2Fetc%2Fpasswd", "can_interface/../../../etc/passwd"],
+)
+def test_the_pdf_endpoint_has_no_path_to_traverse(client, attempt: str):
+    """`doc` is a manifest key, not a path.
+
+    The filename comes from the matched manifest entry, so a traversal cannot
+    be expressed — this asserts the shape rather than a sanitiser, because
+    there is no sanitiser to get wrong.
+    """
+    http, _, _ = client
+
+    response = http.get(f"/documents/{attempt}/file")
+
+    assert response.status_code == 404
+    assert b"root:" not in response.content

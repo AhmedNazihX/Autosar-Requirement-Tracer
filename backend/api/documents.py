@@ -27,10 +27,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
 from api import deps
 from ingestion.code_fetcher import repo_dir
+from ingestion.fetcher import docs_dir
 from retrieval.lookup import InvalidRequirementId, lookup
 
 router = APIRouter(tags=["documents"])
@@ -190,6 +192,56 @@ def view_document(
             "bbox": hit.requirement.bbox,
             "highlight": hit.requirement.id,
         }
+    )
+
+
+@router.get("/documents/{doc}/file")
+def get_document_file(
+    doc: str, state: deps.AppState = Depends(deps.state_of)
+) -> FileResponse:
+    """The document's PDF bytes, for pdf.js to render (story S5.3.1).
+
+    **Spec §6 does not list this endpoint and spec §7 cannot work without it.**
+    §7 requires Tab A to render "the real SWS PDF page via pdf.js", and
+    ``/documents/{doc}/view`` deliberately returns coordinates only — so
+    nothing in the design actually hands the browser a PDF. This closes that
+    gap and nothing more.
+
+    **There is no path to traverse.** ``doc`` is a manifest *key*, matched
+    against the manifest's own document list; the filename comes from the
+    matched entry, never from the request. A caller cannot express a path here
+    even in principle, which is a stronger position than sanitising one — the
+    same rule ``/code/{path}`` has to enforce the hard way because its input
+    really is a path.
+
+    The PDFs are fetched to a gitignored ``data/`` directory at ingestion and
+    served only to the local user who fetched them; this is a local-only
+    application (spec §11) and nothing here republishes AUTOSAR's documents.
+    """
+    ready = _require_ready(state)
+    entry = next((one for one in ready.manifest.documents if one.key == doc), None)
+    if entry is None:
+        known = ", ".join(one.key for one in ready.manifest.documents)
+        raise HTTPException(
+            status_code=404,
+            detail=f"No document {doc!r} in this corpus. Known documents: {known}.",
+        )
+
+    path = docs_dir(ready.manifest) / entry.filename
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"{entry.filename} has not been fetched. Run the ingestion CLI — "
+                "the PDFs live in a gitignored data/ directory, so a fresh clone "
+                "has none of them."
+            ),
+        )
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        # Inline: pdf.js reads it, the browser must not offer to save it.
+        headers={"Content-Disposition": f'inline; filename="{entry.filename}"'},
     )
 
 
