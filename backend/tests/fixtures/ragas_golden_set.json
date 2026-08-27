@@ -1,7 +1,7 @@
 {
   "corpus_version": "R23-11",
-  "authored": "hand-written from the requirement text in the ingested corpus",
-  "count": 25,
+  "authored": "lookup questions hand-written from the requirement text of the original 4-document corpus; enumeration questions (kind: enumeration) hand-verified against the 7-document corpus and added 2026-08-28",
+  "count": 35,
   "items": [
     {
       "id": "can-bus-off-controller-state",
@@ -227,6 +227,142 @@
         "SWS_CanTp_00002"
       ],
       "doc": "can_transport"
+    },
+    {
+      "id": "can-write-det-errors-enum",
+      "kind": "enumeration",
+      "question": "Which requirements define the development errors that Can_Write shall raise, and under what conditions?",
+      "reference": "With development error detection enabled, Can_Write raises CAN_E_UNINIT when the driver is not yet initialized, CAN_E_PARAM_HANDLE when the Hth parameter is not a configured Hardware Transmit Handle, CAN_E_PARAM_DATA_LENGTH when the length exceeds 64 byte or exceeds 8 byte without the controller being in CAN FD mode, and CAN_E_PARAM_POINTER when PduInfo is a null pointer or when trigger transmit is disabled for the hardware object and the SDU pointer inside PduInfo is a null pointer; in every case the function returns E_NOT_OK.",
+      "reference_context_ids": [
+        "SWS_Can_00216",
+        "SWS_Can_00217",
+        "SWS_Can_00218",
+        "SWS_Can_00219",
+        "SWS_Can_00505",
+        "SWS_Can_00526"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "can-config-constraints-enum",
+      "kind": "enumeration",
+      "question": "What are all the configuration constraints defined by the CAN Driver specification?",
+      "reference": "The CAN Driver defines five configuration constraints: the module operates as an independent instance in each partition, so a called API targets only the partition it is called in; the ECUC partitions referenced by CanControllerEcucPartitionRef shall be a subset of those referenced by CanEcucPartitionRef; CanController and CanTrcvChannel of one communication channel shall reference the same ECUC partition; if CanEcucPartitionRef references partitions, CanControllerEcucPartitionRef shall have multiplicity one and reference one of them; and CanObjectPayloadLength, if configured, shall be equal or greater than the maximum PduLength of all affected PDUs of the EcuCPduCollection.",
+      "reference_context_ids": [
+        "SWS_Can_CONSTR_00508",
+        "SWS_Can_CONSTR_00509",
+        "SWS_Can_CONSTR_00510",
+        "SWS_Can_CONSTR_00511",
+        "SWS_Can_CONSTR_00512"
+      ],
+      "doc": "can_driver"
+    },
+    {
+      "id": "canif-gettxconfirmationstate-enum",
+      "kind": "enumeration",
+      "question": "Which requirements specify the CanIf_GetTxConfirmationState API — its definition, error handling, and when it can be omitted?",
+      "reference": "Three requirements cover CanIf_GetTxConfirmationState: the API definition (service ID 0x19, synchronous, returning the CanIf_NotifStatusType of a controller's Tx confirmations), the development error CANIF_E_PARAM_CONTROLLERID reported to DET when ControllerId is invalid, and the configuration rule that the API can be omitted by disabling CanIfPublicTxConfirmPollingSupport when CanSM's bus-off recovery does not need the Tx confirmation state.",
+      "reference_context_ids": [
+        "SWS_CANIF_00734",
+        "SWS_CANIF_00736",
+        "SWS_CANIF_00738"
+      ],
+      "doc": "can_interface"
+    },
+    {
+      "id": "cansm-controllerbusoff-enum",
+      "kind": "enumeration",
+      "question": "Which requirements specify the CanSM_ControllerBusOff callback — its API definition, the state machine transitions it triggers, and the development errors it reports?",
+      "reference": "CanSM_ControllerBusOff is defined as service 0x04 taking the ControllerId that detected the bus-off. It triggers the state machine CANSM_BSM and the sub state machine CANSM_BSM_S_FULLCOM of the matching CAN network with T_BUS_OFF, and when several controllers belong to the network CanSM stops the other controllers too in context of E_BUS_OFF. With DET enabled it reports CANSM_E_PARAM_CONTROLLER for a controller not configured as CanSMControllerId and CANSM_E_UNINIT when the module is not initialized.",
+      "reference_context_ids": [
+        "SWS_CanSM_00064",
+        "SWS_CanSM_00500",
+        "SWS_CanSM_00606",
+        "SWS_CanSM_00653",
+        "SWS_CanSM_00189",
+        "SWS_CanSM_00190"
+      ],
+      "doc": "can_statemanager"
+    },
+    {
+      "id": "cantp-changeparameter-enum",
+      "kind": "enumeration",
+      "question": "Which requirements define the behavior and error handling of CanTp_ChangeParameter?",
+      "reference": "CanTp_ChangeParameter (service 0x4b) requests a change of a transport protocol parameter for a PDU. It immediately returns E_NOT_OK without changing anything when the N-SDU is in a reception process; for an N-SDU with MetaData the change applies to all generic connections. With development error detection enabled it raises CANTP_E_PARAM_ID for an invalid parameter, CANTP_E_PARAM_CONFIG for an invalid value, and CANTP_E_INVALID_RX_ID for an invalid id.",
+      "reference_context_ids": [
+        "SWS_CanTp_00302",
+        "SWS_CanTp_00304",
+        "SWS_CanTp_00305",
+        "SWS_CanTp_00338",
+        "SWS_CanTp_00357"
+      ],
+      "doc": "can_transport"
+    },
+    {
+      "id": "cannm-transmit-api-enum",
+      "kind": "enumeration",
+      "question": "Which requirements define the CanNm_Transmit API and when CanNm provides and acts on it?",
+      "reference": "CanNm_Transmit (service 0x49) requests transmission of a PDU and returns E_OK when the request is accepted. The API shall be provided when CanNmComUserDataSupport or CanNmGlobalPnSupport is enabled, and when CanNmComUserDataSupport is enabled and CanNm is in Repeat Message or Normal Operation state a call to CanNm_Transmit requests an additional transmission of the NM PDU with the current user data.",
+      "reference_context_ids": [
+        "SWS_CanNm_00330",
+        "SWS_CanNm_00331",
+        "SWS_CanNm_00333"
+      ],
+      "doc": "can_nm"
+    },
+    {
+      "id": "cannm-immediate-transmissions-enum",
+      "kind": "enumeration",
+      "question": "Which requirements govern immediate NM PDU transmission when the Repeat Message State is entered?",
+      "reference": "When Repeat Message State is entered from Bus Sleep or Prepare Bus Sleep because of CanNm_NetworkRequest (active wakeup) and CanNmImmediateNmTransmissions is greater than zero, NM PDUs are transmitted with CanNmImmediateNmCycleTime and the first transmission is triggered as soon as possible; CanNm shall ensure the configured number of immediate transmissions succeed, retrying a failed CanIf request in the next main function. With CanNmPnHandleMultipleNetworkRequests TRUE the same immediate cycle time applies on a transition from Network Mode and CanNmMsgCycleOffset is not applied. Otherwise — Repeat Message State not entered via CanNm_NetworkRequest, or CanNmImmediateNmTransmissions zero — the transmission is delayed by CanNmMsgCycleOffset.",
+      "reference_context_ids": [
+        "SWS_CanNm_00005",
+        "SWS_CanNm_00334",
+        "SWS_CanNm_00335",
+        "SWS_CanNm_00454"
+      ],
+      "doc": "can_nm"
+    },
+    {
+      "id": "com-rx-timeout-action-enum",
+      "kind": "enumeration",
+      "question": "Which requirements define what the COM module does with a signal's value when its reception deadline monitoring timer expires (ComRxDataTimeoutAction)?",
+      "reference": "On expiry of the reception deadline monitoring timer, COM replaces the signal's value — or the values of all group signals of a signal group — with ComSignalInitValue when ComRxDataTimeoutAction is REPLACE, and with ComTimeoutSubstitutionValue when it is SUBSTITUTE. When the parameter is omitted or NONE no replacement takes place. When both ComRxDataTimeoutAction and a <ComUser_CbkRxTOut> callback are configured, COM performs the timeout action first and then calls the callback.",
+      "reference_context_ids": [
+        "SWS_Com_00470",
+        "SWS_Com_00500",
+        "SWS_Com_00513",
+        "SWS_Com_00744",
+        "SWS_Com_00875",
+        "SWS_Com_00876"
+      ],
+      "doc": "com"
+    },
+    {
+      "id": "pdur-uninit-state-enum",
+      "kind": "enumeration",
+      "question": "Which requirements define the PDU Router's module states and its behavior in the uninitialized state?",
+      "reference": "The PDU Router has two states, PDUR_UNINIT and PDUR_ONLINE, defined by the PduR_StateType enumeration. It is in PDUR_UNINIT after power up, before PduR_Init is called, and performs no routing in that state. With PduRDevErrorDetect enabled, every function except PduR_Init and PduR_GetVersionInfo reports PDUR_E_UNINIT via the DET when called while the module is uninitialized.",
+      "reference_context_ids": [
+        "SWS_PduR_00324",
+        "SWS_PduR_00325",
+        "SWS_PduR_00330",
+        "SWS_PduR_00119",
+        "SWS_PduR_00742"
+      ],
+      "doc": "pdu_router"
+    },
+    {
+      "id": "pdur-config-constraints-enum",
+      "kind": "enumeration",
+      "question": "What constraints does the PDU Router specification place on routing path configuration?",
+      "reference": "The PDU Router defines three configuration constraints: for routing paths with TriggerTransmit transmission from an upper layer module only intra-partition routings are accepted; PduRRoutingPath groups are only accepted when all destination I-PDUs of their routing paths are assigned to the same partition; and the configuration is rejected if an I-PDU owned by the Dds module is routed to or from a module other than SoAd or LdCom.",
+      "reference_context_ids": [
+        "SWS_PduR_CONSTR_00842",
+        "SWS_PduR_CONSTR_00861",
+        "SWS_PduR_CONSTR_00920"
+      ],
+      "doc": "pdu_router"
     }
   ]
 }

@@ -4,7 +4,7 @@
   "embedding_model_id": "openai/text-embedding-3-small",
   "ragas_version": "0.4.3",
   "corpus_version": "R23-11",
-  "questions": 25,
+  "questions": 35,
   "top_n": 5,
   "arms": {
     "naive": [
@@ -12,6 +12,7 @@
         "id": "can-bus-off-controller-state",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00272",
           "SWS_Can_00020",
@@ -20,6 +21,7 @@
           "SWS_CanSM_00666"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.9574908891418848,
         "context_precision": 0.99999999998,
@@ -31,6 +33,7 @@
         "id": "can-mainfunction-read-polling",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00108",
           "SWS_Can_00226",
@@ -39,8 +42,9 @@
           "CTX_can_interface_9.8_02"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.5,
-        "answer_relevancy": 0.7802452110529231,
+        "answer_relevancy": 0.780225147635956,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "The function `Can_MainFunction_Read` polls for RX indications when `CanRxProcessing` is set to `POLLING` or `MIXED`. In the case of `MIXED` processing, it only polls hardware objects for which `CanHardwareObjectUsesPolling` is set to `TRUE`.",
@@ -50,6 +54,7 @@
         "id": "can-setbaudrate-controller-out-of-range",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00494",
           "SWS_Can_00493",
@@ -58,8 +63,9 @@
           "SWS_Can_00206"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.7173541797946724,
+        "answer_relevancy": 0.8146528619118748,
         "context_precision": 0.699999999965,
         "context_recall": 1.0,
         "answer": "If development error detection for the Can module is enabled, the function Can_SetBaudrate shall raise the error CAN_E_PARAM_CONTROLLER and return E_NOT_OK if the parameter Controller is out of range.",
@@ -69,6 +75,7 @@
         "id": "can-hth-transmit-entity",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00401",
           "CTX_can_interface_7.2_03",
@@ -77,6 +84,7 @@
           "CTX_can_interface_9.1_03"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.6181051083050804,
         "context_precision": 0.99999999998,
@@ -88,6 +96,7 @@
         "id": "can-egress-timestamp-bad-handle",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CAN_91027",
           "SWS_Can_00531",
@@ -96,6 +105,7 @@
           "SWS_CAN_91025"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.3546194775322518,
         "context_precision": 0.8874999999778125,
@@ -107,6 +117,7 @@
         "id": "can-mainfunction-write-purpose",
         "arm": "naive",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00225",
           "SWS_Can_00178",
@@ -115,9 +126,10 @@
           "SWS_Can_00233"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9226228240174511,
-        "context_precision": 0.8055555555287036,
+        "answer_relevancy": 0.934073457766584,
+        "context_precision": 0.8333333332916666,
         "context_recall": 1.0,
         "answer": "The service ID for `Can_MainFunction_Write` is `0x01`. This function performs the polling of TX confirmation when `CAN_TX_PROCESSING` is set to `POLLING`.",
         "error": null
@@ -126,6 +138,7 @@
         "id": "canif-no-direct-buffer-access",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00023",
           "CTX_can_interface_2_09",
@@ -134,9 +147,10 @@
           "CTX_can_transport_1_02"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9090919151917762,
-        "context_precision": 0.99999999998,
+        "answer_relevancy": 0.9090937247839378,
+        "context_precision": 0.8041666666465626,
         "context_recall": 1.0,
         "answer": "The CAN Interface shall avoid direct access to hardware-specific communication buffers. It shall access these buffers exclusively via CanDrv interface services.",
         "error": null
@@ -145,6 +159,7 @@
         "id": "canif-setdynamictxid-invalid",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00352",
           "SWS_CANIF_00944",
@@ -153,8 +168,9 @@
           "SWS_CANIF_00355"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.75,
-        "answer_relevancy": 0.9486743896614872,
+        "answer_relevancy": 0.9460199565275035,
         "context_precision": 0.99999999995,
         "context_recall": 1.0,
         "answer": "When `CanIf_SetDynamicTxId()` is called with an invalid `CanIfTxSduId`, the CanIf module shall report the development error code `CANIF_E_INVALID_TXPDUID` to the `Det_ReportError` service of the DET module. This also applies if the `CanIfTxSduId` refers to a `CanIfTxPduCfg` with `CanIfTxPduXLParams`.",
@@ -164,6 +180,7 @@
         "id": "canif-setbaudrate-delegates",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "CTX_can_interface_8.3.23_01",
           "SWS_CANIF_00868",
@@ -172,9 +189,10 @@
           "SWS_CanSM_00639"
         ],
         "hit": true,
-        "faithfulness": 0.8,
+        "id_recall": 1.0,
+        "faithfulness": 1.0,
         "answer_relevancy": 0.877168334020321,
-        "context_precision": 0.8666666666377778,
+        "context_precision": 0.94999999997625,
         "context_recall": 1.0,
         "answer": "The service `CanIf_SetBaudrate()` calls `Can_SetBaudrate()` for the requested CAN Controller. It uses the `ControllerId` and `BaudRateConfigID` parameters to specify which CAN controller's baud rate should be set and to what configuration. The `BaudRateConfigID` is not checked by CanIf, but by the responsible CanDrv.",
         "error": null
@@ -183,6 +201,7 @@
         "id": "canif-egress-timestamp-pointer",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_91012",
           "SWS_CAN_91027",
@@ -191,8 +210,9 @@
           "SWS_CANIF_91013"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.6857382988122493,
+        "answer_relevancy": 0.6869920654389353,
         "context_precision": 0.999999999975,
         "context_recall": 1.0,
         "answer": "If development error detection is enabled, the function `CanIf_GetEgressTimeStamp` shall check the parameter `timeStampPtr` for being valid. If this check fails, the function shall raise the development error `CANIF_E_PARAM_POINTER`.",
@@ -202,6 +222,7 @@
         "id": "canif-cleartrcvwufflag-configurable",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00766",
           "SWS_CANIF_00771",
@@ -210,8 +231,9 @@
           "SWS_CANIF_00757"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9105960751329354,
+        "answer_relevancy": 0.9105968051381111,
         "context_precision": 0.49999999995,
         "context_recall": 0.5,
         "answer": "The availability of `CanIf_ClearTrcvWufFlag()` is configurable at pre-compile time. This is determined by the configuration parameters `CanIfPublicPnSupport` and `CanIfPublicTrcvPnEnable`.",
@@ -221,6 +243,7 @@
         "id": "canif-user-rxindication-config",
         "arm": "naive",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00135",
           "SWS_CANIF_00415",
@@ -229,8 +252,9 @@
           "SWS_CANIF_00945"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9980376325372061,
+        "answer_relevancy": 0.9999995235396263,
         "context_precision": 0.8041666666465626,
         "context_recall": 1.0,
         "answer": "The upper layer's RxIndication callback is configured by `CanIfRxPduUserRxIndicationUL`, which specifies the upper layer module providing the callback service. When `CanIf_RxIndication()` is called, the CanIf routes this indication to the configured upper layer target service(s). If an upper layer module is configured to be called with its receive indication service, the CanIf calls this configured callback service, `CanIfRxPduUserRxIndicationName`, with the necessary parameters.",
@@ -240,6 +264,7 @@
         "id": "cansm-txtimeout-uninit",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00411",
           "SWS_CanSM_00412",
@@ -248,8 +273,9 @@
           "SWS_CanSM_00410"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9368899740909398,
+        "answer_relevancy": 0.9368172575274679,
         "context_precision": 0.8041666666465626,
         "context_recall": 1.0,
         "answer": "If the CanSM module is not initialized, the function CanSM_TxTimeoutException shall report CANSM_E_UNINIT to the DET.",
@@ -259,6 +285,7 @@
         "id": "cansm-setbaudrate-optional",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00570",
           "SWS_CanSM_00530",
@@ -267,8 +294,9 @@
           "SWS_CanSM_00502"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8290905192705386,
+        "answer_relevancy": 0.8276805316124626,
         "context_precision": 0.8333333332916666,
         "context_recall": 1.0,
         "answer": "The CanSM module shall not provide the API function CanSM_SetBaudrate if the CanSMSetBaudrateApi is configured with the value FALSE. Conversely, it shall provide this function if CanSMSetBaudrateApi is configured with the value TRUE.",
@@ -278,6 +306,7 @@
         "id": "cansm-cc-stopped-timeout",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "CTX_can_statemanager_7.2.23.16_01",
           "SWS_CanSM_00576",
@@ -286,17 +315,19 @@
           "SWS_CanSM_00445"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8454593789313473,
-        "context_precision": 0.99999999998,
+        "answer_relevancy": 0.6566301655796025,
+        "context_precision": 0.8874999999778125,
         "context_recall": 1.0,
-        "answer": "T_CC_STOPPED_TIMEOUT is triggered after a timeout of CANSM_MODEREQ_REPEAT_TIME. This timeout occurs when all expected controller stopped mode indications have not been received. This condition then triggers various sub-state machines, such as CANSM_BSM_S_TX_TIMEOUT_EXCEPTION, CANSM_BSM_S_PRE_FULLCOM, CANSM_BSM_DeinitPnNotSupported, or CANSM_BSM_DeinitPnSupported, with T_CC_STOPPED_TIMEOUT.",
+        "answer": "A timeout of `CANSM_MODEREQ_REPEAT_TIME` for all expected controller stopped mode indications triggers `T_CC_STOPPED_TIMEOUT`. This condition can trigger various sub-state machines, including `CANSM_BSM_S_TX_TIMEOUT_EXCEPTION`, `CANSM_BSM_S_PRE_FULLCOM`, `CANSM_BSM_DeinitPnNotSupported`, and `CANSM_BSM_DeinitPnSupported`.",
         "error": null
       },
       {
         "id": "cansm-trcv-normal-indicated",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00474",
           "SWS_CanSM_00448",
@@ -305,8 +336,9 @@
           "CTX_can_interface_8.3.14_02"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9815791003218969,
+        "answer_relevancy": 0.9815852786056087,
         "context_precision": 0.32499999998375,
         "context_recall": 1.0,
         "answer": "If the CanSM module receives a CANTRCV_TRCVMODE_NORMAL mode indication for a configured CAN Transceiver after a request, it triggers a sub-state machine of the CAN network with T_TRCV_NORMAL_INDICATED. Depending on the specific request, this could be CANSM_BSM_DeinitPnNotSupported, CANSM_BSM_DeinitPnSupported, CANSM_BSM_S_PRE_FULLCOM, or CANSM_BSM_WUVALIDATION.",
@@ -316,6 +348,7 @@
         "id": "cansm-e-tx-on-effect",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00648",
           "CTX_can_statemanager_7.2.21.6_01",
@@ -324,8 +357,9 @@
           "SWS_CanSM_00539"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.7106394071643338,
+        "answer_relevancy": 0.7105799351607701,
         "context_precision": 0.8041666666465626,
         "context_recall": 1.0,
         "answer": "If ECU passive is FALSE, the E_TX_ON effect of the sub state machine CANSM_BSM_S_FULLCOM calls the API function CanIf_SetPduMode. This function is called with the parameters ControllerId set to CanSMControllerId and PduModeRequest set to CANIF_ONLINE for the configured CAN controllers of the CAN network.",
@@ -335,6 +369,7 @@
         "id": "cansm-init-signature",
         "arm": "naive",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00023",
           "SWS_CanSM_00423",
@@ -343,9 +378,10 @@
           "SWS_CanSM_00611"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8478518420557072,
-        "context_precision": 0.9999999999666667,
+        "answer_relevancy": 0.8478926572332631,
+        "context_precision": 0.8333333332916666,
         "context_recall": 1.0,
         "answer": "The signature of `CanSM_Init` is `void CanSM_Init ( const CanSM_ConfigType* ConfigPtr )`. This service is non-reentrant.",
         "error": null
@@ -354,6 +390,7 @@
         "id": "cantp-tx-success-notification",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00090",
           "SWS_CanTp_00177",
@@ -362,17 +399,19 @@
           "SWS_CANIF_00383"
         ],
         "hit": true,
-        "faithfulness": 0.5,
-        "answer_relevancy": 0.7416709543564498,
+        "id_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7897471505057997,
         "context_precision": 0.94999999997625,
         "context_recall": 1.0,
-        "answer": "When a transport transmission session is successfully completed, the CanTp module notifies the upper layer by calling the `PduR_CanTpTxConfirmation()` service with the result `E_OK`. This callback indicates that the transmit request has been fully processed.",
+        "answer": "When a transmission completes successfully, the CanTp module notifies the upper layer by calling the `PduR_CanTpTxConfirmation()` service with the result `E_OK`. This callback indicates that the transmit request has been fully processed.",
         "error": null
       },
       {
         "id": "cantp-n-cr-timeout",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00313",
           "SWS_CanTp_00366",
@@ -381,6 +420,7 @@
           "CTX_can_transport_10.2.6_07"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.9363938293940687,
         "context_precision": 0.99999999998,
@@ -392,6 +432,7 @@
         "id": "cantp-rxindication-context",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00235",
           "SWS_CanTp_00236",
@@ -400,10 +441,11 @@
           "CTX_can_interface_8.6.3.3_02"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9066775332167327,
+        "answer_relevancy": 0.9066694901183547,
         "context_precision": 0.99999999998,
-        "context_recall": 1.0,
+        "context_recall": 0.5,
         "answer": "Yes, the function `CanTp_RxIndication` shall be callable in an interrupt context. It can be called from the CAN receive interrupt.",
         "error": null
       },
@@ -411,6 +453,7 @@
         "id": "cantp-transmit-request-notify",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00177",
           "SWS_CanTp_00204",
@@ -419,8 +462,9 @@
           "SWS_CANIF_00005"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.915696574976319,
+        "answer_relevancy": 0.9297954677004848,
         "context_precision": 0.99999999995,
         "context_recall": 1.0,
         "answer": "After a transmit request has been accepted, the CanTp module must notify its upper layer when the N-SDU transfer is fully processed, whether successfully or not. This notification is done by calling the PduR_CanTpTxConfirmation callback when the transmit request has been completed.",
@@ -430,6 +474,7 @@
         "id": "cantp-metadata-fc-check",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00333",
           "SWS_CanTp_00336",
@@ -438,6 +483,7 @@
           "CTX_can_transport_5_04"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.9133446958693822,
         "context_precision": 0.99999999995,
@@ -449,6 +495,7 @@
         "id": "cantp-fc-first-byte-addressing",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00283",
           "SWS_CanTp_00281",
@@ -457,8 +504,9 @@
           "CTX_can_transport_2_18"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.6666666666666666,
-        "answer_relevancy": 0.9219575200442541,
+        "answer_relevancy": 0.9219759304409116,
         "context_precision": 0.94999999997625,
         "context_recall": 1.0,
         "answer": "For extended addressing, the first data byte of the flow control (FC) frame contains the N_TA value or a unique combination of N_TA and N_TAtype value. For mixed addressing, the first data byte of the FC contains the N_AE value.",
@@ -468,6 +516,7 @@
         "id": "cantp-type-naming-rules",
         "arm": "naive",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00002",
           "CTX_can_nm_10.2.3_51",
@@ -476,11 +525,222 @@
           "SWS_CanTp_00340"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8712401595293037,
+        "answer_relevancy": 0.8712290649524038,
         "context_precision": 0.9999999999666667,
         "context_recall": 1.0,
         "answer": "The CanTp module must label any additional types it defines as `CanTp_<TypeName> Type`. The `<TypeName>` must not use underscores, and the first letter of each word must be uppercase with consecutive letters lowercase. Additionally, the CanTp module must ensure these implementation-specific types are not visible outside of CanTp.",
+        "error": null
+      },
+      {
+        "id": "can-write-det-errors-enum",
+        "arm": "naive",
+        "doc": "can_driver",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_Can_00216",
+          "SWS_Can_00217",
+          "SWS_Can_00219",
+          "SWS_Can_00526",
+          "SWS_Can_00505"
+        ],
+        "hit": true,
+        "id_recall": 0.8333333333333334,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8133859720792124,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.4,
+        "answer": "The `Can_Write` function shall raise `CAN_E_UNINIT` if the driver is not initialized, and `CAN_E_PARAM_HANDLE` if the parameter Hth is not a configured Hardware Transmit Handle. It shall also raise `CAN_E_PARAM_POINTER` if the parameter PduInfo is a null pointer, or if the SDU pointer inside PduInfo is a null pointer when the trigger transmit API is disabled for the hardware object. These errors are raised when development error detection for the Can module or CanDrv is enabled.",
+        "error": null
+      },
+      {
+        "id": "can-config-constraints-enum",
+        "arm": "naive",
+        "doc": "can_driver",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "CTX_can_interface_10.1_01",
+          "CTX_can_interface_10.1.1_02",
+          "CTX_can_statemanager_6_44",
+          "CTX_can_statemanager_6_48",
+          "SWS_Can_00024"
+        ],
+        "hit": false,
+        "id_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7624858422980164,
+        "context_precision": 0.8055555555287036,
+        "context_recall": 0.0,
+        "answer": "The CAN Driver specification defines that the bit timing of each CAN Controller shall be configurable, and Hardware Object Handles shall be provided for the CAN Interface in the static configuration file. Additionally, the TX-Buffer shall be statically configurable. The valid values for configuration are hardware dependent, so specific rules and constraints are not given in the standard.",
+        "error": null
+      },
+      {
+        "id": "canif-gettxconfirmationstate-enum",
+        "arm": "naive",
+        "doc": "can_interface",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CANIF_00738",
+          "SWS_CANIF_00734",
+          "SWS_CANIF_00736",
+          "CTX_can_interface_8.4.2_02",
+          "SWS_CANIF_00412"
+        ],
+        "hit": true,
+        "id_recall": 1.0,
+        "faithfulness": 0.6,
+        "answer_relevancy": 0.8815290820402791,
+        "context_precision": 0.9999999999666667,
+        "context_recall": 1.0,
+        "answer": "The `CanIf_GetTxConfirmationState` API is defined by `SWS_CANIF_00734`, which specifies its syntax, parameters, return value, and a description of its function. Error handling for invalid `ControllerId` parameters is specified in `SWS_CANIF_00736`, which requires reporting `CANIF_E_PARAM_CONTROLLERID` to the DET module. `SWS_CANIF_00738` states that this API can be omitted by disabling `CanIfPublicTxConfirmPollingSupport` if BusOff Recovery of CanSm does not require the status of Tx confirmations.",
+        "error": null
+      },
+      {
+        "id": "cansm-controllerbusoff-enum",
+        "arm": "naive",
+        "doc": "can_statemanager",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanSM_00606",
+          "SWS_CanSM_00064",
+          "SWS_CanSM_00500",
+          "SWS_CANIF_00724",
+          "CTX_can_driver_7.3_02"
+        ],
+        "hit": true,
+        "id_recall": 0.5,
+        "faithfulness": 0.8333333333333334,
+        "answer_relevancy": 0.7401360266378609,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.5,
+        "answer": "The API definition of `CanSM_ControllerBusOff` is specified by SWS_CanSM_00064, detailing its syntax, parameters, return value, and description. SWS_CanSM_00606 and SWS_CanSM_00500 state that this callback function triggers the state machine CANSM_BSM or the sub state machine CANSM_BSM_S_FULLCOM, respectively, with T_BUS_OFF for the relevant CAN network. The provided passages do not cover the development errors reported by `CanSM_ControllerBusOff`.",
+        "error": null
+      },
+      {
+        "id": "cantp-changeparameter-enum",
+        "arm": "naive",
+        "doc": "can_transport",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanTp_00305",
+          "SWS_CanTp_00357",
+          "SWS_CanTp_00302",
+          "CTX_can_transport_8.3.7_01",
+          "SWS_CanTp_00304"
+        ],
+        "hit": true,
+        "id_recall": 0.8,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9410086161510319,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.75,
+        "answer": "The behavior and error handling of `CanTp_ChangeParameter` are defined by several requirements. `SWS_CanTp_00302` specifies its syntax, service ID, reentrancy, and return values, while `CTX_can_transport_8.3.7_01` describes its purpose to change reception parameters like BS and STmin. Error handling for invalid parameters is detailed in `SWS_CanTp_00305` and `SWS_CanTp_00357`, which specify raising `CANTP_E_PARAM_ID`, `CANTP_E_PARAM_CONFIG`, or `CANTP_E_INVALID_RX_ID` for invalid inputs. Additionally, `SWS_CanTp_00304` states that if a parameter change is requested for an N-SDU already in reception, the service immediately returns `E_NOT_OK`.",
+        "error": null
+      },
+      {
+        "id": "cannm-transmit-api-enum",
+        "arm": "naive",
+        "doc": "can_nm",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanNm_00330",
+          "CTX_can_nm_8.3.10_01",
+          "SWS_CanNm_00331",
+          "SWS_CanNm_00333",
+          "CTX_can_nm_7.13_01"
+        ],
+        "hit": true,
+        "id_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8794664424005664,
+        "context_precision": 0.99999999998,
+        "context_recall": 1.0,
+        "answer": "The `CanNm_Transmit` API is provided by the CanNm implementation if `CanNmComUserDataSupport` or `CanNmGlobalPnSupport` is enabled. This API allows for the transmission of an NM PDU, including current user data, between periodic transmissions. CanNm acts on this API by requesting an additional transmission of the NM PDU with the current user data if `CanNmComUserDataSupport` is enabled and CanNm is in the `RepeatMessage` or `NormalOperation` state when `CanNm_Transmit()` is called.",
+        "error": null
+      },
+      {
+        "id": "cannm-immediate-transmissions-enum",
+        "arm": "naive",
+        "doc": "can_nm",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanNm_00005",
+          "SWS_CanNm_00100",
+          "SWS_CanNm_00108",
+          "CTX_can_nm_7.13_01",
+          "SWS_CanNm_00334"
+        ],
+        "hit": true,
+        "id_recall": 0.5,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.6749105905323436,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.5,
+        "answer": "When entering the Repeat Message State from Bus Sleep Mode or Prepare Bus Sleep Mode due to `CanNm_NetworkRequest()` and if `CanNmImmediateNmTransmissions` is greater than zero, NM PDUs shall be transmitted using `CanNmImmediateNmCycleTime`. The transmission of the first NM PDU shall be triggered as soon as possible, and the `CanNmMsgCycleOffset` shall not be applied.",
+        "error": null
+      },
+      {
+        "id": "com-rx-timeout-action-enum",
+        "arm": "naive",
+        "doc": "com",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_Com_00470",
+          "SWS_Com_00875",
+          "SWS_Com_00513",
+          "SWS_Com_00500",
+          "SWS_Com_00876"
+        ],
+        "hit": true,
+        "id_recall": 0.8333333333333334,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.630965724128989,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.75,
+        "answer": "When a signal's reception deadline monitoring timer expires, the ComRxDataTimeoutAction determines the COM module's behavior. If ComRxDataTimeoutAction is set to REPLACE, the signal's value is replaced by its ComSignalInitValue. If ComRxDataTimeoutAction is set to SUBSTITUTE, the signal's value is replaced by its ComTimeoutSubstitutionValue. If ComRxDataTimeoutAction is omitted or set to NONE, the signal's value is not replaced.",
+        "error": null
+      },
+      {
+        "id": "pdur-uninit-state-enum",
+        "arm": "naive",
+        "doc": "pdu_router",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_PduR_00330",
+          "SWS_PduR_00324",
+          "CTX_pdu_router_8.3.1.1_01",
+          "CTX_pdu_router_7.2_03",
+          "SWS_PduR_00325"
+        ],
+        "hit": true,
+        "id_recall": 0.6,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7898352727648631,
+        "context_precision": 0.8874999999778125,
+        "context_recall": 0.6666666666666666,
+        "answer": "The PDU Router module's states are defined as PDUR_UNINIT and PDUR_ONLINE by SWS_PduR_00324. In the uninitialized state (PDUR_UNINIT), the module shall perform no routing, as stated in SWS_PduR_00330. The module is in the PDUR_UNINIT state after power-up and before the PduR_Init function is called, according to SWS_PduR_00325.",
+        "error": null
+      },
+      {
+        "id": "pdur-config-constraints-enum",
+        "arm": "naive",
+        "doc": "pdu_router",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_PduR_00836",
+          "SWS_PduR_00161",
+          "SWS_PduR_00840",
+          "SWS_PduR_00162",
+          "SWS_PduR_00648"
+        ],
+        "hit": false,
+        "id_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.766094835004585,
+        "context_precision": 0.999999999975,
+        "context_recall": 0.0,
+        "answer": "The PDU Router module must only route I-PDUs according to the routing paths defined in its configuration. Each routing path is uniquely identified by the combination of the source module I-PDU ID and the destination I-PDU IDs. The configuration generator also examines the partition assignment of each source/destination I-PDU for all routing path instances, processing a routing path as inter-partition communication if the connected source and target I-PDUs are assigned to different partitions.",
         "error": null
       }
     ],
@@ -489,12 +749,14 @@
         "id": "can-bus-off-controller-state",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00257",
           "SWS_Can_00404",
           "SWS_Can_00258"
         ],
         "hit": false,
+        "id_recall": 0.0,
         "faithfulness": 0.6666666666666666,
         "answer_relevancy": 0.0,
         "context_precision": 0.49999999995,
@@ -506,6 +768,7 @@
         "id": "can-mainfunction-read-polling",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00108",
           "SWS_Can_00226",
@@ -514,8 +777,9 @@
           "SWS_Can_00012"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.75,
-        "answer_relevancy": 0.7802130740929546,
+        "answer_relevancy": 0.7802135471345492,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "The function `Can_MainFunction_Read` polls for RX indications when `CanRxProcessing` is set to `POLLING` or `MIXED`. In the case of `MIXED` processing, only hardware objects for which `CanHardwareObjectUsesPolling` is set to `TRUE` are polled.",
@@ -525,25 +789,28 @@
         "id": "can-setbaudrate-controller-out-of-range",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00494",
-          "SWS_Can_00206",
-          "SWS_Can_00210",
-          "SWS_Can_00363",
-          "SWS_Can_00062"
+          "SWS_Can_00062",
+          "CTX_can_driver_8.3.2.1_01",
+          "SWS_Can_00256",
+          "SWS_CAN_00491"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9119515440290771,
-        "context_precision": 0.999999999975,
+        "answer_relevancy": 0.40024226010220737,
+        "context_precision": 0.699999999965,
         "context_recall": 1.0,
-        "answer": "If development error detection for the Can module is enabled, the function Can_SetBaudrate shall raise the error CAN_E_PARAM_CONTROLLER if the parameter Controller is out of range. It will also return E_NOT_OK in this scenario.",
+        "answer": "If development error detection for the Can module is enabled, the function Can_SetBaudrate shall raise the error CAN_E_PARAM_CONTROLLER. Additionally, it shall return E_NOT_OK.",
         "error": null
       },
       {
         "id": "can-hth-transmit-entity",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00401",
           "SWS_Can_00402",
@@ -552,8 +819,9 @@
           "SWS_Can_00489"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.8,
-        "answer_relevancy": 0.6989119225056899,
+        "answer_relevancy": 0.7036920332776351,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "Several transmit hardware objects, defined by \"CanHwObjectCount\", are assigned by one Hardware Transmit Handle (HTH) to represent a single transmit entity to the upper layer. This grouping allows for multiplexed transmission mechanisms where multiple transmit hardware objects can be filled over the same register set or where the hardware identifies a free transmit hardware object within the entity.",
@@ -563,16 +831,18 @@
         "id": "can-egress-timestamp-bad-handle",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00531",
           "SWS_CAN_91027",
+          "CTX_can_driver_7.11_01",
           "SWS_Can_00217",
-          "SWS_Can_00526",
-          "CTX_can_driver_7.11_01"
+          "SWS_CAN_91025"
         ],
         "hit": true,
-        "faithfulness": 0.0,
-        "answer_relevancy": 0.3104495840910409,
+        "id_recall": 1.0,
+        "faithfulness": 0.5,
+        "answer_relevancy": 0.31046333029561585,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "If development error detection for the Can module is enabled, the function Can_GetEgressTimeStamp shall raise the error CAN_E_PARAM_HANDLE. Additionally, it shall return E_NOT_OK.",
@@ -582,44 +852,49 @@
         "id": "can-mainfunction-write-purpose",
         "arm": "full",
         "doc": "can_driver",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_Can_00225",
           "SWS_Can_00031",
-          "SWS_Can_00178",
           "SWS_Can_00016",
+          "SWS_Can_00178",
           "SWS_Can_00441"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9297855983308606,
-        "context_precision": 0.6999999999766667,
+        "answer_relevancy": 0.9298353998995449,
+        "context_precision": 0.7555555555303703,
         "context_recall": 0.5,
-        "answer": "The service ID for `Can_MainFunction_Write` is `0x01`. This function performs the polling of TX confirmation when `CAN_TX_PROCESSING` is set to `POLLING`, or when `CanTxProcessing` is set to `POLLING` or `MIXED`. In the case of `MIXED` processing, it polls only hardware objects where `CanHardwareObjectUsesPolling` is `TRUE`.",
+        "answer": "The service ID for `Can_MainFunction_Write` is 0x01. This function performs the polling of TX confirmation when `CAN_TX_PROCESSING` is set to `POLLING` or `MIXED`. In the case of `MIXED` processing, it polls only the hardware objects for which `CanHardwareObjectUsesPolling` is set to `TRUE`.",
         "error": null
       },
       {
         "id": "canif-no-direct-buffer-access",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00023",
-          "SWS_CANIF_00662",
-          "SWS_CANIF_00033",
-          "SWS_CANIF_00064",
-          "SWS_CANIF_00199"
+          "CTX_can_interface_7.9_01",
+          "CTX_can_interface_5.1_02",
+          "CTX_can_interface_9.9_07",
+          "CTX_can_interface_7.13_03"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8361803109201945,
-        "context_precision": 0.7555555555303703,
+        "answer_relevancy": 0.8236064755158337,
+        "context_precision": 0.99999999998,
         "context_recall": 1.0,
-        "answer": "No, the CAN Interface shall avoid direct access to hardware specific communication buffers. It shall access them exclusively via CanDrv interface services.",
+        "answer": "No, the CAN Interface (CanIf) shall avoid direct access to hardware-specific communication buffers. It must access these buffers exclusively via CanDrv interface services.",
         "error": null
       },
       {
         "id": "canif-setdynamictxid-invalid",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00352",
           "SWS_CANIF_00944",
@@ -628,8 +903,9 @@
           "CTX_can_interface_8.3.13_01"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8130835068814469,
+        "answer_relevancy": 0.7715221340806773,
         "context_precision": 0.99999999995,
         "context_recall": 1.0,
         "answer": "If the parameter CanIfTxSduId of CanIf_SetDynamicTxId() has an invalid value, CanIf shall report the development error code CANIF_E_INVALID_TXPDUID to the Det_ReportError service of the DET module. This also applies if CanIfTxSduId refers to a CanIfTxPduCfg with CanIfTxPduXLParams.",
@@ -639,6 +915,7 @@
         "id": "canif-setbaudrate-delegates",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00868",
           "SWS_CANIF_00867",
@@ -647,36 +924,40 @@
           "SWS_CANIF_00871"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8607488717174222,
-        "context_precision": 0.7555555555303703,
+        "answer_relevancy": 0.8771744140464116,
+        "context_precision": 0.94999999997625,
         "context_recall": 1.0,
-        "answer": "The `CanIf_SetBaudrate()` service calls `Can_SetBaudrate()` for the specified CAN Controller. This action sets the baud rate configuration of the CAN controller.",
+        "answer": "The service `CanIf_SetBaudrate()` calls `Can_SetBaudrate(Controller, BaudRateConfigID)` for the requested CAN Controller. This action sets the baud rate configuration of the CAN controller.",
         "error": null
       },
       {
         "id": "canif-egress-timestamp-pointer",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00931",
           "SWS_CANIF_00924",
           "SWS_CANIF_91012",
-          "SWS_CANIF_00935",
-          "SWS_CANIF_91013"
+          "SWS_CANIF_91013",
+          "SWS_CANIF_00935"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.7009872435106658,
-        "context_precision": 0.999999999975,
+        "answer_relevancy": 0.6955690523776973,
+        "context_precision": 0.94999999997625,
         "context_recall": 1.0,
-        "answer": "If development error detection is enabled, the function CanIf_GetEgressTimeStamp shall check the parameter timeStampPtr for being valid. If this check fails, the function shall raise the development error CANIF_E_PARAM_POINTER.",
+        "answer": "If development error detection is enabled, the `CanIf_GetEgressTimeStamp` function checks if the `timeStampPtr` parameter is valid. If this check fails, the function raises the development error `CANIF_E_PARAM_POINTER`.",
         "error": null
       },
       {
         "id": "canif-cleartrcvwufflag-configurable",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00771",
           "SWS_CANIF_00760",
@@ -685,6 +966,7 @@
           "SWS_CANIF_00757"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.0,
         "context_precision": 0.9999999999,
@@ -696,42 +978,47 @@
         "id": "canif-user-rxindication-config",
         "arm": "full",
         "doc": "can_interface",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CANIF_00423",
           "SWS_CANIF_00135",
           "SWS_CANIF_00441",
           "SWS_CANIF_00552",
-          "SWS_CANIF_00557"
+          "SWS_CANIF_00056"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.4236950059326396,
+        "answer_relevancy": 0.42369193118230936,
         "context_precision": 0.94999999997625,
         "context_recall": 1.0,
-        "answer": "Each Rx L-PDU must be configured with a corresponding receive indication service of an upper layer module, which is called in `CanIf_RxIndication()`. The upper layer module providing this callback service is configured by `CanIfRxPduUserRxIndicationUL`, and the name of the API is configured by `CanIfRxPduUserRxIndicationName`. If `CanIfRxPduUserRxIndicationUL` is set to CDD, the API name must be configured via `CanIfRxPduUserRxIndicationName`.",
+        "answer": "Each Rx L-PDU must be configured with a corresponding receive indication service of an upper layer module, which is called in `CanIf_RxIndication()`. The upper layer module providing this callback service is configured by `CanIfRxPduUserRxIndicationUL`, and the name of the API is configured by `CanIfRxPduUserRxIndicationName`. If a target upper layer module is configured, the CanIf calls this configured receive indication callback service.",
         "error": null
       },
       {
         "id": "cansm-txtimeout-uninit",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00411",
           "SWS_CanSM_00410",
           "SWS_CanSM_00412"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8098408938566006,
+        "answer_relevancy": 0.9437386426233211,
         "context_precision": 0.99999999995,
         "context_recall": 1.0,
-        "answer": "If the CanSM module is not initialized, the `CanSM_TxTimeoutException` function shall report `CANSM_E_UNINIT` to the DET. This is specified for the `CanSM_TxTimeoutException` service, which notifies the CanSM module about a transmit timeout exception detected by CanNm.",
+        "answer": "If the CanSM module is not initialized, the function CanSM_TxTimeoutException shall report CANSM_E_UNINIT to the DET. This is specified for the CanSM_TxTimeoutException function, which notifies the CanSM module about a transmit timeout exception detected by CanNm.",
         "error": null
       },
       {
         "id": "cansm-setbaudrate-optional",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00570",
           "SWS_CanSM_00569",
@@ -740,9 +1027,10 @@
           "CTX_can_statemanager_10.2.3_08"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.8383709682563171,
-        "context_precision": 0.8666666666377778,
+        "context_precision": 0.8874999999778125,
         "context_recall": 1.0,
         "answer": "The CanSM module shall not provide the API function CanSM_SetBaudrate if the CanSMSetBaudrateApi is configured with the value FALSE. This parameter's availability is dependent on ComMPncSupport being enabled in ComM.",
         "error": null
@@ -751,17 +1039,19 @@
         "id": "cansm-cc-stopped-timeout",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00576",
           "SWS_CanSM_00467",
-          "SWS_CanSM_00490",
           "SWS_CanSM_00445",
-          "SWS_CanSM_00630"
+          "SWS_CanSM_00630",
+          "SWS_CanSM_00490"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.6666666666666666,
-        "answer_relevancy": 0.6414017460316486,
-        "context_precision": 0.9166666666361111,
+        "answer_relevancy": 0.641393981344907,
+        "context_precision": 0.9999999999666667,
         "context_recall": 1.0,
         "answer": "A timeout of CANSM_MODEREQ_REPEAT_TIME for all supposed controller stopped mode indications triggers T_CC_STOPPED_TIMEOUT. This condition then triggers various sub-state machines depending on the specific network context.",
         "error": null
@@ -770,6 +1060,7 @@
         "id": "cansm-trcv-normal-indicated",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00448",
           "SWS_CanSM_00474",
@@ -778,9 +1069,10 @@
           "SWS_CanSM_00446"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.981576794756046,
-        "context_precision": 0.4777777777618519,
+        "answer_relevancy": 0.9815806527091041,
+        "context_precision": 0.32499999998375,
         "context_recall": 1.0,
         "answer": "When the CanSM module receives a CANTRCV_TRCVMODE_NORMAL mode indication for a configured CAN Transceiver, it triggers a sub-state machine of the CAN network with T_TRCV_NORMAL_INDICATED. Depending on the context, this could be CANSM_BSM_DeinitPnSupported, CANSM_BSM_DeinitPnNotSupported, CANSM_BSM_S_PRE_FULLCOM, or CANSM_BSM_WUVALIDATION. This action occurs after a respective request has been made.",
         "error": null
@@ -789,6 +1081,7 @@
         "id": "cansm-e-tx-on-effect",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00516",
           "SWS_CanSM_00518",
@@ -797,9 +1090,10 @@
           "SWS_CanSM_00647"
         ],
         "hit": true,
-        "faithfulness": 1.0,
-        "answer_relevancy": 0.7604218603535923,
-        "context_precision": 0.999999999975,
+        "id_recall": 1.0,
+        "faithfulness": 0.3333333333333333,
+        "answer_relevancy": 0.7604254074226096,
+        "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "When the ECU is not passive, the E_TX_ON effect first calls `CanIf_SetPduMode` with `PduModeRequest := CANIF_ONLINE` for configured CAN controllers. Secondly, it calls `BswM_CanSM_CurrentState` with `CurrentState := CANSM_BSWM_FULL_COMMUNICATION`. Finally, it calls `ComM_BusSM_ModeIndication` with `ComMode := COMM_FULL_COMMUNICATION`.",
         "error": null
@@ -808,6 +1102,7 @@
         "id": "cansm-init-signature",
         "arm": "full",
         "doc": "can_statemanager",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanSM_00023",
           "SWS_CanSM_00423",
@@ -816,9 +1111,10 @@
           "SWS_CanSM_00401"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.8478568350410445,
-        "context_precision": 0.8333333332916666,
+        "answer_relevancy": 0.8478926572332631,
+        "context_precision": 0.9999999999,
         "context_recall": 1.0,
         "answer": "The signature of `CanSM_Init` is `void CanSM_Init ( const CanSM_ConfigType* ConfigPtr )`. This service is non-reentrant.",
         "error": null
@@ -827,6 +1123,7 @@
         "id": "cantp-tx-success-notification",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00090",
           "SWS_CanTp_00204",
@@ -835,6 +1132,7 @@
           "SWS_CanTp_00280"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.5,
         "answer_relevancy": 0.7416709543564498,
         "context_precision": 0.999999999975,
@@ -846,25 +1144,28 @@
         "id": "cantp-n-cr-timeout",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00313",
           "SWS_CanTp_00366",
-          "SWS_CanTp_00311",
           "SWS_CanTp_00229",
-          "SWS_CanTp_00342"
+          "SWS_CanTp_00262",
+          "SWS_CanTp_00311"
         ],
         "hit": true,
-        "faithfulness": 1.0,
-        "answer_relevancy": 0.9363938293940687,
+        "id_recall": 1.0,
+        "faithfulness": 0.75,
+        "answer_relevancy": 0.9363970783107777,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
-        "answer": "When an N_Cr timeout occurs during reception, the CanTp module shall abort the reception and notify the upper layer of this failure. This notification is done by calling the `PduR_CanTpRxIndication()` function with the result `E_NOT_OK`. Additionally, CanTp shall report a `CANTP_E_CANTPNCR_TIMEOUT_OCCURRED` Extended Production Error to DEM.",
+        "answer": "When an N_Cr timeout occurs during reception, the CanTp module shall abort the reception and notify the upper layer of this failure by calling `PduR_CanTpRxIndication()` with the result `E_NOT_OK`. Additionally, CanTp shall report a `CANTP_E_CANTPNCR_TIMEOUT_OCCURRED` Extended Production Error to DEM. The CanTp module shall also raise the development error `CANTP_E_RX_COM`.",
         "error": null
       },
       {
         "id": "cantp-rxindication-context",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00235",
           "SWS_CanTp_00078",
@@ -873,55 +1174,60 @@
           "SWS_CanTp_00214"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9250011000769988,
+        "answer_relevancy": 0.9066929277279222,
         "context_precision": 0.99999999998,
-        "context_recall": 1.0,
-        "answer": "Yes, the function CanTp_RxIndication shall be callable in an interrupt context, as it could be called from the CAN receive interrupt. This function is provided by the CanTp module for reception indication.",
+        "context_recall": 0.5,
+        "answer": "Yes, the function `CanTp_RxIndication` shall be callable in an interrupt context, and it could be called from the CAN receive interrupt. This function is an indication of a received PDU from a lower layer communication interface module.",
         "error": null
       },
       {
         "id": "cantp-transmit-request-notify",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00177",
           "SWS_CanTp_00204",
           "SWS_CanTp_00205",
-          "SWS_CanTp_00075",
-          "SWS_CanTp_00167"
+          "SWS_CanTp_00087",
+          "SWS_CanTp_00075"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9231788049675064,
+        "answer_relevancy": 0.9302408878538658,
         "context_precision": 0.99999999995,
         "context_recall": 1.0,
-        "answer": "After a transmit request is accepted, the CanTp module must notify its upper layer when the N-SDU transfer is fully processed, whether successfully or not. This notification occurs by calling the PduR_CanTpTxConfirmation callback upon completion of the transmit request. If an error occurs, the CanTp module must abort the request and call PduR_CanTpTxConfirmation with an E_NOT_OK result.",
+        "answer": "After a transmit request has been accepted, the CanTp module must notify its upper layer when the N-SDU transfer is fully processed, whether successfully or not. This notification is done by calling the PduR_CanTpTxConfirmation callback when the transmit request has been completed. If an error occurs, such as an overflow or timeout, or if PduR_CanTpCopyTxData() returns BUFREQ_E_NOT_OK, the CanTp module must abort the request and call PduR_CanTpTxConfirmation with an E_NOT_OK result.",
         "error": null
       },
       {
         "id": "cantp-metadata-fc-check",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
-          "SWS_CanTp_00336",
-          "SWS_CanTp_00333",
-          "SWS_CanTp_00224",
-          "SWS_CanTp_00078",
-          "SWS_CanTp_00322"
+          "SWS_CanTp_00359",
+          "SWS_CanTp_00322",
+          "SWS_CanTp_00214",
+          "SWS_CanTp_00235"
         ],
-        "hit": true,
+        "hit": false,
+        "id_recall": 0.0,
         "faithfulness": 1.0,
-        "answer_relevancy": 0.9184553871219148,
-        "context_precision": 0.99999999995,
-        "context_recall": 1.0,
-        "answer": "When `CanTp_RxIndication` is called for a Flow Control (FC) frame on a generic connection (N-PDU with MetaData), the CanTp module checks the addressing information contained in the MetaData. This addressing information is checked against the stored values.",
+        "answer_relevancy": 0.0,
+        "context_precision": 0.3333333333,
+        "context_recall": 0.0,
+        "answer": "The provided passages do not cover what CanTp checks when CanTp_RxIndication is called for a flow control frame on a generic connection. The passages describe general checks for the validity of the `RxPduId` and `PduInfoPtr` parameters if development error detection is enabled.",
         "error": null
       },
       {
         "id": "cantp-fc-first-byte-addressing",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00283",
           "SWS_CanTp_00281",
@@ -930,8 +1236,9 @@
           "CTX_can_transport_2_14"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 0.6666666666666666,
-        "answer_relevancy": 0.9713925842865955,
+        "answer_relevancy": 0.9713834029730646,
         "context_precision": 0.99999999998,
         "context_recall": 1.0,
         "answer": "For extended addressing format, the first data byte of the flow control (FC) frame contains the N_TA value or a unique combination of N_TA and N_TAtype value. For mixed addressing format, the first data byte of the FC contains the N_AE value.",
@@ -941,6 +1248,7 @@
         "id": "cantp-type-naming-rules",
         "arm": "full",
         "doc": "can_transport",
+        "kind": "lookup",
         "retrieved_ids": [
           "SWS_CanTp_00002",
           "SWS_CanTp_00296",
@@ -949,11 +1257,218 @@
           "SWS_CanTp_00216"
         ],
         "hit": true,
+        "id_recall": 1.0,
         "faithfulness": 1.0,
         "answer_relevancy": 0.8302439587632858,
         "context_precision": 0.9999999999666667,
         "context_recall": 1.0,
         "answer": "The CanTp module shall label any additional types it defines as `CanTp_<TypeName> Type`. The `<TypeName>` part must not use underscores, and the first letter of each word must be uppercase, with consecutive letters lowercase.",
+        "error": null
+      },
+      {
+        "id": "can-write-det-errors-enum",
+        "arm": "full",
+        "doc": "can_driver",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_Can_91019"
+        ],
+        "hit": false,
+        "id_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.0,
+        "context_precision": 0.9999999999,
+        "context_recall": 0.8,
+        "answer": "The provided passages do not contain information about the specific development errors that `Can_Write` shall raise or the conditions under which they occur. The passage lists general error codes and their descriptions but does not link them to the `Can_Write` API.",
+        "error": null
+      },
+      {
+        "id": "can-config-constraints-enum",
+        "arm": "full",
+        "doc": "can_driver",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_Can_00024",
+          "SWS_Can_00413",
+          "SWS_Can_00601",
+          "SWS_Can_00602",
+          "SWS_Can_00021"
+        ],
+        "hit": false,
+        "id_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8007440445760259,
+        "context_precision": 0.0,
+        "context_recall": 0.0,
+        "answer": "The CAN Driver specification states that valid configuration values are hardware dependent, so specific rules and constraints are not provided within the standard. However, it does define that if selective wakeup is supported by the CAN controller hardware, it must be indicated by the `CanHwPnSupport` parameter. If selective wakeup is supported, the CAN controller must be configured to wake up on specific CAN frames using parameters such as `CanPnFrameCanId`, `CanPnFrameCanIdMask`, and `CanPnFrameDataMask`.",
+        "error": null
+      },
+      {
+        "id": "canif-gettxconfirmationstate-enum",
+        "arm": "full",
+        "doc": "can_interface",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CANIF_00734",
+          "SWS_CANIF_00738",
+          "SWS_CANIF_00736",
+          "SWS_CANIF_00739",
+          "SWS_CANIF_00751"
+        ],
+        "hit": true,
+        "id_recall": 1.0,
+        "faithfulness": 0.8,
+        "answer_relevancy": 0.8815808408885677,
+        "context_precision": 0.999999999975,
+        "context_recall": 1.0,
+        "answer": "The `CanIf_GetTxConfirmationState` API is defined by SWS_CANIF_00734, which specifies its syntax, parameters, return value, and description. Error handling for an invalid `ControllerId` parameter is specified in SWS_CANIF_00736, requiring the `CANIF_E_PARAM_CONTROLLERID` development error to be reported. The API can be omitted if `BusOff` recovery in `CanSm` does not require the status of Tx confirmations, by disabling `CanIfPublicTxConfirmPollingSupport`, as stated in SWS_CANIF_00738.",
+        "error": null
+      },
+      {
+        "id": "cansm-controllerbusoff-enum",
+        "arm": "full",
+        "doc": "can_statemanager",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanSM_00064",
+          "SWS_CanSM_00190",
+          "SWS_CanSM_00606",
+          "SWS_CanSM_00500",
+          "SWS_CanSM_00235"
+        ],
+        "hit": true,
+        "id_recall": 0.6666666666666666,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.7546289724166019,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.5,
+        "answer": "The API definition for `CanSM_ControllerBusOff` is specified by [SWS_CanSM_00064]. The state machine transitions it triggers are defined by [SWS_CanSM_00606] and [SWS_CanSM_00500], which state it triggers `CANSM_BSM` or `CANSM_BSM_S_FULLCOM` with `T_BUS_OFF`. The development error it reports is `CANSM_E_UNINIT` if the CanSM module is not initialized, as per [SWS_CanSM_00190].",
+        "error": null
+      },
+      {
+        "id": "cantp-changeparameter-enum",
+        "arm": "full",
+        "doc": "can_transport",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanTp_00305",
+          "SWS_CanTp_00357",
+          "SWS_CanTp_00304",
+          "SWS_CanTp_00302",
+          "SWS_CanTp_00303"
+        ],
+        "hit": true,
+        "id_recall": 0.8,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.9741979799646584,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.75,
+        "answer": "The behavior and error handling of CanTp_ChangeParameter are defined by several requirements. [SWS_CanTp_00302] specifies the syntax, parameters, return values, and a general description of the service. [SWS_CanTp_00303] and [SWS_CanTp_00304] state that a parameter change is only possible if the N-SDU is not in the process of reception, returning E_NOT_OK otherwise.\n\nError handling, when development error detection is enabled, is detailed in [SWS_CanTp_00305] and [SWS_CanTp_00357]. [SWS_CanTp_00305] mandates checks for the validity of the 'parameter' and 'value' arguments, raising CANTP_E_PARAM_ID or CANTP_E_PARAM_CONFIG respectively. [SWS_CanTp_00357] requires checking the validity of the 'id' parameter, raising CANTP_E_INVALID_RX_ID if it's invalid.",
+        "error": null
+      },
+      {
+        "id": "cannm-transmit-api-enum",
+        "arm": "full",
+        "doc": "can_nm",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanNm_00014",
+          "SWS_CanNm_00086",
+          "SWS_CanNm_00192",
+          "SWS_CanNm_00190",
+          "SWS_CanNm_00189"
+        ],
+        "hit": false,
+        "id_recall": 0.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.0,
+        "context_precision": 0.19999999998,
+        "context_recall": 1.0,
+        "answer": "The retrieved passages do not cover the definition of the CanNm_Transmit API or when CanNm provides and acts on it.",
+        "error": null
+      },
+      {
+        "id": "cannm-immediate-transmissions-enum",
+        "arm": "full",
+        "doc": "can_nm",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_CanNm_00334",
+          "SWS_CanNm_00454",
+          "SWS_CanNm_00005",
+          "SWS_CanNm_00100",
+          "SWS_CanNm_00335"
+        ],
+        "hit": true,
+        "id_recall": 1.0,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.6003355090094629,
+        "context_precision": 0.99999999998,
+        "context_recall": 1.0,
+        "answer": "When entering the Repeat Message State from Bus Sleep Mode or Prepare Bus Sleep Mode due to an active wakeup and if `CanNmImmediateNmTransmissions` is greater than zero, NM PDUs are transmitted using `CanNmImmediateNmCycleTime`. The first PDU transmission is triggered as soon as possible, and the Message Cycle Timer is reloaded with `CanNmImmediateNmCycleTime`, without applying `CanNmMsgCycleOffset`.\n\nSimilarly, if `CanNmPnHandleMultipleNetworkRequests` is TRUE and `CanNm_NetworkRequest` triggers a transition to the Repeat Message state with PDU transmission enabled, NM PDUs are transmitted using `CanNmImmediateNmCycleTime`. The first PDU is sent as soon as possible, and the Message Cycle Timer is reloaded with `CanNmImmediateNmCycleTime`, again without applying `CanNmMsgCycleOffset`.",
+        "error": null
+      },
+      {
+        "id": "com-rx-timeout-action-enum",
+        "arm": "full",
+        "doc": "com",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_Com_00470",
+          "SWS_Com_00875",
+          "SWS_Com_00500",
+          "SWS_Com_00513",
+          "SWS_Com_00876"
+        ],
+        "hit": true,
+        "id_recall": 0.8333333333333334,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8337934257600444,
+        "context_precision": 0.99999999998,
+        "context_recall": 0.75,
+        "answer": "When a signal's reception deadline monitoring timer expires, if ComRxDataTimeoutAction is set to REPLACE, the COM module replaces the signal's value with its ComSignalInitValue. If ComRxDataTimeoutAction is set to SUBSTITUTE, the COM module replaces the signal's value with its ComTimeoutSubstitutionValue. If ComRxDataTimeoutAction is omitted or set to NONE, the COM module does not replace the signal's value.",
+        "error": null
+      },
+      {
+        "id": "pdur-uninit-state-enum",
+        "arm": "full",
+        "doc": "pdu_router",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_PduR_00325",
+          "SWS_PduR_00330",
+          "SWS_PduR_00324",
+          "SWS_PduR_00119",
+          "SWS_PduR_00326"
+        ],
+        "hit": true,
+        "id_recall": 0.8,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8016122989500349,
+        "context_precision": 0.99999999998,
+        "context_recall": 1.0,
+        "answer": "The PDU Router module has two states: PDUR_UNINIT and PDUR_ONLINE. After power-up, the module is in the PDUR_UNINIT state, where it performs no routing. In this uninitialized state, all functions except PduR_Init and PduR_GetVersionInfo shall report the error PDUR_E_UNINIT via the DET if PduRDevErrorDetect is enabled.",
+        "error": null
+      },
+      {
+        "id": "pdur-config-constraints-enum",
+        "arm": "full",
+        "doc": "pdu_router",
+        "kind": "enumeration",
+        "retrieved_ids": [
+          "SWS_PduR_00162",
+          "SWS_PduR_00828",
+          "SWS_PduR_CONSTR_00920",
+          "SWS_PduR_CONSTR_00861",
+          "SWS_PduR_00891"
+        ],
+        "hit": true,
+        "id_recall": 0.6666666666666666,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0.8785600411100519,
+        "context_precision": 0.8055555555287036,
+        "context_recall": 0.6666666666666666,
+        "answer": "The PDU Router module is constrained to route I-PDUs only according to the routing paths provided in its configuration. The configuration must be denied if I-PDUs with different MetaDataTypes are connected by a routing path, or if an I-PDU owned by the Dds module is routed to/from a module other than SoAd or LdCom. Additionally, PduRRoutingPath Groups are only accepted if all destination I-PDUs within them are assigned to the same partition.",
         "error": null
       }
     ]

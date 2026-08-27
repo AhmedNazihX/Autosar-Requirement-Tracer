@@ -28,10 +28,15 @@ off.
   source-linked citations exist to prevent.
 
 **The golden set is hand-authored and committed** (``tests/fixtures/
-ragas_golden_set.json``): 25 questions written from the requirement text in
-the ingested corpus, spread across all four documents, each carrying the
-requirement ids a correct retrieval must find. Generating the questions with a
-model would have made this an eval of one model's reading by another's, and
+ragas_golden_set.json``), and holds two kinds of question, reported
+separately: 25 *lookup* questions, each written from one requirement's text
+and carrying that requirement's id, and 10 *enumeration* questions
+("which requirements govern X?"), each carrying the full hand-verified set of
+ids a correct retrieval must surface. Lookup questions are the shape BM25
+alone nails; enumeration questions are the shape multi-query expansion and
+rerank exist for, so folding the two into one number would hide exactly the
+difference this eval is asked about. Generating the questions with a model
+would have made this an eval of one model's reading by another's, and
 re-deriving them per run would move the denominator between two runs that get
 compared.
 
@@ -110,8 +115,10 @@ class ItemScore:
     id: str
     arm: str
     doc: str
+    kind: str = "lookup"
     retrieved_ids: list[str] = field(default_factory=list)
     hit: bool = False
+    id_recall: float | None = None
     faithfulness: float | None = None
     answer_relevancy: float | None = None
     context_precision: float | None = None
@@ -138,6 +145,11 @@ class ArmResult:
         if not self.scores:
             return None
         return sum(1 for score in self.scores if score.hit) / len(self.scores)
+
+    def only(self, kind: str) -> ArmResult:
+        return ArmResult(
+            arm=self.arm, scores=[score for score in self.scores if score.kind == kind]
+        )
 
 
 METRICS = ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
@@ -238,11 +250,17 @@ def run_arm(
 ) -> ArmResult:
     result = ArmResult(arm=arm)
     for index, item in enumerate(golden, start=1):
-        score = ItemScore(id=item["id"], arm=arm, doc=item["doc"])
+        score = ItemScore(
+            id=item["id"], arm=arm, doc=item["doc"], kind=item.get("kind", "lookup")
+        )
         try:
             contexts, ids = retrieve(engine, item["question"], arm)
+            reference_ids = item["reference_context_ids"]
             score.retrieved_ids = ids
-            score.hit = any(rid in ids for rid in item["reference_context_ids"])
+            score.hit = any(rid in ids for rid in reference_ids)
+            score.id_recall = sum(
+                1 for rid in reference_ids if rid in ids
+            ) / len(reference_ids)
             score.answer = answer_from(answerer, item["question"], contexts)
             values = asyncio.run(score_item(metrics, item, contexts, score.answer))
             for name, value in values.items():
@@ -255,35 +273,61 @@ def run_arm(
     return result
 
 
+def kind_table(naive: ArmResult | None, full: ArmResult | None) -> list[str]:
+    """One comparison table — the four ragas metrics plus the two id metrics."""
+    lines = [
+        "| metric | naive top-k | full pipeline | Δ |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+
+    def row(label: str, left: float | None, right: float | None) -> str:
+        if left is None or right is None:
+            return f"| {label} | — | — | — |"
+        return f"| {label} | {left:.3f} | {right:.3f} | {right - left:+.3f} |"
+
+    for metric in METRICS:
+        lines.append(row(
+            LABELS[metric],
+            naive.mean(metric) if naive else None,
+            full.mean(metric) if full else None,
+        ))
+    lines.append(row(
+        "Ground-truth hit rate",
+        naive.hit_rate if naive else None,
+        full.hit_rate if full else None,
+    ))
+    lines.append(row(
+        "Ground-truth id recall",
+        naive.mean("id_recall") if naive else None,
+        full.mean("id_recall") if full else None,
+    ))
+    return lines
+
+
 def to_markdown(payload: dict) -> str:
     arms = {name: ArmResult(arm=name, scores=[ItemScore(**s) for s in scores])
             for name, scores in payload["arms"].items()}
     naive, full = arms.get("naive"), arms.get("full")
+    either = naive or full
+
+    kinds: list[str] = []
+    for score in either.scores:
+        if score.kind not in kinds:
+            kinds.append(score.kind)
+    counts = " · ".join(
+        f"{len(either.only(kind).scores)} {kind}" for kind in kinds
+    )
 
     lines = [
         f"Answers `{payload['answer_model_id']}` · metrics `{payload['evaluator_model_id']}` "
         f"· embeddings `{payload['embedding_model_id']}` · ragas {payload['ragas_version']} "
-        f"· {payload['questions']} questions · top-{payload['top_n']}",
-        "",
-        "| metric | naive top-k | full pipeline | Δ |",
-        "| --- | ---: | ---: | ---: |",
+        f"· {payload['questions']} questions ({counts}) · top-{payload['top_n']}",
     ]
-    for metric in METRICS:
-        left = naive.mean(metric) if naive else None
-        right = full.mean(metric) if full else None
-        delta = ""
-        if left is not None and right is not None:
-            change = right - left
-            delta = f"{change:+.3f}"
-        lines.append(
-            f"| {LABELS[metric]} | {left:.3f} | {right:.3f} | {delta} |"
-            if left is not None and right is not None
-            else f"| {LABELS[metric]} | — | — | — |"
-        )
-    if naive and full:
-        lines.append(
-            f"| Ground-truth hit rate | {naive.hit_rate:.3f} | {full.hit_rate:.3f} | "
-            f"{full.hit_rate - naive.hit_rate:+.3f} |"
+    for kind in kinds:
+        lines += ["", f"**{kind.capitalize()} questions "
+                  f"({len(either.only(kind).scores)})**", ""]
+        lines += kind_table(
+            naive.only(kind) if naive else None, full.only(kind) if full else None
         )
     lines += [
         "",
@@ -293,10 +337,13 @@ def to_markdown(payload: dict) -> str:
         "off. Both arms retrieve the same number of passages and use the same "
         "generator, so the columns differ by retrieval alone.",
         "",
-        "*Hit rate* is not a ragas metric: it is the plain fraction of "
-        "questions whose hand-labelled requirement id appeared in what was "
-        "retrieved. It is here because it needs no model to compute and cannot "
-        "be argued with.",
+        "*Hit rate* and *id recall* are not ragas metrics: hit rate is the "
+        "fraction of questions where at least one hand-labelled requirement id "
+        "was retrieved; id recall is the mean fraction of each question's "
+        "hand-labelled ids that were retrieved. For lookup questions (one id "
+        "each) the two coincide. An enumeration set can hold more ids than the "
+        f"top-{TOP_N} retrieval returns, so its recall ceiling sits below 1.0. "
+        "Both need no model to compute and cannot be argued with.",
     ]
     return "\n".join(lines)
 
