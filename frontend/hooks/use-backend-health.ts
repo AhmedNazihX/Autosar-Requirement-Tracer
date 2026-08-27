@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * The one real network call this build makes: `GET /api/py/health`.
+ * The sidebar's liveness probe: `GET /api/py/health` — in live mode only;
+ * the canned demo makes no network calls at all and reports itself as such.
  *
  * It goes through the Next.js rewrites proxy, so there is no CORS config
  * anywhere. It lives in a hook rather than in the sidebar because a component
@@ -15,19 +16,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { chatSourceKind } from "@/lib/chat-sources";
+
 export type BackendHealth =
   | { status: "checking" }
   | { status: "ok"; version: string }
-  | { status: "unreachable" };
+  | { status: "unreachable" }
+  //: Canned mode has no backend, by design — reporting it "unreachable" told
+  //: the offline demo's user that something was broken when nothing is.
+  | { status: "canned" };
 
 export function useBackendHealth(): {
   health: BackendHealth;
   recheck: () => void;
 } {
-  const [health, setHealth] = useState<BackendHealth>({ status: "checking" });
+  // Lazily initialised so canned mode never passes through "checking": the
+  // state is the answer, and no effect has to write it (the compiler's
+  // `set-state-in-effect` rule would reject that anyway).
+  const [health, setHealth] = useState<BackendHealth>(() =>
+    chatSourceKind() === "live" ? { status: "checking" } : { status: "canned" },
+  );
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
+    if (chatSourceKind() !== "live") return;
     let cancelled = false;
 
     fetch("/api/py/health")

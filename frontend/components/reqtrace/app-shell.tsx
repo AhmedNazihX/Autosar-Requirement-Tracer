@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
-import { pickChatSource } from "@/lib/chat-sources";
+import { chatSourceKind, pickChatSource } from "@/lib/chat-sources";
 import type { ChatEvent, CodeCitation, RequirementCitation } from "@/lib/events";
 import { toExchanges, type Exchange } from "@/lib/exchanges";
 
@@ -100,6 +100,10 @@ export function AppShell({
   setup?: SetupStatus | null;
 }) {
   const viewport = useViewport();
+  // Reports and thread export are backend features; in canned mode their
+  // controls would render only to 404. Hiding them beats disabling: a
+  // disabled button implies a way to enable it, and the demo has none.
+  const live = chatSourceKind() === "live";
   const { health, recheck } = useBackendHealth();
   const threads = useThreads();
   const { thread } = threads;
@@ -578,15 +582,18 @@ export function AppShell({
 
           <span className="flex-1" />
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setReportOpen(true)}
-          >
-            <Table2Icon />
-            Generate report
-          </Button>
+          {live ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReportOpen(true)}
+            >
+              <Table2Icon />
+              Generate report
+            </Button>
+          ) : null}
 
+          {live ? (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -627,6 +634,7 @@ export function AppShell({
               />
             </DropdownMenuContent>
           </DropdownMenu>
+          ) : null}
 
           <ThemeToggle />
           <span aria-hidden className="mx-0.5 h-[18px] w-px bg-border" />

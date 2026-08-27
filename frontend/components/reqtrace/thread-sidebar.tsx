@@ -198,7 +198,9 @@ export function ThreadSidebar({
                 ? "bg-verdict-implemented"
                 : health.status === "checking"
                   ? "bg-verdict-missing"
-                  : "bg-destructive",
+                  : health.status === "canned"
+                    ? "bg-muted-foreground"
+                    : "bg-destructive",
             )}
           />
           <span className="flex-1 text-xs leading-4">
@@ -206,16 +208,20 @@ export function ThreadSidebar({
               ? `Backend ready · v${health.version}`
               : health.status === "checking"
                 ? "Checking backend…"
-                : "Backend not reachable"}
+                : health.status === "canned"
+                  ? "Canned demo — no backend"
+                  : "Backend not reachable"}
           </span>
           <span className="flex h-[18px] flex-none items-center rounded-md border bg-muted px-1.5 font-mono text-[10px] leading-none text-muted-foreground">
             {(setup?.git_sha ?? CANIF_FIXTURE_SHA).slice(0, 7)}
           </span>
         </div>
         <Meta>
-          {health.status !== "ok"
-            ? "Start it with `make dev` — the UI keeps working"
-            : setup
+          {health.status === "canned"
+            ? "Replaying the committed conversation fixture"
+            : health.status !== "ok"
+              ? "Start it with `make dev` — the UI keeps working"
+              : setup
               ? `${setup.requirements.toLocaleString()} requirements · ${setup.code_units.toLocaleString()} code units · ${setup.indexed_chunks.toLocaleString()} indexed`
               : "Index status unavailable"}
         </Meta>

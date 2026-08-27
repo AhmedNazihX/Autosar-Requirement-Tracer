@@ -33,6 +33,10 @@ interface RequirementResponse {
 export async function fetchRequirementCitation(
   reqId: string,
 ): Promise<RequirementCitation | null> {
+  // Canned mode has no backend to ask — same rule as the two fetchers below,
+  // and for the same reason: a doomed request per citation click is noise in
+  // the one demo that is supposed to run on nothing.
+  if (chatSourceKind() !== "live") return null;
   try {
     const response = await fetch(
       `/api/py/requirements/${encodeURIComponent(reqId)}`,
@@ -152,22 +156,41 @@ export interface LinkedRequirement {
  * can carry a dozen), so this returns all of them and the caller decides what
  * to show.
  */
+// One request per citation, however many hooks ask. `useCodeRequirements`
+// (the Code tab's list) and `useSourceCompanion` (the Document tab's other
+// half) both resolve the same code citation in the same render pass, which
+// used to fire two identical GETs per click. Concurrent callers now share the
+// in-flight promise; entries are dropped on settle, so nothing is cached
+// stale — a later mount asks again.
+const inFlight = new Map<string, Promise<LinkedRequirement[]>>();
+
 export async function fetchCodeRequirements(
   repoPath: string,
   lineSpan: [number, number],
 ): Promise<LinkedRequirement[]> {
   if (chatSourceKind() !== "live") return [];
-  try {
-    const path = repoPath.split("/").map(encodeURIComponent).join("/");
-    const response = await fetch(
-      `/api/py/code/${path}/requirements?lines=${lineSpan[0]}-${lineSpan[1]}`,
-    );
-    if (!response.ok) return [];
-    const body = (await response.json()) as { requirements: LinkedRequirement[] };
-    return body.requirements;
-  } catch {
-    return [];
-  }
+  const key = `${repoPath}:${lineSpan[0]}-${lineSpan[1]}`;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const request = (async () => {
+    try {
+      const path = repoPath.split("/").map(encodeURIComponent).join("/");
+      const response = await fetch(
+        `/api/py/code/${path}/requirements?lines=${lineSpan[0]}-${lineSpan[1]}`,
+      );
+      if (!response.ok) return [];
+      const body = (await response.json()) as {
+        requirements: LinkedRequirement[];
+      };
+      return body.requirements;
+    } catch {
+      return [];
+    } finally {
+      inFlight.delete(key);
+    }
+  })();
+  inFlight.set(key, request);
+  return request;
 }
 
 /** A linked requirement as the citation the source pane opens. */

@@ -142,17 +142,21 @@ function DocumentView({ citation }: { citation: RequirementCitation }) {
           </Button>
         </div>
         {/* An anchor, not a Button with an onClick: middle-click and
-            "open in new tab" should work on something that opens a document. */}
-        <a
-          href={`/api/py/documents/${encodeURIComponent(citation.doc)}/file`}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="Open the source PDF"
-          title="Open the source PDF"
-          className="inline-flex size-6 flex-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <DownloadIcon className="size-3.5" />
-        </a>
+            "open in new tab" should work on something that opens a document.
+            Live only, like the page render below — the demo has no PDF to
+            serve, and the notice under this header just said so. */}
+        {live ? (
+          <a
+            href={`/api/py/documents/${encodeURIComponent(citation.doc)}/file`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open the source PDF"
+            title="Open the source PDF"
+            className="inline-flex size-6 flex-none items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <DownloadIcon className="size-3.5" />
+          </a>
+        ) : null}
       </div>
 
       {citation.bbox === null ? (

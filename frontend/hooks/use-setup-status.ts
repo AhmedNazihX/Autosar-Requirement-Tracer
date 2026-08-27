@@ -24,6 +24,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { chatSourceKind } from "@/lib/chat-sources";
+
 /** One document as the setup screen lists it. Mirrors `DocumentStatus`. */
 export interface DocumentStatus {
   key: string;
@@ -86,6 +88,10 @@ export function useSetupStatus(): {
   const refresh = useCallback(() => setNonce((value) => value + 1), []);
 
   useEffect(() => {
+    // BootGate renders the app before ever reading this state in canned mode,
+    // but the fetch itself still fired — the one network call in the demo
+    // that is supposed to make none. No state to set: nothing reads it.
+    if (chatSourceKind() !== "live") return;
     let cancelled = false;
 
     fetch("/api/py/setup/status")
