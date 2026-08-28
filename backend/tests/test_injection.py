@@ -365,6 +365,19 @@ def test_the_prompt_refuses_to_disclose_itself():
     assert prompts.NON_DISCLOSURE_RULE in text
 
 
+def test_the_prompt_forbids_reusing_a_job_id_from_history():
+    """A rule the live measurement put here — see :data:`prompts.FRESH_LAUNCH_RULE`.
+
+    Measured 2026-08-28: in a thread whose history already held a "started a
+    report, job ID …" answer, the agent answered three consecutive "run a
+    report over <module>" requests by parroting that answer — same job id,
+    same counts, no tool call, no job. Offline this can only assert the rule
+    is present; the behavioural half is the seeded-history turn recorded in
+    the WP7 report-drawer fix."""
+    text = prompts.system_prompt(MANIFEST)
+    assert prompts.FRESH_LAUNCH_RULE in text
+
+
 def test_only_the_chat_model_is_ever_given_tools():
     """Spec §8's capability separation, swept rather than spot-checked.
 

@@ -30,7 +30,7 @@ from collections.abc import Iterator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent.runner import run_turn
@@ -192,11 +192,20 @@ def _turn(state: deps.AppState, body: ChatRequest) -> Iterator[str]:
 def _history(state: deps.AppState, thread_id: str) -> list[BaseMessage]:
     """The thread's recent turns, as LangChain messages.
 
-    Reconstructed from stored ``content`` rather than by replaying events: the
-    model needs the text, and ``content`` is exactly that (see
-    ``core.db.create_message``). Tool calls are deliberately not replayed —
-    each turn re-grounds itself through its own tool calls, and replaying stale
-    tool output would let an old retrieval answer a new question.
+    Text comes from stored ``content`` (see ``core.db.create_message``); the
+    *fact* of each tool call — name, arguments, one-line outcome — is
+    reconstructed from the stored events by :func:`_replayed_tool_calls`. The
+    retrieved text itself is still deliberately withheld: each turn re-grounds
+    itself through its own tool calls, and replaying stale tool output would
+    let an old retrieval answer a new question.
+
+    The fact of the calls was originally withheld too, and that turned out to
+    teach the model to fabricate. Measured 2026-08-28: shown its own earlier
+    "started a report, job ID …" answer as plain text, the agent answered
+    three consecutive report requests by imitating it — same wording, a
+    made-up job id, no tool call, no job. Three prompt-rule variants did not
+    stop it; showing the model that such answers are produced *by tool calls*
+    is the structural fix.
     """
     if state.pool is None:
         return []
@@ -204,14 +213,68 @@ def _history(state: deps.AppState, thread_id: str) -> list[BaseMessage]:
     history: list[BaseMessage] = []
     for record in stored:
         text = (record.get("content") or "").strip()
-        if not text:
+        if record["role"] == "user":
+            if text:
+                history.append(HumanMessage(content=text))
             continue
-        history.append(
-            HumanMessage(content=text)
-            if record["role"] == "user"
-            else AIMessage(content=text)
-        )
+        history.extend(_replayed_tool_calls(record.get("events") or []))
+        if text:
+            history.append(AIMessage(content=text))
     return history
+
+
+def _replayed_tool_calls(events: list[dict]) -> list[BaseMessage]:
+    """One turn's tool activity, replayed as a call plus a one-line result.
+
+    Only complete pairs are replayed — an ``AIMessage`` announcing a call the
+    API never sees answered is a protocol error, so a ``tool_start`` whose
+    result never arrived (an interrupted stream) is dropped. The result
+    content is the chip summary, not the tool's payload: enough to show the
+    answer was tool-backed, nothing an old retrieval could answer a new
+    question with.
+    """
+    starts: dict[str, dict] = {}
+    results: dict[str, dict] = {}
+    for event in events:
+        data = event.get("data") or {}
+        call_id = data.get("id")
+        if not call_id:
+            continue
+        if event.get("type") == "tool_start":
+            starts[call_id] = data
+        elif event.get("type") == "tool_result":
+            results[call_id] = data
+    paired = [call_id for call_id in starts if call_id in results]
+    if not paired:
+        return []
+    replayed: list[BaseMessage] = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": call_id,
+                    "name": starts[call_id].get("tool", ""),
+                    "args": starts[call_id].get("args") or {},
+                }
+                for call_id in paired
+            ],
+        )
+    ]
+    for call_id in paired:
+        result = results[call_id]
+        outcome = result.get("summary") or ""
+        if result.get("status") == "error":
+            outcome = f"error: {result.get('error') or outcome}"
+        replayed.append(
+            ToolMessage(
+                content=(
+                    f"{outcome} (full output elided from history; "
+                    "call the tool again for current data)"
+                ),
+                tool_call_id=call_id,
+            )
+        )
+    return replayed
 
 
 def _persist(

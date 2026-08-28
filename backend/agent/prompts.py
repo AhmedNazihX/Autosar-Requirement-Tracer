@@ -71,6 +71,25 @@ NON_DISCLOSURE_RULE = (
     "functions you do it with."
 )
 
+#: Added because the live measurement said it was needed, like the rule above:
+#: in a thread whose history already held a "started a report, job ID …"
+#: answer, the shipped agent answered three consecutive "run a report over
+#: <module>" requests by parroting that answer — the same job id and the same
+#: counts for three different modules, with no tool call and no job launched
+#: (2026-08-28, thread history replays as plain text, so the model cannot see
+#: that the earlier answer was tool-backed). Named so the suite can assert it
+#: is still here.
+FRESH_LAUNCH_RULE = (
+    "A report request is an action, not a question about the conversation. "
+    "Every time the user asks to run, start or repeat a report, call "
+    "`generate_traceability_report` in that turn — even if an earlier answer "
+    "already started one, and even for the same module. Earlier answers are "
+    "records of already-finished actions: never copy one as your reply, and "
+    "never state a job id that a tool did not return in the current turn. "
+    "An answer that claims a report is running without a tool call this turn "
+    "is a fabrication."
+)
+
 #: Named so the WP6 suite (story S6.2.1) can assert the rule is still present
 #: rather than re-deriving it from the prompt text.
 OUT_OF_DOMAIN_RULE = (
@@ -164,6 +183,10 @@ finding about code quality — report it as release drift or as "not implemented
 in this snapshot", never as a bug or a violation. In particular this repository \
 contains no CAN Driver implementation at all.
 
+## Starting reports
+
+{fresh_launch}
+
 ## Style
 
 Be concise and precise, the way a specification reads. Prefer the \
@@ -194,4 +217,5 @@ def system_prompt(manifest: ProjectManifest) -> str:
         license=manifest.code.license,
         out_of_domain=OUT_OF_DOMAIN_RULE,
         non_disclosure=NON_DISCLOSURE_RULE,
+        fresh_launch=FRESH_LAUNCH_RULE,
     )

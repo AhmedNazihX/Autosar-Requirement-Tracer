@@ -431,6 +431,35 @@ def test_earlier_turns_are_replayed_to_the_model(wired):
     assert roles_and_text[-1] == ("user", "second question")
 
 
+def test_a_prior_turns_tool_calls_are_visible_in_replayed_history(wired):
+    """Measured 2026-08-28: with history replayed as plain text, the agent
+    answered "run a report over <module>" by imitating its own earlier launch
+    answer — same wording, a fabricated job id, no tool call, no job started.
+    Three prompt-rule variants failed to stop it, because flattened history
+    *shows* the model launch answers appearing without tool use. So the fact
+    of each prior tool call — name, arguments, one-line outcome — is replayed;
+    the retrieved text still is not, which keeps `_history`'s original
+    anti-staleness rationale intact."""
+    wired["script"](
+        calls("lookup_requirement", {"req_id": "SWS_Can_00011"}),
+        says("It requires a thing."),
+    )
+    post(wired["state"], "what does SWS_Can_00011 require?")
+
+    wired["script"](says("Second answer."))
+    post(wired["state"], "and what else?")
+
+    messages = wired["scripted"]["chat"].requests[0]["messages"]
+    callers = [m for m in messages if m.get("tool_calls")]
+    assert callers, "the prior turn's tool call must be visible in history"
+    assert callers[0]["tool_calls"][0]["function"]["name"] == "lookup_requirement"
+    tool_replies = [m for m in messages if m["role"] == "tool"]
+    assert tool_replies, "the tool's outcome must be visible in history"
+    assert "SWS_Can_00011" in tool_replies[0]["content"]
+    # The retrieved text is still withheld — only the chip summary is replayed.
+    assert "shall" not in tool_replies[0]["content"].lower()
+
+
 def test_a_fresh_thread_sends_only_the_system_prompt_and_the_question(wired):
     wired["script"](says("Hello."))
     post(wired["state"], "hello", thread_id="thr_fresh")
