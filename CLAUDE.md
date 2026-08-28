@@ -66,8 +66,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Rules
 
 - Never add "Co-Authored-By" lines to commits or include Claude attribution in commit messages and PR descriptions.
-- Do NOT Commit any secrets — no API keys, passwords, or tokens in the files
+- Do NOT Commit any secrets — no API keys, passwords, or tokens in the files.
+- Never Push without my approval first.
 - After any dependency change, regenerate `dependencies.txt` with `make deps` (or `python3 scripts/gen_dependencies.py`) — never edit it by hand. `make lint` runs `make deps-check`, which fails on drift, so a stale file will be caught; adding a dependency and not regenerating went unnoticed for two work packages before that guard existed.
-- Don't add any external libraries or packages without asking me first
-- Never delete anything without asking for permission while providing a sentance summary of why you are deleting it
+- Don't add any external libraries or packages without asking me first.
+- Never delete anything without asking for permission while providing a sentance summary of why you are deleting it.
 - If anything is unclear, ask me a question before making assumptions.
