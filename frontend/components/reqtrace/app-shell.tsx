@@ -496,21 +496,21 @@ export function AppShell({
     />
   );
 
-  // The scope chips come from the same manifest-derived source the backend
+  // The scope rows come from the same manifest-derived source the backend
   // resolves a scope against, so a document added to the manifest appears
-  // here without a frontend change. Deduped because two documents may share
-  // a module; order is the manifest's. `undefined` (canned mode — no
-  // backend, no SetupStatus) lets the drawer fall back to its static list.
-  const reportModules = setup
-    ? [...new Set(setup.documents.map((doc) => doc.module))]
-    : undefined;
+  // here without a frontend change. The drawer needs the whole document row —
+  // title and requirement count, not just the module — and dedupes modules
+  // itself. `undefined` (canned mode — no backend, no SetupStatus) lets it
+  // fall back to its static list.
+  const reportDocuments = setup?.documents;
 
   const reportDrawer = (
     <ReportDrawer
       open={reportOpen}
       onOpenChange={setReportOpen}
       defaultModule={DEFAULT_REPORT_MODULE}
-      modules={reportModules}
+      documents={reportDocuments}
+      gitSha={setup?.git_sha ?? null}
       report={report}
       view={reportView}
       onOpenRow={(reqId, evidence, tab) =>
