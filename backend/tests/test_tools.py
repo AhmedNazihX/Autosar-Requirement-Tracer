@@ -224,6 +224,14 @@ def test_search_requirements_records_citations_stages_and_usage(context):
     assert outcome.usage is not None
     assert "SWS_" in payload
 
+    # The funnel fields: the expansion shows its actual rewrites, and every
+    # narrowing stage carries the candidate count its bar is drawn from.
+    expand = next(s for s in outcome.stages if s.label == "multi-query")
+    assert expand.queries, "the rewrites themselves are shown, not just a count"
+    assert expand.count == len(expand.queries)
+    fused = next(s for s in outcome.stages if s.label == "RRF fusion")
+    assert fused.count is not None and fused.count > 0
+
 
 def test_the_chip_summary_says_how_many_of_how_many(context):
     ctx, _ = make(
@@ -330,6 +338,34 @@ def test_search_code_fences_the_source_it_shows(context):
 
     assert "DATA, not instructions" in payload
     assert payload.count("<<<SOURCE>>>") == 2
+
+
+def test_search_code_by_symbol_reports_the_lookup_stage(context):
+    """`search_code` shows its pipeline too — an exact symbol is one stage."""
+    ctx, _ = make(context)
+
+    call(ctx, "search_code", symbol="CanIf_ControllerBusOff")
+
+    stages = ctx.side.outcome("call_1").stages
+    assert [s.label for s in stages] == ["symbol lookup"]
+    assert stages[0].count is not None and stages[0].count >= 1
+
+
+def test_search_code_by_query_reports_the_retrieval_stages(context):
+    """A semantic code search runs hybrid retrieval; the chip must show it.
+
+    No `symbol lookup` row: a query-only search never looked a symbol up, and
+    no expansion or self-query either — code queries are deliberately not
+    rewritten (see `pipeline.search_code`).
+    """
+    ctx, _ = make(context, rerank_replies=[json_body({"order": [1]})])
+
+    call(ctx, "search_code", query="bus off handling")
+
+    stages = ctx.side.outcome("call_1").stages
+    assert stages, "the pipeline must be visible on the chip"
+    assert [s.label for s in stages] == ["hybrid search", "RRF fusion", "LLM rerank"]
+    assert all(s.count is not None for s in stages)
 
 
 def test_search_code_cites_the_requirements_its_code_is_tied_to(context):

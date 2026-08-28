@@ -30,6 +30,7 @@ from api.chat_events import (
     CodeCitation,
     DoneEvent,
     ErrorEvent,
+    RagStage,
     RequirementCitation,
     TokenEvent,
     ToolResultEvent,
@@ -116,6 +117,56 @@ def test_absent_optional_fields_are_omitted_from_the_wire():
         "summary": "5 of 20",
         "duration_ms": 40,
     }
+
+
+def test_a_bare_rag_stage_serialises_exactly_as_it_always_has():
+    """The funnel fields are optional so stored threads replay byte-identical."""
+    body = payload(
+        ToolResultEvent(
+            id="t1",
+            status="ok",
+            summary="5 of 20",
+            duration_ms=40,
+            stages=[RagStage(step=1, label="multi-query", detail="2 rewrite(s)")],
+        )
+    )
+    assert body["data"]["stages"] == [
+        {"step": 1, "label": "multi-query", "detail": "2 rewrite(s)"}
+    ]
+
+
+def test_a_rag_stage_carries_the_funnel_fields_when_set():
+    """`count`, `queries`, `filters` and `dropped_filters` feed the chip's funnel."""
+    body = payload(
+        ToolResultEvent(
+            id="t1",
+            status="ok",
+            summary="5 of 20",
+            duration_ms=40,
+            stages=[
+                RagStage(
+                    step=1,
+                    label="multi-query",
+                    detail="2 rewrite(s)",
+                    count=3,
+                    queries=["bus off", "bus-off recovery", "CanSM bus off"],
+                ),
+                RagStage(
+                    step=2,
+                    label="self-query",
+                    detail="module=CanSM · 1 dropped",
+                    filters=["module=CanSM"],
+                    dropped_filters=["doc_type: code is not searchable here"],
+                ),
+            ],
+        )
+    )
+    first, second = body["data"]["stages"]
+    assert first["count"] == 3
+    assert first["queries"] == ["bus off", "bus-off recovery", "CanSM bus off"]
+    assert "count" not in second, "unset fields stay off the wire"
+    assert second["filters"] == ["module=CanSM"]
+    assert second["dropped_filters"] == ["doc_type: code is not searchable here"]
 
 
 def test_a_report_launch_carries_its_job_id_on_the_wire():

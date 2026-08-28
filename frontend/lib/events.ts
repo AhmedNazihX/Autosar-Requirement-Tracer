@@ -57,15 +57,30 @@ export const VERDICT_MEANING: Record<Verdict, string> = {
 
 /**
  * One stage of the advanced RAG pipeline (spec §4), reported by
- * `search_requirements` so the pipeline is visible without a debug panel.
+ * `search_requirements` and `search_code` so the pipeline is visible without
+ * a debug panel.
+ *
+ * Everything below `detail` is optional and feeds the chip's funnel
+ * rendering; a stage that carries none of it renders as the plain text row
+ * it always was, which is what keeps threads stored before these fields
+ * existed replaying unchanged.
  */
 export interface RagStage {
   /** 1-based stage index. */
   step: number;
-  /** `multi-query`, `self-query`, `hybrid + RRF`, `rerank`. */
+  /** `multi-query`, `self-query`, `hybrid search`, `RRF fusion`, `LLM rerank`. */
   label: string;
   /** Free-form counts, e.g. `bm25 42 · dense 40 → fused 20`. */
   detail: string;
+  /** Candidates flowing out of the stage — what the funnel bar is drawn from. */
+  count?: number;
+  /** `multi-query` only: the queries actually searched, the original first. */
+  queries?: string[];
+  /** `self-query` only: the filters applied, formatted `module=CanSM`. */
+  filters?: string[];
+  /** Filters that could not be used, with the reason, or hybrid search's
+   *  "filter matched nothing — retried unfiltered" fallback. */
+  dropped_filters?: string[];
 }
 
 /** An incremental text delta for the assistant message. */
@@ -97,7 +112,7 @@ export interface ToolResultEventData {
   duration_ms: number;
   /** Present when `status === "error"`. User-readable, never a stack trace. */
   error?: string;
-  /** Only `search_requirements` reports these. */
+  /** `search_requirements` and `search_code` report these. */
   stages?: RagStage[];
   /**
    * Only `generate_traceability_report` reports this: the launched run's id.

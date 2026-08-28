@@ -62,6 +62,7 @@ SOURCE_FENCE = "<<<SOURCE>>>"
 #: plumbing, not a retrieval stage, and listing it would pad the advanced-RAG
 #: story with something that is not part of it.
 _STAGE_LABELS: dict[str, str] = {
+    "symbol": "symbol lookup",
     "expand": "multi-query",
     "self_query": "self-query",
     "retrieve": "hybrid search",
@@ -467,6 +468,7 @@ def _search_code_tool(context: ToolContext) -> BaseTool:
             ToolOutcome(
                 summary=f"{len(result.results)} code unit(s)",
                 citations=tuple(citations),
+                stages=tuple(_rag_stages(result.stages)),
                 usage=result.usage,
             ),
         )
@@ -694,15 +696,86 @@ def _rag_stages(stages: Sequence[pipeline.StageLog]) -> list[RagStage]:
         label = _STAGE_LABELS.get(stage.name)
         if label is None:
             continue
+        # A query-only code search still logs a `symbol` stage with nothing in
+        # it; a "symbol lookup" row on a search that never had a symbol is
+        # noise, not pipeline visibility.
+        if stage.name == "symbol" and not stage.detail.get("symbol"):
+            continue
+        filters, dropped = _stage_filters(stage)
         shown.append(
-            RagStage(step=len(shown) + 1, label=label, detail=_stage_detail(stage))
+            RagStage(
+                step=len(shown) + 1,
+                label=label,
+                detail=_stage_detail(stage),
+                count=_stage_count(stage),
+                queries=list(stage.detail.get("queries") or []) or None
+                if stage.name == "expand"
+                else None,
+                filters=filters,
+                dropped_filters=dropped,
+            )
         )
     return shown
+
+
+def _stage_count(stage: pipeline.StageLog) -> int | None:
+    """Candidates flowing out of a stage — what the chip's funnel bar draws.
+
+    ``self_query`` has no count on purpose: it narrows *where* the search
+    looks, not how many candidates are in flight.
+    """
+    detail = stage.detail
+    if stage.name == "symbol":
+        return int(detail.get("exact_matches", 0))
+    if stage.name == "expand":
+        return len(detail.get("queries") or [])
+    if stage.name == "retrieve":
+        return sum((detail.get("hits") or {}).values())
+    if stage.name == "fuse":
+        return int(detail.get("candidates", 0))
+    if stage.name == "rerank":
+        return int(detail.get("returned", 0))
+    return None
+
+
+def _stage_filters(
+    stage: pipeline.StageLog,
+) -> tuple[list[str] | None, list[str] | None]:
+    """(applied, dropped) filters for the chip, or ``None`` where meaningless.
+
+    ``self_query`` reports what it applied and what it had to discard (with the
+    reason — "the filter was silently discarded" is exactly what the log
+    exists to disprove). ``retrieve`` reports the pipeline's zero-results
+    fallback: an inferred filter that matched nothing was dropped and the
+    search retried unfiltered (see ``_retrieve_fuse_hydrate``).
+    """
+    detail = stage.detail
+    if stage.name == "self_query":
+        applied = [
+            f"{key}={value}"
+            for key, value in (
+                ("module", detail.get("module")),
+                ("doc_type", detail.get("doc_type")),
+            )
+            if value
+        ]
+        applied.extend(f"section={path}" for path in detail.get("sections") or [])
+        dropped = [
+            f"{field}: {reason}"
+            for field, reason in (detail.get("dropped") or {}).items()
+        ]
+        return applied or None, dropped or None
+    if stage.name == "retrieve" and detail.get("dropped_filter"):
+        return None, ["filter matched nothing — retried unfiltered"]
+    return None, None
 
 
 def _stage_detail(stage: pipeline.StageLog) -> str:
     """A short, countable description of what one stage did."""
     detail = stage.detail
+    if stage.name == "symbol":
+        count = detail.get("exact_matches", 0)
+        return f"{count} exact match(es)" if count else "no exact match"
     if stage.name == "expand":
         queries = detail.get("queries") or []
         text = f"{max(len(queries) - 1, 0)} rewrite(s)"

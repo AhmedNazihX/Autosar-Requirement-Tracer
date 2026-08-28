@@ -89,6 +89,11 @@ class RagStage(BaseModel):
 
     Nested inside :class:`ToolResultEvent`, never sent on its own — so unlike
     the classes below it carries no ``type`` tag.
+
+    The structured fields below ``detail`` feed the chip's funnel rendering and
+    are all optional: a stage that carries none of them renders as the plain
+    text row it always was, which is what keeps threads stored before they
+    existed replaying unchanged.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -96,6 +101,16 @@ class RagStage(BaseModel):
     step: int = Field(ge=1)
     label: str
     detail: str
+    #: Candidates flowing out of the stage — the number the funnel bar is
+    #: drawn from.
+    count: int | None = Field(default=None, ge=0)
+    #: ``multi-query`` only: the queries actually searched, the original first.
+    queries: list[str] | None = None
+    #: ``self-query`` only: the filters applied, formatted ``module=CanSM``.
+    filters: list[str] | None = None
+    #: Filters that could not be used (self-query) or were dropped mid-search
+    #: because they matched nothing (hybrid search's ``retried unfiltered``).
+    dropped_filters: list[str] | None = None
 
 
 class ToolStartEvent(_Event):
@@ -125,7 +140,7 @@ class ToolResultEvent(_Event):
     duration_ms: int = Field(ge=0)
     #: Present only on ``status="error"``. User-readable, never a stack trace.
     error: str | None = None
-    #: Only ``search_requirements`` reports these.
+    #: ``search_requirements`` and ``search_code`` report these.
     stages: list[RagStage] | None = None
     #: Only ``generate_traceability_report`` reports this: the launched run's
     #: id, which the report drawer attaches to. Structured because prose is

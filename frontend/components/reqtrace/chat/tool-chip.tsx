@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import type { ToolCallState, ToolCallStatus } from "@/lib/event-reducer";
-import type { ToolName } from "@/lib/events";
+import type { RagStage, ToolName } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { Cap } from "@/components/reqtrace/text";
 
@@ -134,17 +134,16 @@ export function ToolChip({ call }: { call: ToolCallState }) {
             <div className="flex flex-col">
               <Cap className="mb-0.5">Retrieval pipeline</Cap>
               {call.stages?.map((stage) => (
-                <div key={stage.step} className="flex items-baseline gap-2 py-0.5">
-                  <span className="w-2.5 flex-none font-mono text-[10px] text-muted-foreground">
-                    {stage.step}
-                  </span>
-                  <span className="w-[104px] flex-none text-[11.5px] leading-4">
-                    {stage.label}
-                  </span>
-                  <span className="flex-1 font-mono text-[10.5px] leading-4 text-muted-foreground">
-                    {stage.detail}
-                  </span>
-                </div>
+                <StageRow
+                  key={stage.step}
+                  stage={stage}
+                  // The widest bar is the round's own largest count, so the
+                  // funnel narrows visibly whatever the absolute numbers are.
+                  maxCount={Math.max(
+                    1,
+                    ...(call.stages ?? []).map((s) => s.count ?? 0),
+                  )}
+                />
               ))}
             </div>
           ) : null}
@@ -162,6 +161,72 @@ export function ToolChip({ call }: { call: ToolCallState }) {
               completed on the backend; this thread has no record of it.
             </p>
           ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One pipeline stage: the numbered row, plus the funnel bar when the stage
+ * carries a `count` and chip rows for its queries and filters.
+ *
+ * A stage without the structured fields renders exactly the text row this
+ * component always drew — that is the compatibility story for threads stored
+ * before the fields existed, so keep the fallback branch rendering identical.
+ */
+function StageRow({ stage, maxCount }: { stage: RagStage; maxCount: number }) {
+  const hasBar = typeof stage.count === "number";
+  return (
+    <div className="flex flex-col py-0.5">
+      <div className="flex items-baseline gap-2">
+        <span className="w-2.5 flex-none font-mono text-[10px] text-muted-foreground">
+          {stage.step}
+        </span>
+        <span className="w-[104px] flex-none text-[11.5px] leading-4">
+          {stage.label}
+        </span>
+        {hasBar ? (
+          <>
+            <span
+              aria-hidden
+              className="h-[5px] w-16 flex-none self-center overflow-hidden rounded-full bg-border"
+            >
+              <span
+                className="block h-full rounded-full bg-source"
+                style={{
+                  width: `${stage.count === 0 ? 0 : Math.max(6, ((stage.count ?? 0) / maxCount) * 100)}%`,
+                }}
+              />
+            </span>
+            <span className="w-8 flex-none text-right font-mono text-[10.5px] leading-4">
+              {stage.count}
+            </span>
+          </>
+        ) : null}
+        <span className="flex-1 font-mono text-[10.5px] leading-4 text-muted-foreground">
+          {stage.detail}
+        </span>
+      </div>
+      {stage.queries?.length || stage.filters?.length || stage.dropped_filters?.length ? (
+        <div className="flex flex-wrap gap-1 py-0.5 pl-[18px]">
+          {(stage.queries ?? []).concat(stage.filters ?? []).map((text) => (
+            // Verbatim data, never markup — same discipline as `formatArgs`.
+            <span
+              key={text}
+              className="rounded border bg-card px-1 py-px font-mono text-[10px] leading-[14px] text-muted-foreground"
+            >
+              {text}
+            </span>
+          ))}
+          {(stage.dropped_filters ?? []).map((text) => (
+            <span
+              key={text}
+              className="rounded border border-destructive-border bg-destructive-bg px-1 py-px font-mono text-[10px] leading-[14px] text-destructive"
+            >
+              {text}
+            </span>
+          ))}
         </div>
       ) : null}
     </div>
