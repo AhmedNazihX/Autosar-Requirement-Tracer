@@ -26,6 +26,7 @@ import {
   getRun,
   isReportFrame,
   launchReport,
+  listRuns,
   type LaunchResponse,
   type ProgressData,
   type ReportResult,
@@ -62,6 +63,8 @@ export function useReport(): {
   cancel: () => void;
   reset: () => void;
   attach: (jobId: string) => void;
+  /** Attach to the newest run still going, if any — see `discover` below. */
+  discover: () => Promise<void>;
 } {
   const [state, setState] = useState<ReportPhase>({ phase: "idle" });
   // The job the stream should be following. Separate from `state` so the
@@ -102,6 +105,26 @@ export function useReport(): {
   }, []);
 
   const attach = useCallback((jobId: string) => setFollowing(jobId), []);
+
+  /**
+   * Find a run this hook did not start — a report launched from chat by
+   * `generate_traceability_report`, or one launched before a page reload —
+   * and follow it. Called when the drawer opens; without it a chat-started
+   * run judges away invisibly behind a blank launch form.
+   *
+   * Only a *running* run is attached: opening the drawer is also how a new
+   * report is launched, and hijacking that with some finished run's matrix
+   * would bury the form the user came for. The functional update keeps a
+   * job this tab is already following (or has just launched) in charge.
+   */
+  const discover = useCallback(async () => {
+    try {
+      const running = (await listRuns()).find((run) => run.status === "running");
+      if (running) setFollowing((current) => current ?? running.id);
+    } catch {
+      // Best-effort: the drawer opens on the launch form either way.
+    }
+  }, []);
 
   const cancel = useCallback(() => {
     if (following) void cancelRun(following);
@@ -192,7 +215,7 @@ export function useReport(): {
     return () => controller.abort();
   }, [following]);
 
-  return { state, launch, cancel, reset, attach };
+  return { state, launch, cancel, reset, attach, discover };
 }
 
 function placeholderLaunch(jobId: string, total: number): LaunchResponse {

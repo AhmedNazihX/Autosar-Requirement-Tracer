@@ -527,6 +527,21 @@ def test_a_conversation_launches_a_traceability_report(parts):
     assert types_of(events)[-2:] == ["usage", "done"]
 
 
+def test_a_report_launch_hands_the_drawer_its_job_id(parts):
+    """The report drawer follows a chat-started run via ``tool_result.job_id``
+    — without it the job runs invisibly (the WP7 bug this event fixed)."""
+    events, _ = turn(
+        parts,
+        "Run a traceability report over CanIf.",
+        calls("generate_traceability_report", {"module": "CanIf"}),
+        says("The report is running."),
+        launch_report=lambda scope: _Launched(),
+    )
+
+    result = only(events, "tool_result")[0]
+    assert result.job_id == "job_1"
+
+
 def test_a_report_launch_emits_no_citations(parts):
     """A launched job has no verdicts yet, so there is nothing to point at."""
     events, _ = turn(

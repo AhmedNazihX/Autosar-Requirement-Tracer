@@ -82,6 +82,9 @@ class ToolOutcome:
     citations: tuple[Citation, ...] = ()
     stages: tuple[RagStage, ...] | None = None
     usage: PipelineUsage | None = None
+    #: Set only by ``generate_traceability_report``: the launched run's id,
+    #: forwarded on the ``tool_result`` event so the report drawer can attach.
+    job_id: str | None = None
 
 
 @dataclass
@@ -634,6 +637,7 @@ def _report_tool(context: ToolContext) -> BaseTool:
             tool_call_id,
             ToolOutcome(
                 summary=f"{launched.to_judge} to judge · {cost}",
+                job_id=launched.job_id,
             ),
         )
 

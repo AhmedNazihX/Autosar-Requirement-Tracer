@@ -127,6 +127,10 @@ class ToolResultEvent(_Event):
     error: str | None = None
     #: Only ``search_requirements`` reports these.
     stages: list[RagStage] | None = None
+    #: Only ``generate_traceability_report`` reports this: the launched run's
+    #: id, which the report drawer attaches to. Structured because prose is
+    #: never parsed (spec §6).
+    job_id: str | None = None
 
 
 class RequirementCitation(_Event):

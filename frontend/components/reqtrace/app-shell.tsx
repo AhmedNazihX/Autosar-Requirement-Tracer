@@ -114,6 +114,9 @@ export function AppShell({
   // a row into the source pane, and Base UI unmounts a closed popup — so a
   // hook inside it would throw the matrix away on the click meant to show it.
   const report = useReport();
+  // Destructured because `report` is a fresh object every render; these two
+  // are stable callbacks, so the handlers below can depend on them alone.
+  const { attach: attachReport, discover: discoverReport } = report;
   // The reader's place in the matrix — filters, scroll offset, last row
   // opened. Lives here so following an evidence span into the code does not
   // cost it; see `ReportView`.
@@ -200,8 +203,21 @@ export function AppShell({
           description: failure.data.message,
         });
       }
+
+      // A report launched from chat announces its run id on the tool_result
+      // event (`events.ts` ToolResultEventData.job_id). Handing it to the
+      // drawer here is what makes "progress appears in the report drawer" —
+      // which the agent tells the user — actually true.
+      if (live) {
+        for (const event of [...events].reverse()) {
+          if (event.type === "tool_result" && event.data.job_id) {
+            attachReport(event.data.job_id);
+            break;
+          }
+        }
+      }
     },
-    [threads],
+    [threads, live, attachReport],
   );
 
   const {
@@ -366,6 +382,21 @@ export function AppShell({
     [transcriptKey, sourceTarget],
   );
 
+  /**
+   * Open (or close) the report drawer — and, on open, look for a run this tab
+   * did not launch. A report started from chat, or before a page reload, is
+   * otherwise invisible: the job judges away on the backend while the drawer
+   * shows a blank launch form. Discovery only ever attaches to a run still
+   * `running`; a finished matrix never hijacks the form (see `useReport`).
+   */
+  const openReport = useCallback(
+    (open: boolean) => {
+      setReportOpen(open);
+      if (open && live) void discoverReport();
+    },
+    [live, discoverReport],
+  );
+
   /* --------------------------------------------------------------- chat ---- */
 
   const handleSend = useCallback(
@@ -507,7 +538,7 @@ export function AppShell({
   const reportDrawer = (
     <ReportDrawer
       open={reportOpen}
-      onOpenChange={setReportOpen}
+      onOpenChange={openReport}
       defaultModule={DEFAULT_REPORT_MODULE}
       documents={reportDocuments}
       gitSha={setup?.git_sha ?? null}
@@ -596,7 +627,7 @@ export function AppShell({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setReportOpen(true)}
+              onClick={() => openReport(true)}
             >
               <Table2Icon />
               Generate report

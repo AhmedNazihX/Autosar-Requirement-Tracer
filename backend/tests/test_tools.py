@@ -622,6 +622,16 @@ def test_the_report_tool_passes_every_scope_option_through(context):
     assert (scope.req_ids, scope.rejudge, scope.limit) == (["SWS_Can_00011"], True, 5)
 
 
+def test_the_report_tool_records_the_job_id_for_the_drawer(context):
+    """The frontend's report drawer attaches to the launched job by id, and
+    prose is never parsed (spec §6) — so the id must ride the side channel."""
+    ctx, _ = make(context, launch_report=lambda scope: _Launched())
+
+    call(ctx, "generate_traceability_report", module="CanIf")
+
+    assert ctx.side.outcome("call_1").job_id == "job_1"
+
+
 def test_the_report_tool_reports_an_unknown_scope_as_a_failure(context):
     def boom(scope):
         raise ScopeError("no module 'Ethernet' in this corpus (known: Can, CanIf)")

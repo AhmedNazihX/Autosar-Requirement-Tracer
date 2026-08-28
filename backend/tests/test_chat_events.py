@@ -118,6 +118,17 @@ def test_absent_optional_fields_are_omitted_from_the_wire():
     }
 
 
+def test_a_report_launch_carries_its_job_id_on_the_wire():
+    """The drawer attaches to a chat-started report by this id — it must be a
+    structured field, because prose is never parsed (spec §6)."""
+    body = payload(
+        ToolResultEvent(
+            id="t1", status="ok", summary="217 to judge", duration_ms=40, job_id="job_1"
+        )
+    )
+    assert body["data"]["job_id"] == "job_1"
+
+
 def test_a_failed_tool_reports_a_readable_error_not_a_stack_trace():
     body = payload(
         ToolResultEvent(

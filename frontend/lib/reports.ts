@@ -218,6 +218,17 @@ export async function estimateReport(scope: ReportScope): Promise<EstimateRespon
   return (await response.json()) as EstimateResponse;
 }
 
+/** The runs this backend process knows about, newest first. */
+export async function listRuns(): Promise<RunView[]> {
+  const response = await fetch(API);
+  if (!response.ok) {
+    throw new ReportError(
+      await readError(response, `Could not list report runs (HTTP ${response.status}).`),
+    );
+  }
+  return (await response.json()) as RunView[];
+}
+
 export async function getRun(jobId: string): Promise<RunView | null> {
   const response = await fetch(`${API}/${encodeURIComponent(jobId)}`);
   if (response.status === 404) return null;

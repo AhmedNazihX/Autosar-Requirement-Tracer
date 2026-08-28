@@ -231,6 +231,7 @@ def _tool_result(
         duration_ms=duration_ms,
         error=outcome.error,
         stages=list(outcome.stages) if outcome.stages else None,
+        job_id=outcome.job_id,
     )
     # Citations follow their tool_result: the chip exists before anything tries
     # to point into it.

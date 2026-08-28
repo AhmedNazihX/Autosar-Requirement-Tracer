@@ -99,6 +99,13 @@ export interface ToolResultEventData {
   error?: string;
   /** Only `search_requirements` reports these. */
   stages?: RagStage[];
+  /**
+   * Only `generate_traceability_report` reports this: the launched run's id.
+   * The shell hands it to the report drawer (`useReport().attach`), which is
+   * how a chat-started report shows progress there — structured, because
+   * prose is never parsed (spec §6).
+   */
+  job_id?: string;
 }
 
 /**
