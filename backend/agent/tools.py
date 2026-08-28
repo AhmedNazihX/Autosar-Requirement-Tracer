@@ -57,10 +57,12 @@ REQUIREMENT_FENCE = "<<<REQUIREMENT_TEXT>>>"
 SOURCE_FENCE = "<<<SOURCE>>>"
 
 
-#: Pipeline stages worth showing on the tool chip, in order, with the label the
-#: user sees. ``hydrate`` is deliberately absent: loading rows out of SQLite is
-#: plumbing, not a retrieval stage, and listing it would pad the advanced-RAG
-#: story with something that is not part of it.
+#: Stages worth showing on the tool chip, with the label the user sees — the
+#: retrieval pipeline's stages plus the evidence engine's tiers, which
+#: ``check_implementation`` reports through the same log. ``hydrate`` is
+#: deliberately absent: loading rows out of SQLite is plumbing, not a
+#: retrieval stage, and listing it would pad the advanced-RAG story with
+#: something that is not part of it.
 _STAGE_LABELS: dict[str, str] = {
     "symbol": "symbol lookup",
     "expand": "multi-query",
@@ -68,6 +70,9 @@ _STAGE_LABELS: dict[str, str] = {
     "retrieve": "hybrid search",
     "fuse": "RRF fusion",
     "rerank": "LLM rerank",
+    "annotations": "annotation scan",
+    "anchors": "symbol anchors",
+    "judge": "LLM judge",
 }
 
 Citation = RequirementCitation | CodeCitation | UpstreamCitation
@@ -548,6 +553,8 @@ def _check_implementation_tool(context: ToolContext) -> BaseTool:
             ToolOutcome(
                 summary=f"{check.req_id}: {verdict.status}",
                 citations=tuple(citations),
+                # Empty for a cached verdict — nothing ran, so nothing shows.
+                stages=tuple(_rag_stages(check.stages)),
                 usage=check.usage,
             ),
         )
@@ -727,6 +734,10 @@ def _stage_count(stage: pipeline.StageLog) -> int | None:
     detail = stage.detail
     if stage.name == "symbol":
         return int(detail.get("exact_matches", 0))
+    if stage.name in ("annotations", "anchors"):
+        return int(detail.get("found", 0))
+    if stage.name == "judge":
+        return int(detail.get("candidates", 0))
     if stage.name == "expand":
         return len(detail.get("queries") or [])
     if stage.name == "retrieve":
@@ -776,6 +787,16 @@ def _stage_detail(stage: pipeline.StageLog) -> str:
     if stage.name == "symbol":
         count = detail.get("exact_matches", 0)
         return f"{count} exact match(es)" if count else "no exact match"
+    if stage.name == "annotations":
+        found = detail.get("found", 0)
+        return f"{found} annotated unit(s)" if found else "no annotations"
+    if stage.name == "anchors":
+        symbols = detail.get("symbols", 0)
+        if not symbols:
+            return "no named symbols"
+        return f"{detail.get('found', 0)} unit(s) from {symbols} named symbol(s)"
+    if stage.name == "judge":
+        return f"{detail.get('candidates', 0)} candidate(s) → {detail.get('status', '?')}"
     if stage.name == "expand":
         queries = detail.get("queries") or []
         text = f"{max(len(queries) - 1, 0)} rewrite(s)"

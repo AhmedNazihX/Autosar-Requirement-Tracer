@@ -214,7 +214,9 @@ def test_gather_skips_the_paid_semantic_pass_when_the_cheap_tiers_suffice(parts)
     )
 
     assert usage.cost_usd == 0.0
-    assert stages == ()
+    # The free tiers still report themselves — that is what the tool chip
+    # renders — but no retrieval stage may appear, because none ran.
+    assert [stage.name for stage in stages] == ["annotations", "anchors"]
 
 
 # --------------------------------------------------------------------------

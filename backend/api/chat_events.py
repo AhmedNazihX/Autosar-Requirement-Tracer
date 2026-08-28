@@ -140,7 +140,9 @@ class ToolResultEvent(_Event):
     duration_ms: int = Field(ge=0)
     #: Present only on ``status="error"``. User-readable, never a stack trace.
     error: str | None = None
-    #: ``search_requirements`` and ``search_code`` report these.
+    #: ``search_requirements`` and ``search_code`` report the retrieval
+    #: pipeline; ``check_implementation`` reports its evidence tiers and the
+    #: judge through the same log.
     stages: list[RagStage] | None = None
     #: Only ``generate_traceability_report`` reports this: the launched run's
     #: id, which the report drawer attaches to. Structured because prose is

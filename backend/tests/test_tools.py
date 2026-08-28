@@ -579,6 +579,28 @@ def test_check_implementation_summarises_the_verdict_on_the_chip(context):
     assert ctx.side.outcome("call_1").summary == "SWS_CANIF_00023: missing"
 
 
+def test_check_implementation_reports_its_evidence_stages(context):
+    """The chip shows HOW the verdict's candidates were found — the free tiers
+    by name, then whatever the semantic pass ran, then the judge itself."""
+    ctx, _ = make(
+        context,
+        judge_replies=[verdict_reply("implemented", evidence_items=[(1, "it does.")])],
+    )
+
+    call(ctx, "check_implementation", req_id="SWS_CANIF_00023")
+
+    stages = ctx.side.outcome("call_1").stages
+    assert stages, "the evidence pipeline must be visible on the chip"
+    labels = [s.label for s in stages]
+    assert labels[0] == "annotation scan"
+    assert labels[1] == "symbol anchors"
+    assert labels[-1] == "LLM judge"
+    assert "hydrate" not in labels, "plumbing is not a stage here either"
+    judge = stages[-1]
+    assert judge.count is not None
+    assert "implemented" in judge.detail
+
+
 def test_check_implementation_frames_a_missing_verdict_as_release_drift(context):
     """Finding A1: most of the CAN Driver has no implementation here, and a
     tool that implied a defect would teach the model to say so 239 times."""

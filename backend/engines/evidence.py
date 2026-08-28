@@ -338,14 +338,40 @@ def gather_candidates(
             seen.add(key)
             candidates.append(candidate)
 
-    take(annotation_candidates(engine.conn, engine.project_id, requirement))
-    take(anchor_candidates(engine.conn, engine.project_id, requirement))
-    if not include_semantic or len(candidates) >= limit:
-        return candidates, PipelineUsage(), ()
+    # The free tiers log themselves like the pipeline's stages do — the tool
+    # chip renders this log, and "how were the candidates found" is exactly
+    # tiers 1 and 2. `found` is each tier's own count, before the budget
+    # dedupes across tiers; the judge stage carries the final candidate count.
+    stages: list[StageLog] = []
 
-    semantic, usage, stages = semantic_candidates(engine, requirement)
+    started = time.perf_counter()
+    annotated = annotation_candidates(engine.conn, engine.project_id, requirement)
+    take(annotated)
+    stages.append(
+        StageLog(
+            name="annotations",
+            elapsed_ms=(time.perf_counter() - started) * 1000.0,
+            detail={"found": len(annotated)},
+        )
+    )
+
+    started = time.perf_counter()
+    anchored = anchor_candidates(engine.conn, engine.project_id, requirement)
+    take(anchored)
+    stages.append(
+        StageLog(
+            name="anchors",
+            elapsed_ms=(time.perf_counter() - started) * 1000.0,
+            detail={"symbols": len(requirement.named_symbols), "found": len(anchored)},
+        )
+    )
+
+    if not include_semantic or len(candidates) >= limit:
+        return candidates, PipelineUsage(), tuple(stages)
+
+    semantic, usage, semantic_stages = semantic_candidates(engine, requirement)
     take(semantic)
-    return candidates, usage, stages
+    return candidates, usage, (*stages, *semantic_stages)
 
 
 # --------------------------------------------------------------------------

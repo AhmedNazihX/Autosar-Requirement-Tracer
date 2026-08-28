@@ -58,7 +58,9 @@ export const VERDICT_MEANING: Record<Verdict, string> = {
 /**
  * One stage of the advanced RAG pipeline (spec §4), reported by
  * `search_requirements` and `search_code` so the pipeline is visible without
- * a debug panel.
+ * a debug panel — and by `check_implementation`, whose evidence tiers
+ * (annotation scan, symbol anchors, semantic fill, judge) travel through the
+ * same log.
  *
  * Everything below `detail` is optional and feeds the chip's funnel
  * rendering; a stage that carries none of it renders as the plain text row
@@ -112,7 +114,9 @@ export interface ToolResultEventData {
   duration_ms: number;
   /** Present when `status === "error"`. User-readable, never a stack trace. */
   error?: string;
-  /** `search_requirements` and `search_code` report these. */
+  /** `search_requirements` and `search_code` report the retrieval pipeline;
+   *  `check_implementation` reports its evidence tiers and the judge through
+   *  the same log. */
   stages?: RagStage[];
   /**
    * Only `generate_traceability_report` reports this: the launched run's id.
