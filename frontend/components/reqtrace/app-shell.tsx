@@ -48,6 +48,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 import { CheckpointRail } from "./checkpoint-rail";
+import { HelpPopover } from "./help-popover";
 import { ReportDrawer, useReportView } from "./report/report-drawer";
 import { ChatPane } from "./chat/chat-pane";
 import { SourcePane } from "./source/source-pane";
@@ -677,6 +678,7 @@ export function AppShell({
           </DropdownMenu>
           ) : null}
 
+          <HelpPopover setup={setup} />
           <ThemeToggle />
           <span aria-hidden className="mx-0.5 h-[18px] w-px bg-border" />
           <Button

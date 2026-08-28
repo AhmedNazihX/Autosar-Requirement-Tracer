@@ -1,36 +1,24 @@
 "use client";
 
 import { CANIF_FIXTURE_SHA } from "@/lib/fixtures/canif-c";
-import type { ToolName } from "@/lib/events";
+import { EXAMPLE_PROMPTS } from "@/lib/example-prompts";
 
 import { TOOL_ICON } from "./tool-chip";
 
 /**
  * The empty-thread state — canvas artboard 5, cell C.
  *
- * Four prompts, one per tool, so `search_requirements`, `lookup_requirement`,
+ * Four prompts so `search_requirements`, `lookup_requirement`,
  * `check_implementation` and `search_code` are all discoverable without
- * documentation. The subhead states the corpus and the pinned SHA, so the
- * boundary of what can be answered is visible before the first question.
+ * documentation. The report prompt stays out on purpose: launching a paid
+ * background job is not a first question, and this cell has always shown the
+ * four question-shaped prompts. The subhead states the corpus and the pinned
+ * SHA, so the boundary of what can be answered is visible before the first
+ * question.
  */
-const EXAMPLES: { prompt: string; tool: ToolName }[] = [
-  {
-    prompt: "Who owns the transmit buffer during Can_Write?",
-    tool: "search_requirements",
-  },
-  {
-    prompt: "What does SWS_CANIF_00064 require?",
-    tool: "lookup_requirement",
-  },
-  {
-    prompt: "Is SWS_CANIF_00381 implemented in the snapshot?",
-    tool: "check_implementation",
-  },
-  {
-    prompt: "Where is CanIf_RxIndication defined?",
-    tool: "search_code",
-  },
-];
+const EXAMPLES = EXAMPLE_PROMPTS.filter(
+  (example) => example.tool !== "generate_traceability_report",
+);
 
 export function EmptyThread({ onPick }: { onPick: (prompt: string) => void }) {
   return (
