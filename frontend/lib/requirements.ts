@@ -75,11 +75,29 @@ export interface ImplementationLink {
   annotation_lines: number[];
 }
 
+/** One span a cached verdict cited — `EvidenceItem` in `engines/evidence.py`. */
+export interface VerdictEvidence {
+  file: string;
+  lines: [number, number];
+  rationale: string;
+  symbol: string;
+  git_sha: string;
+}
+
+/** The cached judge verdict, verbatim — `Verdict` in `engines/evidence.py`. */
+export interface CachedVerdict {
+  status: string;
+  confidence: number;
+  rationale?: string;
+  evidence?: VerdictEvidence[];
+  model_id?: string | null;
+}
+
 export interface Implementation {
   req_id: string;
   git_sha: string;
   links: ImplementationLink[];
-  verdict: { status: string; confidence: number; rationale?: string } | null;
+  verdict: CachedVerdict | null;
 }
 
 /**
@@ -94,21 +112,34 @@ export interface Implementation {
  * on screen and must not be taken down because the code half could not be
  * resolved.
  */
+// Shared in-flight promise for the same reason `fetchCodeRequirements` has
+// one below: `useSourceCompanion` and the Evidence card resolve the same
+// requirement in the same render pass. Dropped on settle — never cached stale.
+const implementationInFlight = new Map<string, Promise<Implementation | null>>();
+
 export async function fetchImplementation(
   reqId: string,
 ): Promise<Implementation | null> {
   // Canned mode has no backend to ask, and a doomed request per citation
   // click is noise in the one demo that is supposed to run on nothing.
   if (chatSourceKind() !== "live") return null;
-  try {
-    const response = await fetch(
-      `/api/py/requirements/${encodeURIComponent(reqId)}/implementation`,
-    );
-    if (!response.ok) return null;
-    return (await response.json()) as Implementation;
-  } catch {
-    return null;
-  }
+  const pending = implementationInFlight.get(reqId);
+  if (pending) return pending;
+  const request = (async () => {
+    try {
+      const response = await fetch(
+        `/api/py/requirements/${encodeURIComponent(reqId)}/implementation`,
+      );
+      if (!response.ok) return null;
+      return (await response.json()) as Implementation;
+    } catch {
+      return null;
+    } finally {
+      implementationInFlight.delete(reqId);
+    }
+  })();
+  implementationInFlight.set(reqId, request);
+  return request;
 }
 
 /**

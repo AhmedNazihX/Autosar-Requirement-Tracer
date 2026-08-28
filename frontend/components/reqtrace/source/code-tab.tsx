@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { CopyIcon, GitCommitHorizontalIcon, ScanLineIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckIcon,
+  CopyIcon,
+  GitCommitHorizontalIcon,
+  ScanLineIcon,
+} from "lucide-react";
 
 import type { HighlightedFile } from "@/lib/code-highlight";
 import { useCodeFile } from "@/hooks/use-code-file";
 import type { CodeCitation, RequirementCitation } from "@/lib/events";
 import {
   citationForLink,
+  type Implementation,
   type LinkedRequirement,
 } from "@/lib/requirements";
 import { useCodeRequirements } from "@/hooks/use-code-requirements";
@@ -15,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { CodeTokens } from "@/components/reqtrace/code-tokens";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Cap, Meta } from "@/components/reqtrace/text";
+
+import { EvidenceCard, useImplementation } from "./evidence-card";
 
 /** Canvas artboard 3: 11.8 px mono on a 17 px line, 52 px right-aligned gutter. */
 const LINE_HEIGHT = 17;
@@ -42,15 +50,66 @@ const PAD_TOP = 10;
 export function CodeTab({
   file: fallback,
   citation,
+  requirement,
   onOpenRequirement,
 }: {
   file: HighlightedFile;
   citation: CodeCitation | null;
+  /** The requirement this code was opened for — the Document tab's half of the
+   *  citation pair, when the pane knows it. Names the evidence pill and keys
+   *  the Evidence card's verdict lookup. */
+  requirement?: RequirementCitation | null;
   /** Open one of the requirements this code is tied to, in the Document tab. */
   onOpenRequirement?: (citation: RequirementCitation) => void;
 }) {
-  const fetched = useCodeFile(citation);
   const links = useCodeRequirements(citation);
+  // Cached verdict only — `fetchImplementation` never judges, and it no-ops
+  // in canned mode, so this costs nothing however often the pane changes.
+  const implementation = useImplementation(requirement?.req_id ?? null);
+
+  // The spans a cached verdict cited in the open file. More than one earns the
+  // Evidence card its stepper; spans in *other* files are not offered, because
+  // stepping there would silently swap the file under the citation.
+  const verdictSpans = useMemo(() => {
+    if (!citation) return [];
+    const seen = new Set<string>();
+    const spans: [number, number][] = [];
+    for (const item of implementation?.verdict?.evidence ?? []) {
+      if (item.file !== citation.repo_path) continue;
+      const key = `${item.lines[0]}-${item.lines[1]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      spans.push([item.lines[0], item.lines[1]]);
+    }
+    return spans;
+  }, [citation, implementation]);
+
+  // Keyed by what is on screen, so a new citation or requirement lands back on
+  // its own span without an effect resetting state.
+  const stepToken = `${requirement?.req_id ?? ""}|${
+    citation
+      ? `${citation.repo_path}:${citation.line_span[0]}-${citation.line_span[1]}`
+      : ""
+  }`;
+  const [step, setStep] = useState<{ token: string; index: number } | null>(null);
+  const defaultIndex = Math.max(
+    0,
+    verdictSpans.findIndex(
+      (span) =>
+        citation &&
+        span[0] === citation.line_span[0] &&
+        span[1] === citation.line_span[1],
+    ),
+  );
+  const stepIndex = Math.min(
+    step?.token === stepToken ? step.index : defaultIndex,
+    Math.max(verdictSpans.length - 1, 0),
+  );
+  const activeSpan: [number, number] | null =
+    verdictSpans.length > 1
+      ? verdictSpans[stepIndex]
+      : (citation?.line_span ?? null);
+  const fetched = useCodeFile(citation, activeSpan);
 
   // Nothing cited this turn: say so, rather than showing code nobody pointed at.
   if (!citation) return <NoCitation />;
@@ -70,6 +129,25 @@ export function CodeTab({
     <CodeView
       file={file}
       citation={citation}
+      span={activeSpan}
+      requirement={requirement ?? null}
+      implementation={implementation}
+      stepper={
+        verdictSpans.length > 1
+          ? {
+              index: stepIndex,
+              count: verdictSpans.length,
+              onStep: (delta: number) =>
+                setStep({
+                  token: stepToken,
+                  index: Math.min(
+                    Math.max(stepIndex + delta, 0),
+                    verdictSpans.length - 1,
+                  ),
+                }),
+            }
+          : null
+      }
       live={fetched.phase === "ready"}
       links={links}
       onOpenRequirement={onOpenRequirement}
@@ -124,12 +202,22 @@ function Unavailable({ message }: { message: string }) {
 function CodeView({
   file,
   citation,
+  span,
+  requirement,
+  implementation,
+  stepper,
   live,
   links,
   onOpenRequirement,
 }: {
   file: HighlightedFile;
   citation: CodeCitation | null;
+  /** The span the band highlights — the citation's own, unless the Evidence
+   *  card's stepper has moved it to another span the verdict cited. */
+  span: [number, number] | null;
+  requirement: RequirementCitation | null;
+  implementation: Implementation | null;
+  stepper: { index: number; count: number; onStep: (delta: number) => void } | null;
   /** True when `file` came from `GET /code/{path}` rather than the committed
    *  fixture. The footer says which, because "committed slice" printed under a
    *  live file is the kind of stale caption nobody re-reads. */
@@ -139,8 +227,6 @@ function CodeView({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastLine = file.first_line + file.lines.length - 1;
-
-  const span = citation?.line_span ?? null;
   // The rendered slice is a window on a much larger file. A span outside it is
   // reported rather than clamped into a band that would point at the wrong code.
   const spanInWindow =
@@ -156,6 +242,29 @@ function CodeView({
     const offset = (bandStart - file.first_line) * LINE_HEIGHT + PAD_TOP;
     container.scrollTo({ top: Math.max(offset - 3 * LINE_HEIGHT, 0) });
   }, [bandStart, file.first_line, file.path]);
+
+  // Transient success state for the copy-path button: the check reads as "it
+  // is on your clipboard", then hands the icon back.
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    };
+  }, []);
+  const copyPath = () => {
+    void navigator.clipboard
+      .writeText(file.path)
+      .then(() => {
+        setCopied(true);
+        if (copyTimer.current) clearTimeout(copyTimer.current);
+        copyTimer.current = setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
+  };
+
+  // What the pill names: the requirement the pane knows, else the cited symbol.
+  const pillLabel = requirement?.req_id ?? citation?.symbol ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -175,8 +284,13 @@ function CodeView({
         <Meta className="flex-none">
           {file.total_lines.toLocaleString("en-US")} lines
         </Meta>
-        <Button variant="ghost" size="icon-xs" aria-label="Copy path" disabled>
-          <CopyIcon />
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Copy path"
+          onClick={copyPath}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
         </Button>
       </div>
 
@@ -224,6 +338,19 @@ function CodeView({
         </div>
       ) : null}
 
+      {/* Cached verdicts only, and only here: the card is where a verdict is
+          allowed to appear in this tab. It is never painted onto lines — a
+          verdict colour on source would read as a property of the code. */}
+      {requirement && implementation?.verdict ? (
+        <EvidenceCard
+          key={requirement.req_id}
+          requirement={requirement}
+          implementation={implementation}
+          stepper={stepper}
+          onOpenRequirement={onOpenRequirement}
+        />
+      ) : null}
+
       <div
         ref={scrollRef}
         className="relative min-h-0 flex-1 overflow-auto bg-code-bg font-mono text-[11.8px]"
@@ -246,7 +373,7 @@ function CodeView({
               }}
             >
               <ScanLineIcon className="size-3" />
-              evidence span
+              evidence span{pillLabel ? ` · ${pillLabel}` : ""}
             </div>
           </>
         ) : null}
@@ -258,12 +385,13 @@ function CodeView({
             style={{ height: LINE_HEIGHT }}
           >
             {/* 2 px gutter bar: blue for @req, ochre for !req. This marks an
-                annotation, never a verdict — verdict lives in the chat answer. */}
+                annotation, never a verdict — verdicts are shown only when
+                already cached, in the Evidence card, never painted onto lines. */}
             {line.annotation ? (
               <span
                 aria-hidden
                 className={
-                  line.annotation === "negative"
+                  line.annotation.polarity === "negative"
                     ? "absolute top-[3px] bottom-[3px] left-0 w-0.5 rounded-sm bg-verdict-partial"
                     : "absolute top-[3px] bottom-[3px] left-0 w-0.5 rounded-sm bg-source"
                 }
@@ -273,7 +401,7 @@ function CodeView({
               {line.number}
             </span>
             <span className="flex-1 whitespace-pre">
-              <CodeTokens tokens={line.tokens} />
+              <CodeTokens tokens={line.tokens} annotation={line.annotation} />
             </span>
           </div>
         ))}

@@ -8,8 +8,17 @@
  * either bundle, which is the entire point of that server/client split.
  */
 
-/** Requirement-annotation polarity of one source line, if any. */
-export type LineAnnotation = "positive" | "negative" | null;
+/** The requirement annotation one source line carries, if any. */
+export interface LineAnnotation {
+  polarity: "positive" | "negative";
+  /** The matched marker text, e.g. `@req 4.0.3/CANIF005`. */
+  text: string;
+  /** Column span of `text` within the line — 0-based, end exclusive, in the
+   *  same character units Shiki tokens cover, so a renderer can split a token
+   *  row around it. */
+  start: number;
+  end: number;
+}
 
 /** `@req 4.0.3/CANIF005` and `!req CANIF058` both appear in the real snapshot. */
 const POSITIVE_ANNOTATION = /@req\s+\S+/;
@@ -20,11 +29,17 @@ const NEGATIVE_ANNOTATION = /!req\s+\S+/;
  * markers come from the manifest's annotation pattern, and a change there
  * must reach the fixture view and the live view together.
  */
-export function annotationOf(line: string): LineAnnotation {
+export function annotationOf(line: string): LineAnnotation | null {
   // A `!req` on the same line wins: it is the stronger claim.
-  if (NEGATIVE_ANNOTATION.test(line)) return "negative";
-  if (POSITIVE_ANNOTATION.test(line)) return "positive";
-  return null;
+  const negative = NEGATIVE_ANNOTATION.exec(line);
+  const match = negative ?? POSITIVE_ANNOTATION.exec(line);
+  if (!match) return null;
+  return {
+    polarity: negative ? "negative" : "positive",
+    text: match[0],
+    start: match.index,
+    end: match.index + match[0].length,
+  };
 }
 
 /**

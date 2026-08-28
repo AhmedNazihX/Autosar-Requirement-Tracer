@@ -35,12 +35,12 @@ export interface HighlightedLine {
   number: number;
   tokens: HighlightedToken[];
   /**
-   * Requirement-annotation polarity found on this line, if any. Drives the
-   * 2 px gutter bar — blue for `@req`, ochre for `!req`. This is a lexical
-   * scan of the committed slice, not a verdict: verdict lives in the side
-   * panel, never in the file (canvas artboard 3).
+   * Requirement annotation found on this line, if any. Drives the 2 px gutter
+   * bar and the inline marker chip — blue for `@req`, ochre for `!req`. This
+   * is a lexical scan of the committed slice, not a verdict: verdict lives in
+   * the Evidence card, never in the file (canvas artboard 3).
    */
-  annotation: LineAnnotation;
+  annotation: LineAnnotation | null;
 }
 
 export interface HighlightedFile {

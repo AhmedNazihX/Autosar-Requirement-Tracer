@@ -132,6 +132,9 @@ export function SourcePane({
         <CodeTab
           file={codeFile}
           citation={code}
+          // The pair's other half: names the evidence pill and keys the
+          // Evidence card, whether it arrived clicked or as a companion.
+          requirement={requirement}
           onOpenRequirement={onOpenRequirement}
         />
       </TabsContent>
