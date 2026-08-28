@@ -496,11 +496,21 @@ export function AppShell({
     />
   );
 
+  // The scope chips come from the same manifest-derived source the backend
+  // resolves a scope against, so a document added to the manifest appears
+  // here without a frontend change. Deduped because two documents may share
+  // a module; order is the manifest's. `undefined` (canned mode — no
+  // backend, no SetupStatus) lets the drawer fall back to its static list.
+  const reportModules = setup
+    ? [...new Set(setup.documents.map((doc) => doc.module))]
+    : undefined;
+
   const reportDrawer = (
     <ReportDrawer
       open={reportOpen}
       onOpenChange={setReportOpen}
       defaultModule={DEFAULT_REPORT_MODULE}
+      modules={reportModules}
       report={report}
       view={reportView}
       onOpenRow={(reqId, evidence, tab) =>

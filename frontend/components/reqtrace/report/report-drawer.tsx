@@ -94,6 +94,7 @@ export function ReportDrawer({
   onOpenChange,
   onOpenRow,
   defaultModule,
+  modules = FALLBACK_MODULES,
   report,
   view,
 }: {
@@ -120,6 +121,8 @@ export function ReportDrawer({
     tab: "document" | "code",
   ) => void;
   defaultModule: string;
+  /** Manifest-derived module names; `FALLBACK_MODULES` when there is no backend. */
+  modules?: readonly string[];
   view: ReportView;
 }) {
   return (
@@ -162,6 +165,7 @@ export function ReportDrawer({
           <LaunchForm
             busy={report.state.phase === "launching"}
             defaultModule={defaultModule}
+            modules={modules}
             onLaunch={(scope) => void report.launch(scope)}
           />
         ) : null}
@@ -213,15 +217,25 @@ export function ReportDrawer({
 
 /* ------------------------------------------------------------- S5.5.1 ----- */
 
-const MODULES = ["Can", "CanIf", "CanTp", "CanSM"] as const;
+/**
+ * Shown only when there is no `SetupStatus` to derive the real list from —
+ * canned mode has no backend to ask. In live mode the shell passes the
+ * modules from `GET /setup/status`, the same manifest-derived source the
+ * backend resolves a scope against, so a document added to the manifest
+ * appears here without a frontend change. This list going stale was a real
+ * bug: CanNm/Com/PduR were ingested and the drawer still offered four.
+ */
+const FALLBACK_MODULES: readonly string[] = ["Can", "CanIf", "CanTp", "CanSM"];
 
 function LaunchForm({
   busy,
   defaultModule,
+  modules,
   onLaunch,
 }: {
   busy: boolean;
   defaultModule: string;
+  modules: readonly string[];
   onLaunch: (scope: ReportScope) => void;
 }) {
   const [module, setModule] = useState(defaultModule);
@@ -235,7 +249,7 @@ function LaunchForm({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
       <Cap>Scope</Cap>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {MODULES.map((name) => (
+        {modules.map((name) => (
           <button
             key={name}
             type="button"
