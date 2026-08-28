@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CircleIcon, HistoryIcon } from "lucide-react";
+import { CircleIcon } from "lucide-react";
 
 import { clockTime } from "@/lib/format";
 import type { Exchange } from "@/lib/exchanges";
@@ -78,9 +78,6 @@ export function CheckpointRail({
 
   return (
     <div className="flex w-11 flex-none flex-col border-r">
-      <div className="flex h-[34px] flex-none items-center justify-center text-muted-foreground">
-        <HistoryIcon className="size-3.5" />
-      </div>
       <div ref={trackRef} className="relative min-h-0 flex-1 overflow-hidden">
         <span
           aria-hidden
@@ -157,6 +154,15 @@ function useDotPositions(
       const step = (fromViewport: number) =>
         Math.max(0, PILE_MAX - 1 - Math.min(fromViewport, PILE_MAX - 1)) *
         PILE_STEP;
+
+      // An in-view message whose top edge has scrolled past the viewport
+      // still positions its dot by that edge, so the raw top can land outside
+      // the track. It must clamp INSIDE the piles — one stagger inward of the
+      // innermost pile dot — or the newest turn leapfrogs every piled older
+      // turn and reads as the first. Clamping is monotone, so in-view dots
+      // keep their order among themselves too, coinciding at worst.
+      const inMin = above.length ? min + step(0) + PILE_STEP : min;
+      const inMax = below.length ? max - step(0) - PILE_STEP : max;
       const next: DotPosition[] = raw.map((p) => {
         if (p.away === -1) {
           const fromViewport = above.length - 1 - above.indexOf(p);
@@ -168,7 +174,7 @@ function useDotPositions(
         }
         return {
           id: p.id,
-          top: Math.min(Math.max(p.top, min), max),
+          top: Math.min(Math.max(p.top, inMin), inMax),
           clamped: false,
         };
       });
