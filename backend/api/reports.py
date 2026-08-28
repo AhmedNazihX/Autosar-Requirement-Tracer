@@ -1,9 +1,10 @@
 """The traceability report API (spec §6, stories S4.2.1 and S4.3.1).
 
     POST   /reports              → {job_id, est_cost_usd, …}
+    POST   /reports/estimate     → the same figures, with no job started
     GET    /reports              → the runs this process knows about
     GET    /reports/{id}         → one run, with its matrix once finished
-    GET    /reports/{id}/events  → SSE {done, total, current}
+    GET    /reports/{id}/events  → SSE {done, total, current, …tallies}
     GET    /reports/{id}/export  → md | csv | json
     DELETE /reports/{id}         → stop a run that is still going
 
@@ -50,6 +51,7 @@ from api.sse import HEARTBEAT_SECONDS
 from core import db, llm
 from core.config import get_settings
 from engines import report
+from engines.evidence import VERDICT_STATUSES
 from engines.report import EXPORT_FORMATS, MEDIA_TYPES, ReportResult, ReportScope, ScopeError
 
 logger = logging.getLogger(__name__)
@@ -75,13 +77,23 @@ NOT_READY_MESSAGE = (
 
 
 class ProgressData(BaseModel):
-    """Spec §6's ``{done, total, current}``."""
+    """Spec §6's ``{done, total, current}``, plus the running picture.
+
+    The tallies and the spend let the drawer show coverage forming — and the
+    bill climbing toward the ceiling — while the run is still going, instead
+    of a bare counter followed by a surprise.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     done: int = Field(ge=0)
     total: int = Field(ge=0)
     current: str
+    implemented: int = Field(default=0, ge=0)
+    partial: int = Field(default=0, ge=0)
+    missing: int = Field(default=0, ge=0)
+    unverifiable: int = Field(default=0, ge=0)
+    cost_usd: float = Field(default=0.0, ge=0.0)
 
 
 class RunView(BaseModel):
@@ -112,13 +124,20 @@ class LaunchRequest(BaseModel):
     scope: ReportScope = Field(default_factory=ReportScope)
 
 
-class LaunchResponse(BaseModel):
-    """Everything the launch dialog needs to say what it just started."""
+class EstimateRequest(LaunchRequest):
+    """``POST /reports/estimate``'s body — the launch body, deliberately."""
+
+
+class EstimateResponse(BaseModel):
+    """The launch dialog's figures, with no job behind them.
+
+    ``POST /reports/estimate`` returns this so the dialog can quote a scope
+    the user is still composing; :class:`LaunchResponse` extends it with the
+    job that was actually started, so the two can never disagree on a field.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    job_id: str
-    status: RunStatus
     scope_label: str
     requirements: int
     to_judge: int
@@ -129,6 +148,13 @@ class LaunchResponse(BaseModel):
     #: Ids the scope named that this corpus does not contain. Reported rather
     #: than rejected: eleven good ids and one typo is eleven rows and a note.
     unknown_ids: list[str] = Field(default_factory=list)
+
+
+class LaunchResponse(EstimateResponse):
+    """Everything the launch dialog needs to say what it just started."""
+
+    job_id: str
+    status: RunStatus
 
 
 # --------------------------------------------------------------------------
@@ -148,6 +174,11 @@ class _Run:
     total: int = 0
     done: int = 0
     current: str | None = None
+    #: Running verdict tallies, one count per status, and the spend so far —
+    #: kept on the run so a reader that connects late replays the same picture
+    #: a reader that followed from the start has built up.
+    counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(VERDICT_STATUSES, 0))
+    spent_usd: float = 0.0
     status: RunStatus = "running"
     error: str | None = None
     result: ReportResult | None = None
@@ -155,10 +186,26 @@ class _Run:
     lock: threading.Lock = field(default_factory=threading.Lock)
     cancelled: threading.Event = field(default_factory=threading.Event)
 
-    def progress(self, done: int, total: int, current: str) -> None:
+    def progress(
+        self, done: int, total: int, current: str, counts: dict[str, int], spent_usd: float
+    ) -> None:
         with self.lock:
             self.done, self.total, self.current = done, total, current
-        self.events.put(ProgressData(done=done, total=total, current=current))
+            self.counts, self.spent_usd = dict(counts), spent_usd
+        self.events.put(
+            ProgressData(done=done, total=total, current=current, cost_usd=spent_usd, **counts)
+        )
+
+    def progress_data(self) -> ProgressData:
+        """Where the run is right now — the frame a late reader replays."""
+        with self.lock:
+            return ProgressData(
+                done=self.done,
+                total=self.total,
+                current=self.current or "",
+                cost_usd=self.spent_usd,
+                **self.counts,
+            )
 
     def finish(self, *, status: RunStatus, result: ReportResult | None, error: str | None) -> None:
         with self.lock:
@@ -229,6 +276,34 @@ REGISTRY = _Registry()
 # --------------------------------------------------------------------------
 
 
+def estimate_scope(state: deps.AppState, scope: ReportScope) -> EstimateResponse:
+    """Resolve and price ``scope``, registering nothing and spending nothing.
+
+    The estimate step :func:`prepare` runs before it registers anything, on
+    its own — shared so ``POST /reports/estimate`` and ``POST /reports`` can
+    never quote two different figures for the same scope. It costs no model
+    calls (:func:`engines.report.estimate_cost` is SQL plus the price
+    catalogue), which is what makes a preflight endpoint affordable to call on
+    every scope the user tries.
+
+    Raises :class:`ScopeError` for a scope this corpus cannot satisfy.
+    """
+    engine = deps.build_engine(state)
+    judge = llm.chat_model(state.manifest, "judge")
+    requirements, unknown = report.resolve_scope(engine, scope)
+    estimate = report.estimate_cost(engine, judge.model_id, requirements, rejudge=scope.rejudge)
+    return EstimateResponse(
+        scope_label=scope.label(),
+        requirements=estimate.requirements,
+        to_judge=estimate.to_judge,
+        cached=estimate.cached,
+        est_cost_usd=estimate.usd,
+        est_basis=estimate.basis,
+        ceiling_usd=report.ceiling_usd(state.manifest, get_settings()),
+        unknown_ids=unknown,
+    )
+
+
 def prepare(state: deps.AppState, scope: ReportScope) -> tuple[_Run, LaunchResponse]:
     """Estimate ``scope`` and register a run for it, without starting it.
 
@@ -241,40 +316,25 @@ def prepare(state: deps.AppState, scope: ReportScope) -> tuple[_Run, LaunchRespo
 
     Raises :class:`ScopeError` for a scope this corpus cannot satisfy.
     """
-    engine = deps.build_engine(state)
-    judge = llm.chat_model(state.manifest, "judge")
-    requirements, unknown = report.resolve_scope(engine, scope)
-    estimate = report.estimate_cost(engine, judge.model_id, requirements, rejudge=scope.rejudge)
-    ceiling = report.ceiling_usd(state.manifest, get_settings())
+    estimate = estimate_scope(state, scope)
 
     run = _Run(
         id=uuid.uuid4().hex,
         scope=scope,
-        ceiling_usd=ceiling,
-        est_cost_usd=estimate.usd,
-        est_basis=estimate.basis,
-        total=len(requirements),
+        ceiling_usd=estimate.ceiling_usd,
+        est_cost_usd=estimate.est_cost_usd,
+        est_basis=estimate.est_basis,
+        total=estimate.requirements,
     )
     REGISTRY.add(run)
     db.create_report_run(
         state.pool,
         state.manifest.project_id,
         scope.model_dump(mode="json"),
-        est_cost_usd=estimate.usd,
+        est_cost_usd=estimate.est_cost_usd,
         run_id=run.id,
     )
-    return run, LaunchResponse(
-        job_id=run.id,
-        status="running",
-        scope_label=scope.label(),
-        requirements=estimate.requirements,
-        to_judge=estimate.to_judge,
-        cached=estimate.cached,
-        est_cost_usd=estimate.usd,
-        est_basis=estimate.basis,
-        ceiling_usd=ceiling,
-        unknown_ids=unknown,
-    )
+    return run, LaunchResponse(job_id=run.id, status="running", **estimate.model_dump())
 
 
 def launch_in_thread(state: deps.AppState, scope: ReportScope) -> LaunchResponse:
@@ -313,6 +373,29 @@ def launch(
 
     background.add_task(_execute, state, run)
     return response
+
+
+@router.post("/reports/estimate", response_model=EstimateResponse)
+def estimate(
+    body: EstimateRequest, state: deps.AppState = Depends(deps.state_of)
+) -> EstimateResponse:
+    """The launch figures for a scope, with nothing started.
+
+    Pure by design: the dialog calls this while the user is still choosing a
+    scope, and choosing must never leave registered-but-abandoned runs behind
+    — no registry entry, no ``report_runs`` row, no background task.
+    """
+    if not state.ready:
+        raise HTTPException(status_code=409, detail=NOT_READY_MESSAGE)
+
+    try:
+        return estimate_scope(state, body.scope)
+    except ScopeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - a missing key must read as a 409
+        raise HTTPException(
+            status_code=409, detail=f"The scope cannot be estimated: {exc}"
+        ) from exc
 
 
 def _execute(state: deps.AppState, run: _Run) -> None:
@@ -481,10 +564,7 @@ def event_body(run: _Run | None, run_id: str, state: deps.AppState) -> Iterator[
         return
 
     view = run.view()
-    yield _frame(
-        "progress",
-        ProgressData(done=view.done, total=view.total, current=view.current or "").model_dump(),
-    )
+    yield _frame("progress", run.progress_data().model_dump())
     if view.status != "running":
         yield _frame("done", _terminal(view.status, None, view))
         return

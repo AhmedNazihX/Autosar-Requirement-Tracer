@@ -80,6 +80,60 @@ def test_an_unknown_module_is_a_scope_error_naming_the_known_ones(parts):
     assert "CanIf" in str(excinfo.value)
 
 
+def test_a_modules_scope_is_the_union_of_its_modules(parts):
+    engine, _, _ = build_engine(parts)
+
+    requirements, unknown = report.resolve_scope(
+        engine, ReportScope(modules=["CanTp", "CanIf"])
+    )
+
+    assert [r.id for r in requirements] == [
+        "SWS_CANIF_00023",
+        "SWS_CANIF_00329",
+        "SWS_CanTp_00079",
+    ]
+    assert unknown == []
+
+
+def test_a_modules_scope_dedupes_a_module_named_twice(parts):
+    """The same module in two spellings must not double a document's rows."""
+    engine, _, _ = build_engine(parts)
+
+    requirements, _ = report.resolve_scope(
+        engine, ReportScope(modules=["CanIf", "canif"])
+    )
+
+    assert [r.id for r in requirements] == ["SWS_CANIF_00023", "SWS_CANIF_00329"]
+
+
+def test_one_unknown_module_in_the_list_fails_the_whole_scope(parts):
+    """Unlike an unknown id, an unknown module silently drops a document's
+    worth of rows — and nobody reads a matrix closely enough to notice."""
+    engine, _, _ = build_engine(parts)
+
+    with pytest.raises(ScopeError) as excinfo:
+        report.resolve_scope(engine, ReportScope(modules=["CanIf", "Ethernet"]))
+
+    assert "Ethernet" in str(excinfo.value)
+    assert "CanIf" in str(excinfo.value)
+
+
+def test_selector_precedence_is_req_ids_then_modules_then_module(parts):
+    """The selectors are mutually exclusive by precedence, like they always
+    were — a scope naming two wins with the earlier one."""
+    engine, _, _ = build_engine(parts)
+
+    by_ids, _ = report.resolve_scope(
+        engine, ReportScope(req_ids=["SWS_Can_00011"], modules=["CanIf"])
+    )
+    by_modules, _ = report.resolve_scope(
+        engine, ReportScope(modules=["CanTp"], module="CanIf")
+    )
+
+    assert [r.id for r in by_ids] == ["SWS_Can_00011"]
+    assert [r.id for r in by_modules] == ["SWS_CanTp_00079"]
+
+
 def test_a_document_scope_selects_that_document(parts):
     engine, _, _ = build_engine(parts)
 
@@ -122,6 +176,7 @@ def test_a_limit_truncates_the_scope(parts):
 
 def test_the_scope_label_reads_as_a_sentence():
     assert ReportScope(module="CanIf").label() == "module CanIf"
+    assert ReportScope(modules=["Can", "CanIf"]).label() == "modules Can, CanIf"
     assert ReportScope(req_ids=["a", "b"]).label() == "2 requirement(s)"
     assert ReportScope().label() == "the whole corpus"
 
@@ -261,6 +316,20 @@ def test_a_row_carries_the_module_not_just_the_document_key(parts):
     assert result.rows[0].module == "CanIf"
 
 
+def test_a_row_carries_the_requirements_text(parts):
+    """The matrix is read without the PDF open, so the row says what the
+    requirement says."""
+    engine, _, _ = build_engine(parts)
+    judge_llm, _ = make_judge(*[verdict_body()] * 2)
+
+    result = report.run_report(engine, judge_llm, ReportScope(module="CanIf"), ceiling=2.0)
+
+    assert (
+        result.rows[0].text
+        == "CanIf_MainFunction shall schedule the transmit buffer handling."
+    )
+
+
 def test_progress_is_reported_once_per_requirement(parts):
     engine, _, _ = build_engine(parts)
     judge_llm, _ = make_judge(*[verdict_body()] * 2)
@@ -271,10 +340,38 @@ def test_progress_is_reported_once_per_requirement(parts):
         judge_llm,
         ReportScope(module="CanIf"),
         ceiling=2.0,
-        on_progress=lambda done, total, current: seen.append((done, total, current)),
+        on_progress=lambda done, total, current, *_: seen.append((done, total, current)),
     )
 
     assert seen == [(1, 2, "SWS_CANIF_00023"), (2, 2, "SWS_CANIF_00329")]
+
+
+def test_progress_carries_the_running_tallies_and_spend(parts):
+    """The drawer shows coverage forming and the bill climbing, per verdict."""
+    engine, _, _ = build_engine(parts)
+    judge_llm, _ = make_judge(
+        verdict_body("implemented", cost_usd=0.5),
+        verdict_body("missing", cost_usd=0.25),
+    )
+    seen = []
+
+    report.run_report(
+        engine,
+        judge_llm,
+        ReportScope(module="CanIf"),
+        ceiling=2.0,
+        on_progress=lambda done, total, current, counts, spent: seen.append((counts, spent)),
+    )
+
+    (first_counts, first_spent), (second_counts, second_spent) = seen
+    assert first_counts == {"implemented": 1, "partial": 0, "missing": 0, "unverifiable": 0}
+    assert second_counts == {"implemented": 1, "partial": 0, "missing": 1, "unverifiable": 0}
+    # approx: the tier-2 semantic pass adds fractions of a cent in embeddings.
+    assert first_spent == pytest.approx(0.5, abs=1e-3)
+    assert second_spent == pytest.approx(0.75, abs=1e-3)
+    # Each call got its own copy — the second verdict must not have mutated
+    # the tallies a reader already holds.
+    assert first_counts is not second_counts
 
 
 def test_a_second_run_of_an_unchanged_scope_makes_no_model_calls(parts):
@@ -451,6 +548,29 @@ def test_markdown_export_leads_with_what_produced_the_verdicts(finished):
     assert "communication/CanIf/src/CanIf.c:120-168" in text
 
 
+def test_the_markdown_matrix_carries_the_requirement_text(finished):
+    text = report.export(finished, "md")
+
+    assert "CanIf_MainFunction shall schedule the transmit buffer handling." in text
+
+
+def test_markdown_clips_a_long_text_the_csv_and_json_keep_whole(finished):
+    """The table stays readable; the machine formats stay complete."""
+    long_text = "The | controller " + "shall detect the BUSOFF state " * 12
+    row = finished.rows[0].model_copy(update={"text": long_text.strip()})
+    result = finished.model_copy(update={"rows": [row, *finished.rows[1:]]})
+
+    markdown = report.export(result, "md")
+    matrix_row = next(line for line in markdown.splitlines() if "`SWS_CANIF_00023`" in line)
+
+    assert "…" in matrix_row
+    assert long_text.strip() not in markdown
+    # A pipe inside the text must not open a new table column.
+    assert "\\|" in matrix_row
+    assert long_text.strip() in report.export(result, "csv")
+    assert long_text.strip() in json.loads(report.export(result, "json"))["rows"][0]["text"]
+
+
 def test_markdown_export_says_so_when_a_run_was_cut_short(parts):
     engine, _, _ = build_engine(parts)
     judge_llm, _ = make_judge(*[verdict_body(cost_usd=0.9)] * 8)
@@ -463,9 +583,10 @@ def test_csv_export_is_one_row_per_requirement(finished):
     text = report.export(finished, "csv")
     lines = text.strip().splitlines()
 
-    assert lines[0].startswith("req_id,module,document")
+    assert lines[0].startswith("req_id,text,module,document")
     assert len(lines) == 1 + len(finished.rows)
     assert "SWS_CANIF_00023" in lines[1]
+    assert "CanIf_MainFunction shall schedule the transmit buffer handling." in lines[1]
 
 
 def test_json_export_round_trips_into_the_same_result(finished):

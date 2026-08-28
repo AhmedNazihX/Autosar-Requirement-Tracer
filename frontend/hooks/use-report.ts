@@ -37,7 +37,16 @@ import { parseSseFrame, sseBlocks } from "@/lib/sse";
 export type ReportPhase =
   | { phase: "idle" }
   | { phase: "launching" }
-  | { phase: "running"; jobId: string; launch: LaunchResponse; progress: ProgressData }
+  | {
+      phase: "running";
+      jobId: string;
+      launch: LaunchResponse;
+      progress: ProgressData;
+      /** When this hook saw the run start — the drawer's elapsed clock. Kept
+       *  here, not in the progress panel, because the panel unmounts every
+       *  time the drawer closes and the clock must not restart with it. */
+      startedAt: number;
+    }
   | {
       phase: "finished";
       jobId: string;
@@ -69,7 +78,18 @@ export function useReport(): {
         phase: "running",
         jobId: response.job_id,
         launch: response,
-        progress: { done: 0, total: response.requirements, current: "" },
+        // Zero tallies, like the stream's own replay frame before any verdict.
+        progress: {
+          done: 0,
+          total: response.requirements,
+          current: "",
+          implemented: 0,
+          partial: 0,
+          missing: 0,
+          unverifiable: 0,
+          cost_usd: 0,
+        },
+        startedAt: Date.now(),
       });
       setFollowing(response.job_id);
     } catch (cause) {
@@ -141,6 +161,9 @@ export function useReport(): {
                     launch:
                       launchRef.current ?? placeholderLaunch(following, progress.total),
                     progress,
+                    // The true start is unknowable from here; "since we
+                    // reattached" is the honest floor.
+                    startedAt: Date.now(),
                   },
             );
           } else if (frame.type === "error") {

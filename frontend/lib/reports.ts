@@ -24,6 +24,8 @@ const API = "/api/py/reports";
 /** Mirrors `engines.report.ReportScope`. */
 export interface ReportScope {
   module?: string | null;
+  /** Several modules at once — the union, in document order. Wins over `module`. */
+  modules?: string[] | null;
   document?: string | null;
   req_ids?: string[] | null;
   rejudge?: boolean;
@@ -42,6 +44,8 @@ export interface EvidenceItem {
 /** Mirrors `engines.report.ReportRow` — one row of the matrix. */
 export interface ReportRow {
   req_id: string;
+  /** The requirement's own words — the matrix is read without the PDF open. */
+  text: string;
   doc: string;
   module: string;
   section: string | null;
@@ -109,10 +113,11 @@ export interface RunView {
   result: ReportResult | null;
 }
 
-/** Mirrors `api.reports.LaunchResponse`. */
-export interface LaunchResponse {
-  job_id: string;
-  status: RunStatus;
+/**
+ * Mirrors `api.reports.EstimateResponse` — the launch dialog's figures with
+ * no job behind them, from `POST /reports/estimate`.
+ */
+export interface EstimateResponse {
   scope_label: string;
   requirements: number;
   to_judge: number;
@@ -123,11 +128,25 @@ export interface LaunchResponse {
   unknown_ids: string[];
 }
 
-/** Mirrors `api.reports.ProgressData` — spec §6's `{done, total, current}`. */
+/** Mirrors `api.reports.LaunchResponse` — the estimate plus the started job. */
+export interface LaunchResponse extends EstimateResponse {
+  job_id: string;
+  status: RunStatus;
+}
+
+/**
+ * Mirrors `api.reports.ProgressData` — spec §6's `{done, total, current}`,
+ * plus the running per-status tallies and the spend so far.
+ */
 export interface ProgressData {
   done: number;
   total: number;
   current: string;
+  implemented: number;
+  partial: number;
+  missing: number;
+  unverifiable: number;
+  cost_usd: number;
 }
 
 export type ReportFrame =
@@ -183,6 +202,20 @@ export async function launchReport(scope: ReportScope): Promise<LaunchResponse> 
     );
   }
   return (await response.json()) as LaunchResponse;
+}
+
+export async function estimateReport(scope: ReportScope): Promise<EstimateResponse> {
+  const response = await fetch(`${API}/estimate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ scope }),
+  });
+  if (!response.ok) {
+    throw new ReportError(
+      await readError(response, `The scope could not be estimated (HTTP ${response.status}).`),
+    );
+  }
+  return (await response.json()) as EstimateResponse;
 }
 
 export async function getRun(jobId: string): Promise<RunView | null> {

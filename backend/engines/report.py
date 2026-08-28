@@ -26,8 +26,9 @@ from them. The canned conversation in ``frontend/lib/fixtures`` already tells
 the user exactly that; this is the code that makes it true.
 
 **Progress is pushed, not polled.** ``on_progress`` is called once per
-requirement with ``{done, total, current}`` — spec §6's SSE payload — so the
-API layer streams without knowing anything about how a report is produced.
+requirement with ``{done, total, current}`` — spec §6's SSE payload — plus the
+running per-status tallies and the spend so far, so the API layer streams a
+live coverage picture without knowing anything about how a report is produced.
 """
 
 from __future__ import annotations
@@ -103,6 +104,11 @@ MAX_SELECTOR_CHARS = 64
 #: cannot be an arbitrary-length list.
 MAX_SCOPE_IDS = 2000
 
+#: Most module names one ``modules`` scope may list. A corpus has modules in
+#: the single digits (this one has four documents), so the cap exists only to
+#: bound the body — the same reason :data:`MAX_SCOPE_IDS` exists.
+MAX_SCOPE_MODULES = 32
+
 #: One requirement id in a scope, held to the same length limit
 #: :func:`retrieval.lookup.lookup` enforces. The *shape* is not constrained
 #: here on purpose: `lookup` normalises loose spellings ("sws can 11") and
@@ -110,15 +116,20 @@ MAX_SCOPE_IDS = 2000
 #: reject ids the engine can actually resolve.
 type ScopeId = Annotated[str, StringConstraints(max_length=MAX_ID_LENGTH)]
 
+#: One module name in a ``modules`` scope, held to the same length limit a
+#: single ``module`` selector gets.
+type ScopeModule = Annotated[str, StringConstraints(max_length=MAX_SELECTOR_CHARS)]
+
 
 class ReportScope(BaseModel):
     """What to report on.
 
-    The three selectors are mutually exclusive and checked in the order
-    ``req_ids``, ``module``, ``document``; none of them means the whole
-    corpus. ``module`` is the one the agent and the report drawer use, and it
-    is resolved through the manifest — ``CanIf`` names a *document's* module,
-    never a hard-coded list.
+    The four selectors are mutually exclusive and checked in the order
+    ``req_ids``, ``modules``, ``module``, ``document``; none of them means the
+    whole corpus. ``module`` is the one the agent and the report drawer use,
+    and it is resolved through the manifest — ``CanIf`` names a *document's*
+    module, never a hard-coded list. ``modules`` is the same resolution over a
+    list, for a report that spans part of the corpus without being all of it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -127,6 +138,10 @@ class ReportScope(BaseModel):
     #: outside the corpus — the caps are here so an absurd body is refused at
     #: the edge with a 422 rather than carried to the matcher (story S6.3.1).
     module: str | None = Field(default=None, max_length=MAX_SELECTOR_CHARS)
+    #: Several modules in one report: the union of what each would select, in
+    #: document order. Kept separate from ``module`` so the agent tool's
+    #: single-module scope stays exactly what it always was.
+    modules: list[ScopeModule] | None = Field(default=None, max_length=MAX_SCOPE_MODULES)
     document: str | None = Field(default=None, max_length=MAX_SELECTOR_CHARS)
     #: Each id is bounded by the same limit ``lookup`` enforces, and the list
     #: by :data:`MAX_SCOPE_IDS` — a set larger than a corpus is a module or a
@@ -143,6 +158,8 @@ class ReportScope(BaseModel):
         """A short human description, for a job list and an export header."""
         if self.req_ids:
             return f"{len(self.req_ids)} requirement(s)"
+        if self.modules:
+            return f"modules {', '.join(self.modules)}"
         if self.module:
             return f"module {self.module}"
         if self.document:
@@ -183,16 +200,27 @@ def resolve_scope(
 
 
 def _source_docs(manifest: ProjectManifest, scope: ReportScope) -> list[str] | None:
-    """The manifest document keys a module/document scope selects."""
-    if scope.module:
-        keys = [
-            document.key
-            for document in manifest.documents
-            if document.module.casefold() == scope.module.casefold()
-        ]
-        if not keys:
-            known = ", ".join(sorted({d.module for d in manifest.documents}))
-            raise ScopeError(f"no module {scope.module!r} in this corpus (known: {known})")
+    """The manifest document keys a module/modules/document scope selects.
+
+    A ``modules`` scope is the union of what each name selects, deduplicated —
+    the same name twice, or in two spellings, must not double a document. One
+    unknown name fails the whole scope: unlike an unknown *id*, which costs a
+    row, an unknown module silently drops an entire document's worth of rows,
+    and nobody reads a coverage matrix closely enough to notice that.
+    """
+    selected = scope.modules or ([scope.module] if scope.module else None)
+    if selected:
+        keys: list[str] = []
+        for module in selected:
+            matched = [
+                document.key
+                for document in manifest.documents
+                if document.module.casefold() == module.casefold()
+            ]
+            if not matched:
+                known = ", ".join(sorted({d.module for d in manifest.documents}))
+                raise ScopeError(f"no module {module!r} in this corpus (known: {known})")
+            keys.extend(key for key in matched if key not in keys)
         return keys
     if scope.document:
         keys = [d.key for d in manifest.documents if d.key == scope.document]
@@ -346,6 +374,9 @@ class ReportRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     req_id: str
+    #: The requirement's own words — a matrix is read without the PDF open.
+    #: Defaulted so results stored before the field existed still validate.
+    text: str = ""
     doc: str
     module: str
     section: str | None
@@ -416,8 +447,11 @@ class ReportResult(BaseModel):
 # the run loop (story S4.2.1)
 # --------------------------------------------------------------------------
 
-#: ``(done, total, current_req_id)`` — spec §6's SSE progress payload.
-ProgressFn = Callable[[int, int, str], None]
+#: ``(done, total, current_req_id, verdict_counts, spent_usd)`` — spec §6's
+#: ``{done, total, current}`` plus one running count per verdict status and
+#: the spend so far, so a progress bar can show coverage forming rather than
+#: only a number climbing.
+ProgressFn = Callable[[int, int, str, dict[str, int], float], None]
 
 
 def run_report(
@@ -447,6 +481,7 @@ def run_report(
     total = len(requirements)
 
     rows: list[ReportRow] = []
+    counts = {status: 0 for status in STATUSES}
     spent = 0.0
     judged_calls = 0
     aborted = False
@@ -473,9 +508,13 @@ def run_report(
         spent += check.cost_usd
         if not check.cached:
             judged_calls += 1
-        rows.append(_row(engine.manifest, requirement, check.verdict, cached=check.cached))
+        row = _row(engine.manifest, requirement, check.verdict, cached=check.cached)
+        rows.append(row)
+        counts[row.status] += 1
         if on_progress is not None:
-            on_progress(index, total, requirement.id)
+            # A copy: the API hands this to the SSE reader on another thread,
+            # which must not see later requirements mutate it.
+            on_progress(index, total, requirement.id, dict(counts), spent)
 
     return ReportResult(
         project_id=engine.project_id,
@@ -500,6 +539,7 @@ def _row(
 ) -> ReportRow:
     return ReportRow(
         req_id=requirement.id,
+        text=requirement.text,
         doc=requirement.source_doc,
         module=module_of(manifest, requirement.source_doc),
         section=requirement.section_path,
@@ -561,6 +601,7 @@ def to_csv(result: ReportResult) -> str:
     writer.writerow(
         [
             "req_id",
+            "text",
             "module",
             "document",
             "section",
@@ -576,6 +617,7 @@ def to_csv(result: ReportResult) -> str:
         writer.writerow(
             [
                 row.req_id,
+                row.text,
                 row.module,
                 row.doc,
                 row.section or "",
@@ -640,8 +682,8 @@ def to_markdown(result: ReportResult) -> str:
         [
             "## Matrix",
             "",
-            "| SRS (upstream) | SWS requirement | verdict | confidence | evidence |",
-            "| --- | --- | --- | ---: | --- |",
+            "| SRS (upstream) | SWS requirement | text | verdict | confidence | evidence |",
+            "| --- | --- | --- | --- | ---: | --- |",
         ]
     )
     for row in result.rows:
@@ -650,10 +692,25 @@ def to_markdown(result: ReportResult) -> str:
             ", ".join(f"`{_evidence_ref(item)}`" for item in row.evidence) or "—"
         )
         lines.append(
-            f"| {upstream} | `{row.req_id}` | {row.status} | "
+            f"| {upstream} | `{row.req_id}` | {_text_cell(row.text)} | {row.status} | "
             f"{row.confidence:.2f} | {evidence_cell} |"
         )
     return "\n".join(lines) + "\n"
+
+
+#: Characters of requirement text a markdown matrix cell keeps. Only the
+#: table is clipped — the CSV and JSON exports carry the full text — because
+#: a table column as wide as a requirement is unreadable, not because the
+#: text is dispensable.
+MARKDOWN_TEXT_CHARS = 120
+
+
+def _text_cell(text: str) -> str:
+    """Requirement text as one table cell: one line, pipes escaped, clipped."""
+    flat = " ".join(text.split()).replace("|", "\\|")
+    if len(flat) > MARKDOWN_TEXT_CHARS:
+        flat = flat[: MARKDOWN_TEXT_CHARS - 1].rstrip() + "…"
+    return flat or "—"
 
 
 def _evidence_ref(item: EvidenceItem) -> str:

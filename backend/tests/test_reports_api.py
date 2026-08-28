@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 
 from api import deps, reports
 from core import db, llm, pricing
-from engines.report import MAX_SCOPE_IDS, ReportScope
+from engines.report import MAX_SCOPE_IDS, MAX_SCOPE_MODULES, ReportScope
 from tests.support_engine import MANIFEST, build_index, close_index
 from tests.support_llm import FakeOpenRouter, json_body
 
@@ -177,6 +177,27 @@ def test_an_unbounded_id_list_is_refused_at_the_edge(wired):
     assert response.status_code == 422
 
 
+def test_an_unbounded_modules_list_is_refused_at_the_edge(wired):
+    """A corpus has modules in the single digits; hundreds is not a scope."""
+    client, _, _, _ = wired
+
+    response = client.post(
+        "/reports", json={"scope": {"modules": ["Can"] * (MAX_SCOPE_MODULES + 1)}}
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_modules_scope_launches_over_the_union(wired):
+    client, script, _, _ = wired
+    script(*[verdict()] * 3)
+
+    body = client.post("/reports", json={"scope": {"modules": ["CanIf", "CanTp"]}}).json()
+
+    assert body["scope_label"] == "modules CanIf, CanTp"
+    assert body["requirements"] == 3
+
+
 def test_a_normal_scope_is_unaffected_by_the_caps(wired):
     """The caps must be invisible to every real request, or they are a bug."""
     client, script, _, _ = wired
@@ -215,6 +236,76 @@ def test_an_unindexed_corpus_is_a_409_naming_the_fix(tmp_path):
     client = TestClient(app)
 
     response = client.post("/reports", json={"scope": {}})
+
+    assert response.status_code == 409
+    assert "ingestion.run" in response.json()["detail"]
+
+
+# --------------------------------------------------------------------------
+# POST /reports/estimate
+# --------------------------------------------------------------------------
+
+
+def test_estimating_a_scope_quotes_it_without_starting_anything(wired):
+    """The dialog asks while the user is still choosing a scope, and choosing
+    must not leave registered-but-abandoned runs behind.
+
+    No verdicts are scripted, so a judge call here would fail the test — the
+    endpoint's purity is asserted, not assumed.
+    """
+    client, _, state, _ = wired
+
+    body = client.post("/reports/estimate", json={"scope": {"module": "CanIf"}}).json()
+
+    assert set(body) == {
+        "scope_label",
+        "requirements",
+        "to_judge",
+        "cached",
+        "est_cost_usd",
+        "est_basis",
+        "ceiling_usd",
+        "unknown_ids",
+    }
+    assert body["scope_label"] == "module CanIf"
+    assert body["requirements"] == 2
+    assert body["to_judge"] == 2
+    assert body["est_cost_usd"] > 0
+    assert "openrouter" in body["est_basis"]
+    assert body["ceiling_usd"] > 0
+    assert reports.REGISTRY.all() == []
+    assert client.get("/reports").json() == []
+    assert state.pool.execute("SELECT COUNT(*) FROM report_runs").fetchone()[0] == 0
+
+
+def test_the_estimate_sees_the_same_cache_a_launch_would(wired):
+    client, script, _, _ = wired
+    script(*[verdict()] * 2)
+    client.post("/reports", json={"scope": {"module": "CanIf"}})
+
+    body = client.post("/reports/estimate", json={"scope": {"module": "CanIf"}}).json()
+
+    assert body["cached"] == 2
+    assert body["to_judge"] == 0
+    assert body["est_cost_usd"] == 0.0
+
+
+def test_estimating_an_unknown_module_is_a_400_naming_the_known_ones(wired):
+    client, _, _, _ = wired
+
+    response = client.post("/reports/estimate", json={"scope": {"module": "Ethernet"}})
+
+    assert response.status_code == 400
+    assert "CanIf" in response.json()["detail"]
+
+
+def test_estimating_against_an_unindexed_corpus_is_a_409():
+    app = FastAPI()
+    app.include_router(reports.router)
+    app.state.reqtrace = deps.AppState(error="no index")
+    client = TestClient(app)
+
+    response = client.post("/reports/estimate", json={"scope": {}})
 
     assert response.status_code == 409
     assert "ingestion.run" in response.json()["detail"]
@@ -421,20 +512,60 @@ def test_the_event_stream_follows_a_running_run(wired):
     reports.REGISTRY.add(run)
     stream = reports.event_body(run, "live", state)
 
+    tallies = {"implemented": 1, "partial": 0, "missing": 0, "unverifiable": 0}
     replayed = frames(next(stream))[0]
-    run.progress(1, 2, "SWS_CANIF_00023")
+    run.progress(1, 2, "SWS_CANIF_00023", tallies, 0.5)
     followed = frames(next(stream))[0]
     run.finish(status="succeeded", result=None, error=None)
     terminal = frames(next(stream))[0]
 
-    assert replayed == {"type": "progress", "data": {"done": 0, "total": 0, "current": ""}}
+    assert replayed == {
+        "type": "progress",
+        "data": {
+            "done": 0,
+            "total": 0,
+            "current": "",
+            "implemented": 0,
+            "partial": 0,
+            "missing": 0,
+            "unverifiable": 0,
+            "cost_usd": 0.0,
+        },
+    }
     assert followed == {
         "type": "progress",
-        "data": {"done": 1, "total": 2, "current": "SWS_CANIF_00023"},
+        "data": {
+            "done": 1,
+            "total": 2,
+            "current": "SWS_CANIF_00023",
+            "implemented": 1,
+            "partial": 0,
+            "missing": 0,
+            "unverifiable": 0,
+            "cost_usd": 0.5,
+        },
     }
     assert terminal == {"type": "done", "data": {"status": "succeeded"}}
     with pytest.raises(StopIteration):
         next(stream)
+
+
+def test_a_late_reader_replays_the_tallies_the_run_has_built_up(wired):
+    """A reconnecting client must see the coverage picture, not zeros."""
+    _, _, state, _ = wired
+    run = reports._Run(id="live", scope=ReportScope(module="CanIf"), ceiling_usd=2.0)
+    reports.REGISTRY.add(run)
+    run.progress(
+        1, 2, "SWS_CANIF_00023",
+        {"implemented": 0, "partial": 1, "missing": 0, "unverifiable": 0},
+        0.25,
+    )
+
+    replayed = frames(next(reports.event_body(run, "live", state)))[0]
+
+    assert replayed["data"]["partial"] == 1
+    assert replayed["data"]["cost_usd"] == 0.25
+    assert replayed["data"]["done"] == 1
 
 
 def test_a_quiet_run_gets_a_keep_alive_rather_than_a_dropped_connection(wired, monkeypatch):

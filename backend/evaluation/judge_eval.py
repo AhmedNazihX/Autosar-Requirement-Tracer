@@ -508,7 +508,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 limit_per_class=args.limit_per_class,
                 ceiling=ceiling,
                 blind=mode == "blind",
-                on_progress=lambda done, total, current: print(
+                # The tallies and spend the report API streams are unused
+                # here — this ticker only needs the counter.
+                on_progress=lambda done, total, current, *_: print(
                     f"  {done}/{total} {current}", end="\r", file=sys.stderr
                 ),
             )
