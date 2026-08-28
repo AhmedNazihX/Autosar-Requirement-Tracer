@@ -664,7 +664,6 @@ export function AppShell({
               exchanges={exchanges}
               activeExchangeId={lastExchangeId}
               streamingExchangeId={isStreaming ? lastExchangeId : null}
-              transcriptRef={transcriptRef}
               onSelect={restoreCheckpoint}
             />
           ) : null}

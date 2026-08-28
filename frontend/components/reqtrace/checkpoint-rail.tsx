@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { CircleIcon, HistoryIcon } from "lucide-react";
 
 import { clockTime } from "@/lib/format";
@@ -19,18 +18,6 @@ import { TOOL_ICON } from "./chat/tool-chip";
  *  step with the `size-[22px]`/`left-[11px]` classes on the dot itself. */
 const PAD = 6;
 const DOT = 22;
-/** Vertical stagger between dots piled at a clamp edge, and how many of a pile
- *  get their own offset before the rest render coincident. */
-const PILE_STEP = 6;
-const PILE_MAX = 4;
-
-interface DotPosition {
-  id: string;
-  top: number;
-  /** Set when the message is scrolled out of the transcript viewport and the
-   *  dot is pinned at a rail edge instead of beside its message. */
-  clamped: boolean;
-}
 
 /**
  * The checkpoint rail — 44 px, one dot per user request, iconed by the first
@@ -42,60 +29,55 @@ interface DotPosition {
  * bookmark: no rollback, no branching, no re-run, and no affordance hinting at
  * any of them.
  *
- * Dots sit LEVEL WITH THEIR MESSAGES, scroll-synced, as the canvas draws them.
- * This supersedes the fix-round-1 ruling that spread them evenly: the user
- * directed the alignment on 2026-08-28, and the reachability problem that
- * motivated even spacing (a real exchange is 300–450 px tall, so only two or
- * three messages fit the viewport) is answered by clamping instead — a dot
- * whose message has scrolled away pins at the nearest rail edge, faded but
- * still clickable, so "clicking scrolls to that exchange" survives for every
- * turn.
+ * Dots are spread EVENLY from the first turn to the last — `index / (n - 1)` —
+ * not aligned one-to-one with the turns beside them as the canvas draws them.
+ * The canvas mock compresses a turn to 86 px, whereas a real exchange with
+ * chips, citations and a cost line is 300–450 px tall. Mapped literally, two
+ * dots would be on screen at a time and the rest unclickable, which breaks the
+ * one behaviour spec §11 asks of the rail: "clicking scrolls to that exchange".
+ * The controller ruled the deviation stands (fix round 1, Important 1).
  *
- * Positions are `getBoundingClientRect()` deltas between the message element
- * and the rail track, both viewport-relative, so the chat header, the rail
- * header and any ancestor offsets cancel without walking offsetParent chains.
- * One rAF-throttled measure runs on transcript scroll, on any observed resize
- * (a streaming answer grows its exchange), and when the turn list changes.
+ * Even spacing rather than proportional-by-measurement is also deliberate. With
+ * roughly equal turn heights the two are the same line, so measuring bought a
+ * `ResizeObserver` plus a `requestAnimationFrame` loop plus a `revision` prop to
+ * force remeasurement, and still let two short adjacent turns render as
+ * overlapping 22 px circles. Even spacing has a guaranteed minimum gap by
+ * construction and needs no measurement at all: the offset is a `calc()` against
+ * the rail's own height, so the browser does the layout.
  */
 export function CheckpointRail({
   exchanges,
   activeExchangeId,
   streamingExchangeId,
-  transcriptRef,
   onSelect,
 }: {
   exchanges: readonly Exchange[];
   activeExchangeId: string | null;
   streamingExchangeId: string | null;
-  /** The chat transcript's scroll container — the same ref the shell hands
-   *  `ChatPane`, whose children carry `data-exchange-id` anchors. */
-  transcriptRef: React.RefObject<HTMLDivElement | null>;
   onSelect: (exchange: Exchange) => void;
 }) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const positions = useDotPositions(transcriptRef, trackRef, exchanges);
-  const byId = new Map(positions?.map((p) => [p.id, p]) ?? []);
-
   return (
     <div className="flex w-11 flex-none flex-col border-r">
       <div className="flex h-[34px] flex-none items-center justify-center text-muted-foreground">
         <HistoryIcon className="size-3.5" />
       </div>
-      <div ref={trackRef} className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <span
           aria-hidden
           className="absolute top-2 bottom-2 left-[21.5px] w-px bg-border"
         />
-        {exchanges.map((exchange) => {
-          const position = byId.get(exchange.id);
+        {exchanges.map((exchange, index) => {
+          // A single-turn thread has no span to spread across, so its one dot
+          // belongs at the top rather than at 0/0.
+          const fraction =
+            exchanges.length > 1 ? index / (exchanges.length - 1) : 0;
           return (
             <Dot
               key={exchange.id}
               exchange={exchange}
-              // Effects run after paint, so the first frame has no measurement
-              // yet; an invisible dot beats one that jumps from the top.
-              top={position ? position.top : null}
-              clamped={position?.clamped ?? false}
+              // PAD 6 above and below, DOT 22 tall: fraction 1 lands the last
+              // dot's bottom edge 6 px off the rail's bottom.
+              top={`calc(${PAD}px + ${fraction} * (100% - ${DOT + 2 * PAD}px))`}
               current={exchange.id === activeExchangeId}
               running={exchange.id === streamingExchangeId}
               onSelect={onSelect}
@@ -107,99 +89,15 @@ export function CheckpointRail({
   );
 }
 
-/**
- * Dot tops for every exchange, in rail-track coordinates, re-measured on
- * scroll, resize and turn-list changes. `null` until the first measure.
- */
-function useDotPositions(
-  transcriptRef: React.RefObject<HTMLDivElement | null>,
-  trackRef: React.RefObject<HTMLDivElement | null>,
-  exchanges: readonly Exchange[],
-): DotPosition[] | null {
-  const [positions, setPositions] = useState<DotPosition[] | null>(null);
-  const frameRef = useRef(0);
-
-  useEffect(() => {
-    const transcript = transcriptRef.current;
-    const track = trackRef.current;
-    if (!transcript || !track) return;
-
-    const measure = () => {
-      frameRef.current = 0;
-      const trackRect = track.getBoundingClientRect();
-      const min = PAD;
-      const max = trackRect.height - DOT - PAD;
-
-      const raw: { id: string; top: number }[] = [];
-      for (const element of transcript.querySelectorAll<HTMLElement>(
-        "[data-exchange-id]",
-      )) {
-        const id = element.dataset.exchangeId;
-        if (!id) continue;
-        raw.push({ id, top: element.getBoundingClientRect().top - trackRect.top });
-      }
-
-      // Messages above the viewport pile at the top edge, ones below at the
-      // bottom. The stagger keeps turn order reading top-to-bottom inside a
-      // pile — the turn nearest the viewport steps furthest inward, the rest
-      // walk back to the edge and past PILE_MAX render coincident, so a deep
-      // pile never marches over the in-view dots.
-      const above = raw.filter((p) => p.top < min);
-      const below = raw.filter((p) => p.top > max);
-      const step = (fromViewport: number) =>
-        Math.max(0, PILE_MAX - 1 - Math.min(fromViewport, PILE_MAX - 1)) *
-        PILE_STEP;
-      const next: DotPosition[] = raw.map((p) => {
-        if (p.top < min) {
-          const fromViewport = above.length - 1 - above.indexOf(p);
-          return { id: p.id, top: min + step(fromViewport), clamped: true };
-        }
-        if (p.top > max) {
-          const fromViewport = below.indexOf(p);
-          return { id: p.id, top: max - step(fromViewport), clamped: true };
-        }
-        return { id: p.id, top: p.top, clamped: false };
-      });
-      setPositions(next);
-    };
-
-    const schedule = () => {
-      if (frameRef.current) return;
-      frameRef.current = requestAnimationFrame(measure);
-    };
-
-    schedule();
-    transcript.addEventListener("scroll", schedule, { passive: true });
-    const observer = new ResizeObserver(schedule);
-    observer.observe(transcript);
-    observer.observe(track);
-    for (const element of transcript.querySelectorAll<HTMLElement>(
-      "[data-exchange-id]",
-    )) {
-      observer.observe(element);
-    }
-
-    return () => {
-      transcript.removeEventListener("scroll", schedule);
-      observer.disconnect();
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-    };
-  }, [transcriptRef, trackRef, exchanges]);
-
-  return positions;
-}
-
 function Dot({
   exchange,
   top,
-  clamped,
   current,
   running,
   onSelect,
 }: {
   exchange: Exchange;
-  top: number | null;
-  clamped: boolean;
+  top: string;
   current: boolean;
   running: boolean;
   onSelect: (exchange: Exchange) => void;
@@ -215,15 +113,8 @@ function Dot({
             type="button"
             onClick={() => onSelect(exchange)}
             aria-label={`Turn ${exchange.turn}`}
-            className={cn(
-              "absolute left-[11px] flex size-[22px] items-center justify-center",
-              clamped && "opacity-60",
-            )}
-            style={
-              top === null
-                ? { visibility: "hidden", top: 0 }
-                : { top: `${top}px` }
-            }
+            className="absolute left-[11px] flex size-[22px] items-center justify-center"
+            style={{ top }}
           >
             {running ? (
               <span
