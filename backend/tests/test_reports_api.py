@@ -582,6 +582,27 @@ def test_a_quiet_run_gets_a_keep_alive_rather_than_a_dropped_connection(wired, m
 
 
 
+def test_a_reader_whose_terminal_sentinel_was_stolen_still_ends(wired, monkeypatch):
+    """Two readers can share one run's queue — a dev-mode remount reconnecting,
+    or a second tab — and the terminal ``None`` goes to only one of them. The
+    other must notice on its next heartbeat that the run is over, instead of
+    keeping the connection alive forever: measured in the real app, the drawer
+    sat at "Judging… 100%" with the run long since succeeded."""
+    _, _, state, _ = wired
+    monkeypatch.setattr(reports, "HEARTBEAT_SECONDS", 0.01)
+    run = reports._Run(id="live", scope=ReportScope(module="CanIf"), ceiling_usd=2.0)
+    reports.REGISTRY.add(run)
+    stream = reports.event_body(run, "live", state)
+    next(stream)  # the replayed position
+
+    run.finish(status="succeeded", result=None, error=None)
+    run.events.get()  # the other reader consumes the sentinel
+
+    assert frames(next(stream))[0] == {"type": "done", "data": {"status": "succeeded"}}
+    with pytest.raises(StopIteration):
+        next(stream)
+
+
 def test_the_event_stream_of_a_finished_run_ends_immediately(finished):
     client, job_id = finished
 

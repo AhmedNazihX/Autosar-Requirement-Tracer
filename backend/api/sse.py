@@ -50,6 +50,7 @@ def follow(
     item_frame: Callable[[Any], str],
     final_frame: Callable[[], str],
     heartbeat: float = HEARTBEAT_SECONDS,
+    finished: Callable[[], bool] | None = None,
 ) -> Iterator[str]:
     """Frames for a live queue: items as they arrive, keep-alives while quiet.
 
@@ -57,11 +58,21 @@ def follow(
     ``final_frame()`` (built at that moment, so it reports the terminal state)
     and ends the stream. Callers replay whatever a late-connecting client
     should see *before* delegating here — replay is where the streams differ.
+
+    ``finished`` guards against a stolen sentinel: the queue is
+    single-consumer, so when two readers follow one run — a dev-mode remount
+    reconnecting, a second tab — the ``None`` reaches only one of them.
+    A caller that can ask its producer "are you done?" passes that here, and
+    the other reader ends on its next heartbeat instead of keeping the
+    connection alive forever.
     """
     while True:
         try:
             item = events.get(timeout=heartbeat)
         except queue.Empty:
+            if finished is not None and finished():
+                yield final_frame()
+                return
             yield KEEP_ALIVE
             continue
         if item is None:

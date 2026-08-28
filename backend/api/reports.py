@@ -574,6 +574,7 @@ def event_body(run: _Run | None, run_id: str, state: deps.AppState) -> Iterator[
         item_frame=lambda item: _frame("progress", item.model_dump()),
         final_frame=lambda: _frame("done", _terminal(run.view().status, None, run.view())),
         heartbeat=HEARTBEAT_SECONDS,
+        finished=lambda: run.view().status != "running",
     )
 
 
