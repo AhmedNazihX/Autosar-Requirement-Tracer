@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2Icon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 
 import {
@@ -71,7 +71,7 @@ export function LaunchForm({
 
   // Two documents may share a module; the module list dedupes and sums so a
   // checkbox never appears twice. Order is the manifest's.
-  const moduleRows = useMemo(() => {
+  const moduleRows = (() => {
     const byModule = new Map<string, { title: string; requirements: number }>();
     for (const doc of documents) {
       const row = byModule.get(doc.module);
@@ -79,15 +79,12 @@ export function LaunchForm({
       else byModule.set(doc.module, { title: doc.title, requirements: doc.requirements });
     }
     return [...byModule].map(([module, row]) => ({ module, ...row }));
-  }, [documents]);
+  })();
 
-  const reqIds = useMemo(
-    () => reqIdsText.split(/[\s,]+/).filter(Boolean),
-    [reqIdsText],
-  );
+  const reqIds = reqIdsText.split(/[\s,]+/).filter(Boolean);
 
   /** `null` while the scope is incomplete — nothing to estimate or launch. */
-  const scope = useMemo<ReportScope | null>(() => {
+  const scope = ((): ReportScope | null => {
     const shared = { rejudge, limit: limitValid ? parsedLimit : null };
     if (mode === "modules") {
       const modules = moduleRows
@@ -98,7 +95,7 @@ export function LaunchForm({
     if (mode === "document")
       return documentKey ? { document: documentKey, ...shared } : null;
     return reqIds.length ? { req_ids: reqIds, ...shared } : null;
-  }, [mode, moduleRows, selected, documentKey, reqIds, rejudge, limitValid, parsedLimit]);
+  })();
 
   // The scope as a stable string, so the effect below has one dependency and
   // an unchanged scope re-serialised never re-fires it.

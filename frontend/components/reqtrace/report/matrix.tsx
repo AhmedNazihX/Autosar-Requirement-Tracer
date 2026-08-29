@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import {
   ChevronDownIcon,
   ChevronRightIcon,
@@ -164,20 +164,17 @@ export function Matrix({
 
   const needle = query.trim().toLowerCase();
 
-  const visibleGroups = useMemo(() => {
+  const visibleGroups = (() => {
     if (!result) return [];
     let rows = result.rows;
     if (needle) rows = rows.filter((row) => matchesQuery(row, needle));
     if (filters.size > 0) rows = rows.filter((row) => filters.has(row.status));
     return groupByModule(rows);
-  }, [result, needle, filters]);
+  })();
 
   // The breakdown card describes the report, not the current filter — its
   // numbers must keep matching the summary tiles above it.
-  const moduleSummaries = useMemo(
-    () => (result ? groupByModule(result.rows) : []),
-    [result],
-  );
+  const moduleSummaries = result ? groupByModule(result.rows) : [];
 
   if (!result) {
     return (

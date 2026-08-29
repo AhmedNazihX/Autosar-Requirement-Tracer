@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DownloadIcon,
   PanelRightIcon,
@@ -168,58 +168,58 @@ export function AppShell({
 
   // One source, created once. `cannedSource` keeps a cursor across sends, so
   // re-creating it every render would replay the first exchange forever.
+  // This useMemo survives the React Compiler cleanup on purpose: the call is
+  // impure (it builds stateful closures), so the compiler will not cache it —
+  // only an explicit memo carries the create-once semantics.
   const source = useMemo(() => pickChatSource(), []);
 
-  const onSettled = useCallback(
-    (events: ChatEvent[]) => {
-      const target = streamThreadRef.current;
-      streamThreadRef.current = null;
-      if (!target || events.length === 0) return;
+  const onSettled = (events: ChatEvent[]) => {
+    const target = streamThreadRef.current;
+    streamThreadRef.current = null;
+    if (!target || events.length === 0) return;
 
-      const text = events
-        .filter((event) => event.type === "token")
-        .map((event) => event.data.text)
-        .join("");
+    const text = events
+      .filter((event) => event.type === "token")
+      .map((event) => event.data.text)
+      .join("");
 
-      void threads
-        .append(target, { role: "assistant", content: text, events })
-        .then((stored) => {
-          if (stored) setUnsaved({ threadId: null, messages: [] });
-          else
-            setUnsaved((current) => ({
-              threadId: target,
-              messages: [
-                ...(current.threadId === target ? current.messages : []),
-                localMessage("assistant", text, events),
-              ],
-            }));
-        });
+    void threads
+      .append(target, { role: "assistant", content: text, events })
+      .then((stored) => {
+        if (stored) setUnsaved({ threadId: null, messages: [] });
+        else
+          setUnsaved((current) => ({
+            threadId: target,
+            messages: [
+              ...(current.threadId === target ? current.messages : []),
+              localMessage("assistant", text, events),
+            ],
+          }));
+      });
 
-      // An `error` event renders inline AND as a toast. The toast is what makes
-      // an unreachable backend impossible to mistake for a hang; the inline
-      // notice is what still explains it once the toast is gone.
-      const failure = events.find((event) => event.type === "error");
-      if (failure) {
-        toast.error("The answer stopped mid-stream", {
-          description: failure.data.message,
-        });
-      }
+    // An `error` event renders inline AND as a toast. The toast is what makes
+    // an unreachable backend impossible to mistake for a hang; the inline
+    // notice is what still explains it once the toast is gone.
+    const failure = events.find((event) => event.type === "error");
+    if (failure) {
+      toast.error("The answer stopped mid-stream", {
+        description: failure.data.message,
+      });
+    }
 
-      // A report launched from chat announces its run id on the tool_result
-      // event (`events.ts` ToolResultEventData.job_id). Handing it to the
-      // drawer here is what makes "progress appears in the report drawer" —
-      // which the agent tells the user — actually true.
-      if (live) {
-        for (const event of [...events].reverse()) {
-          if (event.type === "tool_result" && event.data.job_id) {
-            attachReport(event.data.job_id);
-            break;
-          }
+    // A report launched from chat announces its run id on the tool_result
+    // event (`events.ts` ToolResultEventData.job_id). Handing it to the
+    // drawer here is what makes "progress appears in the report drawer" —
+    // which the agent tells the user — actually true.
+    if (live) {
+      for (const event of [...events].reverse()) {
+        if (event.type === "tool_result" && event.data.job_id) {
+          attachReport(event.data.job_id);
+          break;
         }
       }
-    },
-    [threads, live, attachReport],
-  );
+    }
+  };
 
   const {
     events: streamEvents,
@@ -248,7 +248,7 @@ export function AppShell({
   const liveEvents = isThisThread ? streamEvents : EMPTY_EVENTS;
   const isStreaming = streamIsStreaming && isThisThread;
 
-  const exchanges = useMemo(() => {
+  const exchanges = (() => {
     const stored = thread?.messages ?? [];
     // Drop any in-memory message the store has since caught up on. The local
     // store writes *and* returns the message, so between its `setThread` and
@@ -269,7 +269,7 @@ export function AppShell({
         ),
     );
     return toExchanges([...stored, ...pending]);
-  }, [thread, threadId, unsaved]);
+  })();
   const lastExchangeId = exchanges.at(-1)?.id ?? null;
 
   /* --------------------------------------------------------- source pane --- */
@@ -280,12 +280,9 @@ export function AppShell({
    * (from stored events alone — spec §11), and a finished answer brings its own
    * citation forward.
    */
-  const latestTarget = useMemo(
-    () =>
-      [...exchanges].reverse().find((exchange) => exchange.target)?.target ??
-      null,
-    [exchanges],
-  );
+  const latestTarget =
+    [...exchanges].reverse().find((exchange) => exchange.target)?.target ??
+    null;
   const transcriptKey = `${threadId ?? ""}:${exchanges.length}:${
     exchanges.at(-1)?.assistant?.id ?? ""
   }`;
@@ -302,19 +299,19 @@ export function AppShell({
    * are linked.
    */
   const companion = useSourceCompanion(pinnedTarget);
-  const sourceTarget = useMemo(
-    () =>
-      pinnedTarget && !pinnedTarget.companion && companion
-        ? { ...pinnedTarget, companion }
-        : pinnedTarget,
-    [pinnedTarget, companion],
-  );
+  const sourceTarget =
+    pinnedTarget && !pinnedTarget.companion && companion
+      ? { ...pinnedTarget, companion }
+      : pinnedTarget;
   const sourceTab: SourceTab = activePin
     ? activePin.tab
     : (latestTarget?.tab ?? "document");
 
   // The split is view state, per thread, so it lives outside the thread record
-  // and outside whatever the backend will eventually store.
+  // and outside whatever the backend will eventually store. This useMemo also
+  // survives the React Compiler cleanup: it reads localStorage, and the
+  // compiler will not cache an impure read — the memo is what makes this a
+  // once-per-thread snapshot instead of a read on every render.
   const layout = useMemo(
     () => (threadId ? (getPaneLayout(threadId) ?? undefined) : undefined),
     [threadId],
@@ -334,19 +331,16 @@ export function AppShell({
    * symbols are SQL, and a verdict is returned only if already cached — so
    * this cannot start a judge call however often a citation is clicked.
    */
-  const openCitation = useCallback(
-    (citation: RequirementCitation | CodeCitation) => {
-      const target = targetForCitation(citation);
-      if (!target) return;
-      setPinned({ key: transcriptKey, target, tab: target.tab });
-      setSourceOpen(true);
-      // The other tab fills itself: `useSourceCompanion` runs off whatever the
-      // pane is pointed at, so a click needs to say *what* is being opened and
-      // nothing more. It used to do the lookup here, which is why only clicked
-      // citations ever filled both tabs.
-    },
-    [transcriptKey],
-  );
+  const openCitation = (citation: RequirementCitation | CodeCitation) => {
+    const target = targetForCitation(citation);
+    if (!target) return;
+    setPinned({ key: transcriptKey, target, tab: target.tab });
+    setSourceOpen(true);
+    // The other tab fills itself: `useSourceCompanion` runs off whatever the
+    // pane is pointed at, so a click needs to say *what* is being opened and
+    // nothing more. It used to do the lookup here, which is why only clicked
+    // citations ever filled both tabs.
+  };
 
   /**
    * A report row points at two things at once — the requirement and the code
@@ -358,30 +352,28 @@ export function AppShell({
    * storage. Guessing them would put the highlight in the wrong place, which
    * is worse than not drawing one.
    */
-  const openReportRow = useCallback(
-    async (reqId: string, evidence: CodeCitation | null, tab: SourceTab) => {
-      // Close first. The drawer sits over the source pane, so opening a
-      // citation behind it would put the thing the user asked to see in the
-      // one place they cannot look. The run survives — it lives above.
-      setReportOpen(false);
-      const citation = await fetchRequirementCitation(reqId);
-      if (!citation) return;
-      setPinned({
-        key: transcriptKey,
-        target: { tab, citation, companion: evidence },
-        tab,
-      });
-      setSourceOpen(true);
-    },
-    [transcriptKey],
-  );
+  const openReportRow = async (
+    reqId: string,
+    evidence: CodeCitation | null,
+    tab: SourceTab,
+  ) => {
+    // Close first. The drawer sits over the source pane, so opening a
+    // citation behind it would put the thing the user asked to see in the
+    // one place they cannot look. The run survives — it lives above.
+    setReportOpen(false);
+    const citation = await fetchRequirementCitation(reqId);
+    if (!citation) return;
+    setPinned({
+      key: transcriptKey,
+      target: { tab, citation, companion: evidence },
+      tab,
+    });
+    setSourceOpen(true);
+  };
 
-  const changeSourceTab = useCallback(
-    (tab: SourceTab) => {
-      setPinned({ key: transcriptKey, target: sourceTarget, tab });
-    },
-    [transcriptKey, sourceTarget],
-  );
+  const changeSourceTab = (tab: SourceTab) => {
+    setPinned({ key: transcriptKey, target: sourceTarget, tab });
+  };
 
   /**
    * Open (or close) the report drawer — and, on open, look for a run this tab
@@ -390,61 +382,55 @@ export function AppShell({
    * shows a blank launch form. Discovery only ever attaches to a run still
    * `running`; a finished matrix never hijacks the form (see `useReport`).
    */
-  const openReport = useCallback(
-    (open: boolean) => {
-      setReportOpen(open);
-      if (open && live) void discoverReport();
-    },
-    [live, discoverReport],
-  );
+  const openReport = (open: boolean) => {
+    setReportOpen(open);
+    if (open && live) void discoverReport();
+  };
 
   /* --------------------------------------------------------------- chat ---- */
 
-  const handleSend = useCallback(
-    async (text: string) => {
-      const active = thread ?? (await threads.create());
-      lastPromptRef.current = text;
-      streamThreadRef.current = active.id;
-      // Paint the message and open the stream *before* touching the store.
-      //
-      // The store write is bookkeeping; blocking on it delayed the user's own
-      // message by ~500 ms of round trip on every send, measured. In live mode
-      // it is not even a write — `POST /chat` is what persists a turn — so the
-      // await bought nothing at all and cost half a second of the thing the
-      // user is waiting to see.
-      setUnsaved({
-        threadId: active.id,
-        messages: [localMessage("user", text, [])],
+  const handleSend = async (text: string) => {
+    const active = thread ?? (await threads.create());
+    lastPromptRef.current = text;
+    streamThreadRef.current = active.id;
+    // Paint the message and open the stream *before* touching the store.
+    //
+    // The store write is bookkeeping; blocking on it delayed the user's own
+    // message by ~500 ms of round trip on every send, measured. In live mode
+    // it is not even a write — `POST /chat` is what persists a turn — so the
+    // await bought nothing at all and cost half a second of the thing the
+    // user is waiting to see.
+    setUnsaved({
+      threadId: active.id,
+      messages: [localMessage("user", text, [])],
+    });
+    send(active.id, text);
+
+    // Local mode really does write here, so drop the in-memory copy once the
+    // store holds the same message — otherwise it would render twice.
+    void threads
+      .append(active.id, { role: "user", content: text, events: [] })
+      .then((stored) => {
+        const last = stored?.messages.at(-1);
+        if (last?.role === "user" && last.content === text)
+          setUnsaved({ threadId: null, messages: [] });
       });
-      send(active.id, text);
+  };
 
-      // Local mode really does write here, so drop the in-memory copy once the
-      // store holds the same message — otherwise it would render twice.
-      void threads
-        .append(active.id, { role: "user", content: text, events: [] })
-        .then((stored) => {
-          const last = stored?.messages.at(-1);
-          if (last?.role === "user" && last.content === text)
-            setUnsaved({ threadId: null, messages: [] });
-        });
-    },
-    [thread, threads, send],
-  );
-
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     if (lastPromptRef.current) void handleSend(lastPromptRef.current);
-  }, [handleSend]);
+  };
 
   /* --------------------------------------------------------- checkpoints -- */
 
-  const scrollToExchange = useCallback((id: string) => {
+  const scrollToExchange = (id: string) => {
     const found = transcriptRef.current?.querySelector<HTMLElement>(
       `[data-exchange-id="${id}"]`,
     );
     if (!found) return;
     found.scrollIntoView({ behavior: "smooth", block: "start" });
     setFlashExchangeId(id);
-  }, []);
+  };
 
   /**
    * A checkpoint restore (story S5.4.1): scroll to the turn **and** put the
@@ -460,21 +446,18 @@ export function AppShell({
    * the previous turn's page up, which would attribute a source to a turn that
    * had none.
    */
-  const restoreCheckpoint = useCallback(
-    (exchange: Exchange) => {
-      scrollToExchange(exchange.id);
-      setPinned({
-        key: transcriptKey,
-        target: exchange.target,
-        tab: exchange.target?.tab ?? "document",
-        fromTurn: exchange.turn,
-      });
-      setSourceOpen(true);
-    },
-    [scrollToExchange, transcriptKey],
-  );
+  const restoreCheckpoint = (exchange: Exchange) => {
+    scrollToExchange(exchange.id);
+    setPinned({
+      key: transcriptKey,
+      target: exchange.target,
+      tab: exchange.target?.tab ?? "document",
+      fromTurn: exchange.turn,
+    });
+    setSourceOpen(true);
+  };
 
-  const returnToLatest = useCallback(() => setPinned(null), []);
+  const returnToLatest = () => setPinned(null);
 
   useEffect(() => {
     if (!flashExchangeId) return;
@@ -484,29 +467,26 @@ export function AppShell({
 
   /* ------------------------------------------------------------- threads -- */
 
-  const handleDelete = useCallback(
-    async (id: string) => {
-      const removed = await threads.remove(id);
-      if (!removed) return;
-      // Delete is immediate but reversible. A confirmation dialog is not on the
-      // canvas, and thread export (F5.7) does not exist yet, so an undo is the
-      // smaller addition that still stops one misclick losing a conversation.
-      toast("Thread deleted", {
-        description: removed.title,
-        action: {
-          label: "Undo",
-          onClick: () => void threads.restore(removed),
-        },
-      });
-    },
-    [threads],
-  );
+  const handleDelete = async (id: string) => {
+    const removed = await threads.remove(id);
+    if (!removed) return;
+    // Delete is immediate but reversible. A confirmation dialog is not on the
+    // canvas, and thread export (F5.7) does not exist yet, so an undo is the
+    // smaller addition that still stops one misclick losing a conversation.
+    toast("Thread deleted", {
+      description: removed.title,
+      action: {
+        label: "Undo",
+        onClick: () => void threads.restore(removed),
+      },
+    });
+  };
 
-  const commitHeaderRename = useCallback(() => {
+  const commitHeaderRename = () => {
     if (renamingTitle === null || !threadId) return;
     void threads.rename(threadId, renamingTitle);
     setRenamingTitle(null);
-  }, [renamingTitle, threadId, threads]);
+  };
 
   /* -------------------------------------------------------------- render -- */
 

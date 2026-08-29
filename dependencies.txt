@@ -205,6 +205,7 @@ declared, dev:
   @types/node                  ^20          -> 20.19.43      # framework (create-next-app)
   @types/react                 ^19          -> 19.2.18       # framework (create-next-app)
   @types/react-dom             ^19          -> 19.2.5        # framework (create-next-app)
+  babel-plugin-react-compiler  ^1.0.0       -> 1.0.0       
   eslint                       ^9           -> 9.39.5        # framework (create-next-app)
   eslint-config-next           16.3.3       -> 16.3.3        # framework (create-next-app)
   tailwindcss                  ^4           -> 4.3.3         # styling (create-next-app, spec §11)
@@ -993,4 +994,4 @@ listed here so this inventory is complete rather than indicative:
   zod-validation-error                         4.0.2
   zwitch                                       2.0.4
 
-total resolved: 805 packages
+total resolved: 806 packages

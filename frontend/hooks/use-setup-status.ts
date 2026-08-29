@@ -22,7 +22,7 @@
  * comment on it.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { chatSourceKind } from "@/lib/chat-sources";
 
@@ -85,7 +85,7 @@ export function useSetupStatus(): {
   // style choice: React's `set-state-in-effect` rule rejects an effect that
   // reaches setState through a direct call, and accepts one that only sets
   // state inside a callback.
-  const refresh = useCallback(() => setNonce((value) => value + 1), []);
+  const refresh = () => setNonce((value) => value + 1);
 
   useEffect(() => {
     // BootGate renders the app before ever reading this state in canned mode,
@@ -114,14 +114,16 @@ export function useSetupStatus(): {
     };
   }, [nonce]);
 
-  // Follow a running ingestion without the caller having to poll.
+  // Follow a running ingestion without the caller having to poll. The nonce
+  // bump is inlined rather than going through `refresh` so the effect depends
+  // on nothing whose identity the lint would have to trust.
   const running =
     state.phase === "loaded" && state.status.ingest.status === "running";
   useEffect(() => {
     if (!running) return;
-    const timer = setInterval(refresh, POLL_MS);
+    const timer = setInterval(() => setNonce((value) => value + 1), POLL_MS);
     return () => clearInterval(timer);
-  }, [running, refresh]);
+  }, [running]);
 
   return { state, refresh };
 }

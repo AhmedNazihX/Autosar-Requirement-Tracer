@@ -76,6 +76,10 @@ export function useChatStream({
     return () => abortRef.current?.abort();
   }, []);
 
+  // The manual useCallbacks in this hook are load-bearing, not leftovers: the
+  // React Compiler bails out on this file (the streaming `for await` loop and
+  // the `finally` clause are constructs it cannot lower yet — check with the
+  // compiler-coverage script if in doubt), so nothing memoizes these but us.
   const send = useCallback((threadId: string, message: string) => {
     abortRef.current?.abort();
     const controller = new AbortController();

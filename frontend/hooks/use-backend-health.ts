@@ -14,7 +14,7 @@
  * code-unit totals.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { chatSourceKind } from "@/lib/chat-sources";
 
@@ -61,10 +61,10 @@ export function useBackendHealth(): {
 
   // "checking" is set here, in the event handler, rather than in the effect —
   // the effect only ever writes state from the fetch's own callbacks.
-  const recheck = useCallback(() => {
+  const recheck = () => {
     setHealth({ status: "checking" });
     setNonce((value) => value + 1);
-  }, []);
+  };
 
   return { health, recheck };
 }

@@ -12,7 +12,7 @@
  * "Threads survive reload" is therefore a property of the store, not of the UI.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   appendMessage,
@@ -57,16 +57,16 @@ export function useThreads(): UseThreadsResult {
   // before the chat stream ever started. The stream has its own error handling
   // and produces the "could not reach the backend" event the UI already
   // renders; bookkeeping around it must never pre-empt that.
-  const refresh = useCallback(async () => {
+  const refresh = async () => {
     try {
       setSummaries(await listThreads());
     } catch {
       // Keep the list we have. Blanking the sidebar because one refresh failed
       // would lose the user's place over a transient error.
     }
-  }, []);
+  };
 
-  const select = useCallback(async (id: string) => {
+  const select = async (id: string) => {
     let found: Thread | null = null;
     try {
       found = await getThread(id);
@@ -75,7 +75,7 @@ export function useThreads(): UseThreadsResult {
     }
     setThread(found);
     setActiveThreadId(found?.id ?? null);
-  }, []);
+  };
 
   // Seeding the canned conversation on an empty store is what makes F5.2's
   // acceptance vehicle visible on first load, and it is stored exactly like a
@@ -110,75 +110,63 @@ export function useThreads(): UseThreadsResult {
     })();
   }, []);
 
-  const create = useCallback(async () => {
+  const create = async () => {
     const created = await createThread();
     await refresh();
     setThread(created);
     setActiveThreadId(created.id);
     return created;
-  }, [refresh]);
+  };
 
-  const rename = useCallback(
-    async (id: string, title: string) => {
-      await renameThread(id, title);
-      await refresh();
-      setThread((current) =>
-        current && current.id === id
-          ? { ...current, title: title.trim() || current.title }
-          : current,
-      );
-    },
-    [refresh],
-  );
+  const rename = async (id: string, title: string) => {
+    await renameThread(id, title);
+    await refresh();
+    setThread((current) =>
+      current && current.id === id
+        ? { ...current, title: title.trim() || current.title }
+        : current,
+    );
+  };
 
-  const remove = useCallback(
-    async (id: string) => {
-      const removed = await getThread(id);
-      await deleteThread(id);
-      const remaining = await listThreads();
-      setSummaries(remaining);
-      if (thread?.id === id) {
-        const next = remaining[0] ? await getThread(remaining[0].id) : null;
-        setThread(next);
-        setActiveThreadId(next?.id ?? null);
-      }
-      return removed;
-    },
-    [thread],
-  );
+  const remove = async (id: string) => {
+    const removed = await getThread(id);
+    await deleteThread(id);
+    const remaining = await listThreads();
+    setSummaries(remaining);
+    if (thread?.id === id) {
+      const next = remaining[0] ? await getThread(remaining[0].id) : null;
+      setThread(next);
+      setActiveThreadId(next?.id ?? null);
+    }
+    return removed;
+  };
 
-  const restore = useCallback(
-    async (value: Thread) => {
-      await putThread(value);
-      await refresh();
-      setThread(value);
-      setActiveThreadId(value.id);
-    },
-    [refresh],
-  );
+  const restore = async (value: Thread) => {
+    await putThread(value);
+    await refresh();
+    setThread(value);
+    setActiveThreadId(value.id);
+  };
 
   // Takes the thread id explicitly rather than reading the active thread: a
   // stream settles asynchronously, and the message has to land on the thread it
   // was sent to even if the user has since selected another one.
-  const append = useCallback(
-    async (threadId: string, message: NewMessage) => {
-      let updated: Thread | null = null;
-      try {
-        updated = await appendMessage(threadId, message);
-      } catch {
-        // In live mode this is a re-read: `POST /chat` already persisted the
-        // turn. Failing it means the backend went away, which the stream is
-        // about to report properly — so leave the transcript alone and let it.
-        return null;
-      }
-      setThread((current) =>
-        updated && current?.id === threadId ? updated : current,
-      );
-      await refresh();
-      return updated;
-    },
-    [refresh],
-  );
+  const append = async (threadId: string, message: NewMessage) => {
+    let updated: Thread | null = null;
+    try {
+      updated = await appendMessage(threadId, message);
+    } catch {
+      // In live mode this is a re-read: `POST /chat` already persisted the
+      // turn. Failing it means the backend went away, which the stream is
+      // about to report properly — so leave the transcript alone and let it.
+      return null;
+    }
+    setThread((current) =>
+      updated && current?.id === threadId ? updated : current,
+    );
+    await refresh();
+    return updated;
+  };
 
   return {
     summaries,

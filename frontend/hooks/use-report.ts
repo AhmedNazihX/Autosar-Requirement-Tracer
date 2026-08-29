@@ -72,6 +72,9 @@ export function useReport(): {
   const [following, setFollowing] = useState<string | null>(null);
   const launchRef = useRef<LaunchResponse | null>(null);
 
+  // The manual useCallbacks in this hook are load-bearing, not leftovers: the
+  // React Compiler bails out on this file (the SSE `for await` loop is a
+  // construct it cannot lower yet), so nothing memoizes these but us.
   const launch = useCallback(async (scope: ReportScope) => {
     setState({ phase: "launching" });
     try {

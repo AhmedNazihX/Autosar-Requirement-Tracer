@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
   CopyIcon,
@@ -70,7 +70,7 @@ export function CodeTab({
   // The spans a cached verdict cited in the open file. More than one earns the
   // Evidence card its stepper; spans in *other* files are not offered, because
   // stepping there would silently swap the file under the citation.
-  const verdictSpans = useMemo(() => {
+  const verdictSpans = (() => {
     if (!citation) return [];
     const seen = new Set<string>();
     const spans: [number, number][] = [];
@@ -82,7 +82,7 @@ export function CodeTab({
       spans.push([item.lines[0], item.lines[1]]);
     }
     return spans;
-  }, [citation, implementation]);
+  })();
 
   // Keyed by what is on screen, so a new citation or requirement lands back on
   // its own span without an effect resetting state.

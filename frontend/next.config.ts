@@ -8,6 +8,12 @@ const BACKEND_ORIGIN =
   process.env.REQTRACE_BACKEND_ORIGIN ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  // Build-time auto-memoization (React Compiler, via
+  // babel-plugin-react-compiler). Components and hooks that follow the Rules
+  // of React get their skip-unchanged-work logic generated at compile time,
+  // which is what lets the code below stay free of manual useMemo/useCallback;
+  // a component the compiler cannot prove safe is left untouched, not broken.
+  reactCompiler: true,
   async rewrites() {
     return [
       {

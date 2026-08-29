@@ -60,6 +60,9 @@ export function useIngestLog(active: boolean): {
   // while the stream is open and nothing terminal has arrived, it is streaming.
   const phase: IngestPhase = outcome ?? (active ? "streaming" : "idle");
 
+  // Load-bearing useCallback, not a leftover: the React Compiler bails out on
+  // this file (the SSE `for await` loop is a construct it cannot lower yet),
+  // so nothing memoizes this but us.
   const reset = useCallback(() => {
     setLines([]);
     setOutcome(null);
