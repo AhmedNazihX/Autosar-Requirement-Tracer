@@ -501,6 +501,7 @@ export function AppShell({
       isStreaming={isStreaming}
       transcriptRef={transcriptRef}
       flashExchangeId={flashExchangeId}
+      setup={setup}
       onSend={(text) => void handleSend(text)}
       onStop={stop}
       onOpenCitation={openCitation}

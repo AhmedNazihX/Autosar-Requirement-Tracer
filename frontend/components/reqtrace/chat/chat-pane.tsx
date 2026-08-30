@@ -11,6 +11,7 @@ import type {
   RequirementCitation,
 } from "@/lib/events";
 import type { Exchange } from "@/lib/exchanges";
+import type { SetupStatus } from "@/hooks/use-setup-status";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +35,7 @@ export function ChatPane({
   isStreaming,
   transcriptRef,
   flashExchangeId,
+  setup = null,
   onSend,
   onStop,
   onOpenCitation,
@@ -44,6 +46,8 @@ export function ChatPane({
   isStreaming: boolean;
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   flashExchangeId: string | null;
+  /** Live corpus counts for the empty state; null in canned mode. */
+  setup?: SetupStatus | null;
   onSend: (text: string) => void;
   onStop: () => void;
   onOpenCitation: (citation: RequirementCitation | CodeCitation) => void;
@@ -97,6 +101,7 @@ export function ChatPane({
       >
         {isEmpty ? (
           <EmptyThread
+            setup={setup}
             onPick={(prompt) => {
               setDraft(prompt);
               composerRef.current?.focus();
