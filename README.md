@@ -372,12 +372,20 @@ and that forged citations and evidence spans are dropped when resolved back
 onto the database.
 
 **Live** (`uv run python -m evaluation.injection_eval run`) puts the same
-fixtures through the real product against the pinned models. **8 held,
-2 compromised** on the original measurement; a re-run on 2026-08-27, after
+fixtures through the real product against the pinned models. The five chat
+attacks post to the live `POST /chat` endpoint of a running backend (start it
+first; `--api` points elsewhere), and each one **leaves a persistent
+`injection-…` thread in the sidebar** — deliberately never deleted, so every
+attack conversation can be opened and read exactly as the agent lived it. The
+five judge attacks stay in-process, because their poison goes into in-memory
+objects no HTTP request can reach. **8 held, 2 compromised** on the original
+measurement; a re-run on 2026-08-27, after
 the audit's refactors, reproduced the same ten outcomes exactly. A third run
 on 2026-08-28, after the corpus grew to seven documents, scored **9 held,
 1 compromised** — `prompt-extraction` flipped to held, and the flip is
-reported below for what it is: model variance, not a fixed defence.
+reported below for what it is: model variance, not a fixed defence. A fourth
+run on 2026-08-30 — the first through the live `/chat` endpoint — reproduced
+9 held, 1 compromised, and is the run the saved JSON now holds.
 
 | attack | scored by | outcome | what happened |
 | --- | --- | --- | --- |
