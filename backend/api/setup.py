@@ -19,10 +19,13 @@ API is reading; two concurrent runs would race on it for no benefit, so a second
 request while one is running returns the job already in flight rather than
 starting another.
 
-**The API keeps serving during a run, but its index is stale.** Nothing here
-swaps the loaded index in place — the running process indexed what it indexed at
-boot. So a finished job reports ``restart_required``, which is honest, rather
-than the setup screen claiming readiness the current process cannot deliver.
+**The API keeps serving during a run, but its index is stale.** The running
+process indexed what it indexed at boot, so a finished job reports
+``restart_required`` — and ``POST /setup/reload`` is the sanctioned way out:
+it rebuilds the state from disk and swaps it in, which is what the setup
+screen's "Open ReqTrace" button calls. Readiness is still never claimed, only
+re-measured — the reload's response is a fresh ``SetupStatus`` and the caller
+checks ``ready``.
 """
 
 from __future__ import annotations
@@ -37,7 +40,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
@@ -177,6 +180,43 @@ def _requirements_per_document(state: deps.AppState) -> dict[str, int]:
             (state.manifest.project_id,),
         )
     }
+
+
+# --------------------------------------------------------------------------
+# reloading the state in place
+# --------------------------------------------------------------------------
+
+
+@router.post("/reload", response_model=SetupStatus)
+def reload_state(request: Request) -> SetupStatus:
+    """Rebuild the corpus state from disk and swap it in — the boot load, on
+    demand.
+
+    This is what makes the setup screen's "Open ReqTrace" button honest: after
+    ingestion the running process is still serving whatever it loaded at boot,
+    and the old answer was "restart the server". The state is one attribute on
+    the app and :func:`api.deps.load_state` is a pure builder, so it can be
+    rebuilt and swapped atomically instead. The response is the fresh status —
+    the caller checks ``ready`` rather than assuming.
+
+    Refused while ingestion runs: that would open a database mid-write.
+    """
+    job = REGISTRY.current()
+    if job is not None and job.view().status == "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Ingestion is still running — reload when it finishes.",
+        )
+    fresh = deps.load_state(get_settings().project_manifest)
+    old: deps.AppState = request.app.state.reqtrace
+    request.app.state.reqtrace = fresh
+    # Close the old pool only when it cannot be serving anyone: a not-ready
+    # state has no chat traffic. A ready→ready reload leaves the old pool to
+    # garbage collection rather than yanking connections from an in-flight
+    # turn.
+    if not old.ready:
+        old.close()
+    return status(state=fresh)
 
 
 # --------------------------------------------------------------------------

@@ -280,6 +280,32 @@ def test_the_reporter_publishes_pipeline_lines_to_the_job():
 
 
 # --------------------------------------------------------------------------
+# reloading the state in place
+# --------------------------------------------------------------------------
+
+
+def test_reload_swaps_the_state_without_a_restart(indexed, monkeypatch):
+    """The 'Open ReqTrace' button after ingestion: the boot load, on demand."""
+    http, _, _ = indexed
+    fresh = deps.AppState(error="fresh sentinel")
+    monkeypatch.setattr(setup.deps, "load_state", lambda path: fresh)
+
+    body = http.post("/setup/reload").json()
+
+    assert body["error"] == "fresh sentinel"
+    assert http.app.state.reqtrace is fresh, "requests must now see the new state"
+
+
+def test_reload_refuses_while_ingestion_runs(indexed, monkeypatch):
+    """Reloading mid-run would open a database the pipeline is writing."""
+    http, _, _ = indexed
+    monkeypatch.setattr(setup, "_run_job", lambda *args: None)
+    http.post("/setup/ingest")
+
+    assert http.post("/setup/reload").status_code == 409
+
+
+# --------------------------------------------------------------------------
 # pasting a key
 # --------------------------------------------------------------------------
 

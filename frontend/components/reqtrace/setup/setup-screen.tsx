@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
+  ArrowRightIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -33,7 +34,9 @@ import { ThemeToggle } from "@/components/reqtrace/theme-toggle";
  *   backend not running   -> how to start it, and a retry
  *   no API key            -> the exact line to paste, and a re-check
  *   no index              -> run ingestion, with the five-step tracker
- *   index present, stale  -> restart required, said plainly
+ *   ingestion finished    -> "Open ReqTrace", which reloads the server's
+ *                            state in place (POST /setup/reload) — restart
+ *                            instructions only as the fallback if that fails
  *
  * The canvas's first-run rule is followed exactly: **a disabled control says
  * why it is disabled** — the reason renders beside the button, never on hover.
@@ -108,6 +111,37 @@ export function SetupScreen({
     onRecheck();
   }
 
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+
+  /** The "Open ReqTrace" button: ask the backend to reload its state from
+   *  disk, then re-check — the boot gate renders the app the moment status
+   *  reports ready. No server restart, no page reload. */
+  async function openApp() {
+    setOpening(true);
+    setOpenError(null);
+    try {
+      const response = await fetch("/api/py/setup/reload", { method: "POST" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const fresh: unknown = await response.json();
+      const ready =
+        typeof fresh === "object" &&
+        fresh !== null &&
+        (fresh as { ready?: unknown }).ready === true;
+      if (!ready) {
+        const reason =
+          typeof fresh === "object" && fresh !== null
+            ? String((fresh as { error?: unknown }).error ?? "")
+            : "";
+        throw new Error(reason || "the new index did not load");
+      }
+      onRecheck();
+    } catch (cause) {
+      setOpening(false);
+      setOpenError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
   return (
     <main className="flex min-h-dvh flex-col bg-background">
       <header className="flex h-12 flex-none items-center justify-between border-b px-5">
@@ -140,6 +174,9 @@ export function SetupScreen({
                 running={running || starting}
                 restartRequired={restartRequired}
                 logError={logError}
+                opening={opening}
+                openError={openError}
+                onOpen={openApp}
                 onCancel={cancelIngestion}
                 onRetry={startIngestion}
                 onRecheck={onRecheck}
@@ -155,14 +192,12 @@ export function SetupScreen({
                   onRecheck={onRecheck}
                   onStart={startIngestion}
                   starting={starting}
-                  restartRequired={restartRequired}
                 />
                 {status.error ? (
                   <Note tone="warn" icon={AlertTriangleIcon}>
                     {status.error}
                   </Note>
                 ) : null}
-                {restartRequired ? <RestartNote /> : null}
                 {startError ? (
                   <Note tone="warn" icon={AlertTriangleIcon}>
                     {startError}
@@ -244,23 +279,19 @@ function Checklist({
   onRecheck,
   onStart,
   starting,
-  restartRequired,
 }: {
   status: SetupStatus;
   onRecheck: () => void;
   onStart: () => void;
   starting: boolean;
-  restartRequired: boolean;
 }) {
   const indexed = status.index_present && status.requirements > 0;
   const keyMissing = !status.api_key_present;
   const blocked = starting
     ? "Starting…"
-    : restartRequired
-      ? "Restart the API to load what was just built."
-      : keyMissing
-        ? "Set the key first — the button stays disabled until a key is set."
-        : null;
+    : keyMissing
+      ? "Set the key first — the button stays disabled until a key is set."
+      : null;
 
   return (
     <div className="mt-6 flex flex-col gap-2">
@@ -493,6 +524,9 @@ function Tracker({
   running,
   restartRequired,
   logError,
+  opening,
+  openError,
+  onOpen,
   onCancel,
   onRetry,
   onRecheck,
@@ -504,6 +538,9 @@ function Tracker({
   running: boolean;
   restartRequired: boolean;
   logError: string | null;
+  opening: boolean;
+  openError: string | null;
+  onOpen: () => void;
   onCancel: () => void;
   onRetry: () => void;
   onRecheck: () => void;
@@ -580,6 +617,20 @@ function Tracker({
             <RotateCcwIcon className="size-3.5" />
             {failed ? "Retry — finished steps are kept" : "Run again"}
           </Button>
+        ) : restartRequired ? (
+          <>
+            <Button size="sm" onClick={onOpen} disabled={opening}>
+              {opening ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <ArrowRightIcon className="size-3.5" />
+              )}
+              Open ReqTrace
+            </Button>
+            <span className="text-[11.5px] text-muted-foreground">
+              The server loads the new index in place — nothing to restart.
+            </span>
+          </>
         ) : null}
         <Button size="sm" variant="outline" onClick={onRecheck}>
           <RefreshCwIcon className="size-3.5" />
@@ -603,7 +654,14 @@ function Tracker({
           {logError}
         </Note>
       ) : null}
-      {restartRequired ? <RestartNote /> : null}
+      {openError ? (
+        // The in-place reload failed — fall back to the old manual path.
+        <Note tone="warn" icon={AlertTriangleIcon}>
+          Could not load the new index in place ({openError}). Fall back to a
+          restart: stop <code className="font-mono">make dev</code> and run it
+          again, then reload this page.
+        </Note>
+      ) : null}
     </>
   );
 }
@@ -673,17 +731,6 @@ function IngestLog({ lines }: { lines: string[] }) {
         <div ref={endRef} />
       </div>
     </div>
-  );
-}
-
-function RestartNote() {
-  return (
-    <Note tone="ok" icon={RotateCcwIcon}>
-      Ingestion finished. This server is still serving the index it loaded at
-      boot, so <strong>restart it</strong> — stop{" "}
-      <code className="font-mono">make dev</code> and run it again — then
-      reload this page.
-    </Note>
   );
 }
 
