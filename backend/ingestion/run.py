@@ -163,6 +163,16 @@ class Reporter:
         number = STAGES.index(name) + 1
         self.line(f"[{number}/{len(STAGES)}] {name}: {detail}")
 
+    def stage_done(self, name: str, detail: str) -> None:
+        """A stage finished, and ``detail`` says what it produced.
+
+        Deliberately a no-op here: the CLI already prints each stage's result
+        lines as they happen, so repeating them would be noise. The setup
+        screen's SSE reporter overrides this to update its step tracker —
+        "638 requirements over 359 pages" where the running step said
+        "parsing PDFs".
+        """
+
     def once(self, key: str, text: str) -> None:
         """Print ``text`` the first time ``key`` is seen (per-file download lines)."""
         if key not in self._seen:
@@ -685,6 +695,12 @@ def run_ingestion(
     )
     for fetched in fetches:
         report.line(f"      {fetched.action:<14}{fetched.filename} ({fetched.bytes:,} bytes)")
+    actions = Counter(fetched.action for fetched in fetches)
+    report.stage_done(
+        "docs",
+        f"{len(fetches)} PDF(s) · {sum(f.bytes for f in fetches) / 1e6:.1f} MB · "
+        + " · ".join(f"{count} {action}" for action, count in sorted(actions.items())),
+    )
     if not opts.runs("extract"):
         return RunSummary(
             project_id=manifest.project_id,
@@ -727,6 +743,12 @@ def run_ingestion(
             f"extractor is unsure about. The full report was written to {artifacts[0]} "
             "first, so nothing is lost:\n  " + "\n  ".join(warnings)
         )
+
+    report.stage_done(
+        "extract",
+        f"{sum(len(r.extraction.requirements) for r in results)} requirements over "
+        f"{sum(r.page_count for r in results)} pages across {len(results)} document(s)",
+    )
 
     document_summaries = [
         DocumentSummary(
@@ -785,6 +807,11 @@ def run_ingestion(
         report.line(f"      note: {warning}")
     if len(index.warnings) > 5:
         report.line(f"      note: ... and {len(index.warnings) - 5} more annotation warning(s)")
+    report.stage_done(
+        "code",
+        f"{repo.sha[:7]} · {len(index.files)} file(s) → {code_summary.units} "
+        "functions and types with line spans",
+    )
 
     if not opts.runs("store"):
         return RunSummary(
@@ -816,10 +843,11 @@ def run_ingestion(
             if position % 250 == 0 or position == len(index.units):
                 report.line(f"      stored {position}/{len(index.units)} code units")
         join = tier1_join(conn, manifest, index)
-        report.line(
-            "      "
-            + ", ".join(f"{table} {count}" for table, count in _row_counts(conn, manifest).items())
+        stored_counts = ", ".join(
+            f"{table} {count}" for table, count in _row_counts(conn, manifest).items()
         )
+        report.line(f"      {stored_counts}")
+        report.stage_done("store", stored_counts)
 
         # -- 6. embeddings + Chroma ---------------------------------------
         embed_summary = EmbedSummary(skipped=True, reason="stage not reached")
@@ -830,6 +858,7 @@ def run_ingestion(
                     reason="--skip-embeddings: SQLite and BM25 are complete, Chroma is not",
                 )
                 report.stage("embed", "skipped (--skip-embeddings)")
+                report.stage_done("embed", "skipped — keyword index only, no vectors")
             else:
                 embed_summary = _embed_stage(
                     manifest, results, index, conn, opts, report, transport
@@ -890,6 +919,11 @@ def _embed_stage(
     upserted = vector_store.upsert(collection, documents, embedded.vectors)
     count = collection.count()
     report.line(f"      upserted {upserted} into {chroma_path} (collection holds {count})")
+    report.stage_done(
+        "embed",
+        f"{manifest.models.embedding} · {embedded.computed} computed, "
+        f"{embedded.cached} from cache · {upserted} upserted",
+    )
 
     return EmbedSummary(
         chunks=len(documents),

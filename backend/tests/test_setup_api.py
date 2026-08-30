@@ -92,7 +92,13 @@ def test_a_missing_index_says_how_to_build_it():
     assert body["ready"] is False
     assert "ingestion.run" in body["error"]
     assert body["requirements"] == 0
-    assert body["documents"] == []
+    # The document list still comes from the manifest: the setup screen has to
+    # say what WILL be fetched before anything exists. Counts are the index's,
+    # so they are zero.
+    assert [doc["key"] for doc in body["documents"]] == [
+        entry.key for entry in MANIFEST.documents
+    ]
+    assert all(doc["requirements"] == 0 for doc in body["documents"])
 
 
 def test_status_works_even_with_no_manifest():
@@ -271,3 +277,172 @@ def test_the_reporter_publishes_pipeline_lines_to_the_job():
     lines = job.view().lines
     assert lines[0].startswith("[1/5] docs:")
     assert "extraction_report" in lines[1]
+
+
+# --------------------------------------------------------------------------
+# pasting a key
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def env_file(tmp_path: Path, monkeypatch):
+    """Point the endpoint at a scratch .env and keep settings caches clean."""
+    target = tmp_path / ".env"
+    monkeypatch.setattr(setup, "ENV_FILE", target)
+    # setenv first so monkeypatch restores whatever the environment held even
+    # though the endpoint writes os.environ directly.
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-preexisting")
+    yield target
+    setup.get_settings.cache_clear()
+
+
+def test_a_pasted_key_is_saved_and_takes_effect(indexed, env_file):
+    http, _, _ = indexed
+
+    response = http.post("/setup/key", json={"key": "  sk-or-v1-pasted  "})
+
+    assert response.status_code == 200
+    assert "sk-or" not in response.text, "the key must never be echoed back"
+    assert "OPENROUTER_API_KEY=sk-or-v1-pasted" in env_file.read_text()
+    assert http.get("/setup/status").json()["api_key_present"] is True
+
+
+def test_a_pasted_key_replaces_the_existing_line(indexed, env_file):
+    env_file.write_text("MAX_REPORT_COST_USD=2.0\nOPENROUTER_API_KEY=sk-or-old\n")
+
+    indexed[0].post("/setup/key", json={"key": "sk-or-v1-new"})
+
+    content = env_file.read_text()
+    assert "MAX_REPORT_COST_USD=2.0" in content, "other settings are kept"
+    assert content.count("OPENROUTER_API_KEY=") == 1
+    assert "sk-or-v1-new" in content
+    assert "sk-or-old" not in content
+
+
+def test_a_blank_or_broken_key_is_refused(indexed, env_file):
+    http, _, _ = indexed
+    assert http.post("/setup/key", json={"key": "   "}).status_code == 400
+    assert http.post("/setup/key", json={"key": "sk-or v1 spaced"}).status_code == 400
+    assert not env_file.exists(), "a refused key writes nothing"
+
+
+# --------------------------------------------------------------------------
+# the step tracker (canvas artboard B)
+# --------------------------------------------------------------------------
+
+
+def test_the_reporter_publishes_steps_to_the_job():
+    """Each ``stage()`` call advances the structured step list the setup
+    screen's tracker renders — the previous step done, this one running."""
+    job, _ = setup.REGISTRY.start()
+    reporter = setup._QueueReporter(job)
+
+    reporter.stage("docs", "fetching 7 PDF(s)")
+    first = {step.key: step for step in job.view().steps}
+    assert first["docs"].status == "running"
+    assert first["docs"].detail == "fetching 7 PDF(s)"
+    assert first["extract"].status == "pending"
+
+    reporter.stage("extract", "parsing PDFs")
+    second = {step.key: step for step in job.view().steps}
+    assert second["docs"].status == "done"
+    assert second["extract"].status == "running"
+    assert [step.key for step in job.view().steps] == list(setup.ingestion_run.STAGES)
+    assert all(step.label for step in job.view().steps)
+
+
+def test_a_completed_stage_swaps_its_detail_for_the_result_summary():
+    """`stage()` says what a step is about to do; `stage_done()` says what it
+    produced — the tracker shows the latter once the step finishes."""
+    job, _ = setup.REGISTRY.start()
+    reporter = setup._QueueReporter(job)
+
+    reporter.stage("docs", "fetching 7 PDF(s)")
+    reporter.stage_done("docs", "7 PDFs · 48.2 MB · 7 checksum match(es)")
+
+    docs = next(s for s in job.view().steps if s.key == "docs")
+    assert docs.status == "done"
+    assert docs.detail == "7 PDFs · 48.2 MB · 7 checksum match(es)"
+
+
+def test_a_finished_job_marks_the_running_step_done():
+    job, _ = setup.REGISTRY.start()
+    setup._QueueReporter(job).stage("docs", "fetching")
+    job.finish()
+    assert {s.key: s.status for s in job.view().steps}["docs"] == "done"
+
+
+def test_a_failed_job_marks_the_running_step_failed():
+    job, _ = setup.REGISTRY.start()
+    setup._QueueReporter(job).stage("docs", "fetching")
+    job.finish(error="autosar.org refused the connection")
+    assert {s.key: s.status for s in job.view().steps}["docs"] == "failed"
+
+
+def test_the_job_reports_when_it_started():
+    """The elapsed clock on the setup screen ticks from this timestamp."""
+    job, _ = setup.REGISTRY.start()
+    assert job.view().started_at
+
+
+def test_the_events_stream_carries_step_frames(indexed):
+    job, _ = setup.REGISTRY.start()
+    reporter = setup._QueueReporter(job)
+    reporter.stage("docs", "fetching")
+    job.finish()
+
+    parsed = frames(indexed[0].get("/setup/ingest/events").text)
+
+    steps_frames = [f for f in parsed if f["type"] == "steps"]
+    assert steps_frames, "the step tracker needs structured frames, not prose"
+    steps = steps_frames[-1]["data"]["steps"]
+    assert steps[0]["key"] == "docs"
+    assert steps[0]["label"], "the label is the wire's, so both screens agree"
+
+
+# --------------------------------------------------------------------------
+# cancellation
+# --------------------------------------------------------------------------
+
+
+def test_the_cancel_endpoint_flags_the_running_job(indexed, monkeypatch):
+    http, _, _ = indexed
+    monkeypatch.setattr(setup, "_run_job", lambda *args: None)
+    http.post("/setup/ingest")
+
+    body = http.post("/setup/ingest/cancel").json()
+
+    # Still "running" until the job notices at its next report — the endpoint
+    # only raises the flag.
+    assert body["status"] == "running"
+    assert setup.REGISTRY.current().cancelled.is_set()
+
+
+def test_cancelling_when_nothing_runs_is_a_no_op(indexed):
+    assert indexed[0].post("/setup/ingest/cancel").json()["status"] == "idle"
+
+
+def test_a_cancelled_run_stops_at_the_next_report_and_keeps_its_steps(
+    indexed, monkeypatch
+):
+    """Cancellation is cooperative: the flag is checked at every reporter
+    callback, so the run stops at the next line or stage, never mid-write."""
+    job, _ = setup.REGISTRY.start()
+
+    def fake_run(manifest, options, reporter=None):
+        reporter.stage("docs", "fetching 7 PDF(s)")
+        job.cancelled.set()
+        reporter.stage("extract", "parsing")
+        raise AssertionError("the run must stop at the first report after cancel")
+
+    monkeypatch.setattr(setup.ingestion_run, "run_ingestion", fake_run)
+    setup._run_job(job, MANIFEST, False)
+
+    view = job.view()
+    assert view.status == "cancelled"
+    assert view.restart_required is False
+    statuses = {s.key: s.status for s in view.steps}
+    assert statuses["docs"] == "done", "finished steps are kept"
+    assert any("re-run" in line.lower() for line in view.lines), (
+        "the cancel message must say finished work is kept"
+    )

@@ -297,6 +297,36 @@ def test_the_first_run_builds_everything(corpus):
     assert summary.index_check.hits >= 1, "the smoke query must find something"
 
 
+def test_every_stage_reports_a_completion_summary(corpus):
+    """The setup screen's step tracker shows what each stage *produced* — the
+    canvas draws "638 requirements over 359 pages", not "parsing PDFs". The
+    base Reporter ignores `stage_done`; the SSE reporter renders it."""
+    manifest, _, source_pdf = corpus
+
+    class Recording(run.Reporter):
+        def __init__(self):
+            super().__init__(quiet=True)
+            self.done: dict[str, str] = {}
+
+        def stage_done(self, name: str, detail: str) -> None:
+            self.done[name] = detail
+
+    reporter = Recording()
+    run.run_ingestion(
+        manifest,
+        run.Options(),
+        reporter=reporter,
+        downloader=FakeDownloader(source_pdf),
+        git_runner=FakeGit({"communication/Fix/Fix.c": FIXTURE_C}),
+        transport=FakeTransport(),
+    )
+
+    assert set(reporter.done) == set(run.STAGES)
+    assert all(reporter.done.values()), "a summary must say something"
+    assert "requirements" in reporter.done["extract"]
+    assert "upserted" in reporter.done["embed"]
+
+
 def test_a_download_reports_byte_progress_not_just_a_start_line(corpus, capsys):
     """The fetcher reports byte counts through ``on_chunk``; ``run.py`` used
     to discard them, so a 100 MB download showed one line and then silence."""

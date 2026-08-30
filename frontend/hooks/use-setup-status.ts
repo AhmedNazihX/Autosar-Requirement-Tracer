@@ -35,12 +35,30 @@ export interface DocumentStatus {
   requirements: number;
 }
 
-export type IngestJobStatus = "idle" | "running" | "succeeded" | "failed";
+export type IngestJobStatus =
+  | "idle"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export type IngestStepStatus = "pending" | "running" | "done" | "failed";
+
+/** One pipeline stage as the step tracker draws it. Mirrors `StepView`. */
+export interface IngestStep {
+  key: string;
+  label: string;
+  status: IngestStepStatus;
+  detail: string;
+}
 
 export interface IngestJobView {
   id: string | null;
   status: IngestJobStatus;
   lines: string[];
+  steps: IngestStep[];
+  /** ISO 8601 — the elapsed clock ticks from this. */
+  started_at: string | null;
   error: string | null;
   restart_required: boolean;
 }
