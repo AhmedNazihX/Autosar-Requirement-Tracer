@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   CopyIcon,
   GitCommitHorizontalIcon,
   ScanLineIcon,
@@ -152,6 +154,72 @@ export function CodeTab({
       links={links}
       onOpenRequirement={onOpenRequirement}
     />
+  );
+}
+
+/**
+ * The "Traces to" chip row, minimizable exactly like the Evidence card below
+ * it: a Cap header that toggles, chevron state, and — collapsed — a count so
+ * the header still says what it is hiding. A file tied to a dozen
+ * requirements otherwise pushes the source itself below the fold.
+ */
+function TracesRow({
+  links,
+  onOpenRequirement,
+}: {
+  links: readonly LinkedRequirement[];
+  onOpenRequirement?: (citation: RequirementCitation) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="flex-none border-b px-3 py-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex h-[22px] w-full min-w-0 items-center gap-1.5 text-left"
+      >
+        <Cap>Traces to</Cap>
+        {open ? (
+          <ChevronUpIcon className="size-3 text-muted-foreground" />
+        ) : (
+          <>
+            <ChevronDownIcon className="size-3 text-muted-foreground" />
+            <Meta>
+              {links.length} requirement{links.length === 1 ? "" : "s"}
+            </Meta>
+          </>
+        )}
+      </button>
+      {open ? (
+        <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+          {links.map((link) => {
+            const denied = link.claim === "claimed_not_implemented";
+            return (
+              <button
+                key={link.req_id}
+                type="button"
+                onClick={() => onOpenRequirement?.(citationForLink(link))}
+                title={
+                  denied
+                    ? `${link.via_symbol} carries a !req for this — the developers state it is NOT implemented here`
+                    : link.found_by === "annotation"
+                      ? `@req in ${link.via_symbol}`
+                      : `named by the requirement's own text`
+                }
+                className={
+                  denied
+                    ? "flex h-[22px] items-center gap-1 rounded-md border border-dashed border-verdict-missing-border bg-transparent px-[7px] font-mono text-[11px] leading-none text-muted-foreground line-through transition-colors hover:bg-muted"
+                    : "flex h-[22px] items-center gap-1 rounded-md border border-source-border bg-source-bg px-[7px] font-mono text-[11px] leading-none text-source transition-colors hover:brightness-110"
+                }
+              >
+                {link.req_id}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -309,33 +377,13 @@ function CodeView({
       ) : null}
 
       {links.length > 0 ? (
-        <div className="flex flex-none flex-wrap items-center gap-1.5 border-b px-3 py-2">
-          <Cap className="mr-0.5">Traces to</Cap>
-          {links.map((link) => {
-            const denied = link.claim === "claimed_not_implemented";
-            return (
-              <button
-                key={link.req_id}
-                type="button"
-                onClick={() => onOpenRequirement?.(citationForLink(link))}
-                title={
-                  denied
-                    ? `${link.via_symbol} carries a !req for this — the developers state it is NOT implemented here`
-                    : link.found_by === "annotation"
-                      ? `@req in ${link.via_symbol}`
-                      : `named by the requirement's own text`
-                }
-                className={
-                  denied
-                    ? "flex h-[22px] items-center gap-1 rounded-md border border-dashed border-verdict-missing-border bg-transparent px-[7px] font-mono text-[11px] leading-none text-muted-foreground line-through transition-colors hover:bg-muted"
-                    : "flex h-[22px] items-center gap-1 rounded-md border border-source-border bg-source-bg px-[7px] font-mono text-[11px] leading-none text-source transition-colors hover:brightness-110"
-                }
-              >
-                {link.req_id}
-              </button>
-            );
-          })}
-        </div>
+        // Keyed by the open file so a fresh file starts expanded, the same
+        // way the Evidence card resets per requirement.
+        <TracesRow
+          key={file.path}
+          links={links}
+          onOpenRequirement={onOpenRequirement}
+        />
       ) : null}
 
       {/* Cached verdicts only, and only here: the card is where a verdict is
