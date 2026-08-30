@@ -173,7 +173,11 @@ export function LaunchForm({
           </div>
 
           {mode === "modules" ? (
-            <div className="mt-2">
+            // Capped and scrollable: the corpus grew to seven documents, and
+            // an uncapped list pushed the cost estimate below the fold on
+            // shorter windows — half-hiding exactly the numbers the form
+            // exists to show before money is spent.
+            <div className="mt-2 max-h-[224px] overflow-y-auto">
               {moduleRows.map(({ module, title, requirements }) => (
                 <label
                   key={module}
@@ -203,7 +207,7 @@ export function LaunchForm({
           ) : null}
 
           {mode === "document" ? (
-            <div className="mt-2">
+            <div className="mt-2 max-h-[224px] overflow-y-auto">
               {documents.map((doc) => (
                 <label
                   key={doc.key}
@@ -269,7 +273,9 @@ export function LaunchForm({
                 <span className="block text-[11.5px] text-muted-foreground">
                   {lastData ? (
                     <>
-                      {lastData.cached.toLocaleString()} verdicts are cached
+                      {lastData.cached.toLocaleString()}{" "}
+                      {lastData.cached === 1 ? "verdict is" : "verdicts are"}{" "}
+                      cached
                       {sha7 ? (
                         <>
                           {" "}
@@ -387,7 +393,7 @@ function EstimateBox({
     // The estimate failing must not block the launch: the ceiling is enforced
     // server-side either way, and the error sentence names what went wrong.
     return (
-      <div className="mt-4 rounded-[10px] bg-muted px-3 py-2.5">
+      <div className="sticky bottom-0 mt-4 rounded-[10px] border bg-muted px-3 py-2.5 shadow-[0_-6px_12px_-6px_rgb(0_0_0/0.25)]">
         <p className="text-[11.5px] leading-[16px] text-muted-foreground">
           {error ?? "The scope could not be estimated."} You can still launch —
           the cost ceiling applies regardless.
@@ -402,15 +408,29 @@ function EstimateBox({
       : null;
 
   return (
+    // Sticky at the foot of the drawer's scroll area: the corpus grew to
+    // seven documents and the scope list above can outgrow a short window —
+    // and the one thing this form must never hide is what the run will cost.
     <div
-      className={`mt-4 rounded-[10px] bg-muted px-3 py-2.5 transition-opacity ${pending ? "opacity-60" : ""}`}
+      className={`sticky bottom-0 mt-4 rounded-[10px] border bg-muted px-3 py-2.5 shadow-[0_-6px_12px_-6px_rgb(0_0_0/0.25)] transition-opacity ${pending ? "opacity-60" : ""}`}
     >
       <EstimateRow label="Requirements in scope" value={data.requirements.toLocaleString()} />
+      {data.cached > 0 ? (
+        // A subtraction line, and it must read as one: the verdicts already
+        // judged at this snapshot are reused, not re-bought. "−1" without the
+        // operator column read as a broken value, not as arithmetic.
+        <EstimateRow
+          label={sha7 ? `Already judged at ${sha7}` : "Already judged (cached)"}
+          sign="−"
+          value={data.cached.toLocaleString()}
+        />
+      ) : null}
       <EstimateRow
-        label={sha7 ? `Cached at ${sha7}` : "Cached"}
-        value={`−${data.cached.toLocaleString()}`}
+        label="To judge"
+        sign={data.cached > 0 ? "=" : undefined}
+        value={data.to_judge.toLocaleString()}
+        bold
       />
-      <EstimateRow label="To judge" value={data.to_judge.toLocaleString()} bold />
       <div className="my-2 h-px bg-border" />
       <div className="flex items-end justify-between gap-3">
         <span className="text-[12.5px] font-medium">Estimated cost</span>
@@ -432,8 +452,7 @@ function EstimateBox({
           </div>
           <div className="mt-1.5 flex items-baseline gap-3">
             <span className="flex-1 text-[10.5px] leading-[14px] text-muted-foreground">
-              {ceilingShare}% of the{" "}
-              <span className="font-mono">MAX_REPORT_COST_USD</span> ceiling ($
+              {ceilingShare}% of the max report cost ($
               {data.ceiling_usd.toFixed(2)})
             </span>
             <Meta>{judgingTime(data.to_judge)}</Meta>
@@ -457,10 +476,14 @@ function EstimateBox({
 function EstimateRow({
   label,
   value,
+  sign,
   bold = false,
 }: {
   label: string;
   value: string;
+  /** Muted operator before the value (`−`, `=`), so the three rows read as
+   *  the sum they are. */
+  sign?: string;
   bold?: boolean;
 }) {
   return (
@@ -473,6 +496,9 @@ function EstimateRow({
         {label}
       </span>
       <span className={`font-mono text-[11.5px] tabular-nums ${bold ? "font-medium" : ""}`}>
+        {sign ? (
+          <span className="mr-1 text-muted-foreground">{sign}</span>
+        ) : null}
         {value}
       </span>
     </div>
